@@ -41,8 +41,12 @@ describe("runStudyTubeJob",()=>{
 
     const result=await runStudyTubeJob({projectPath,dataDir:join(root,"data"),jobId:"job-test",ttsProvider:"synthetic"},{provider:new SyntheticWavProvider(),render});
     expect(render).toHaveBeenCalledTimes(1);
-    expect((await readFile(result.paths.statusFile,"utf8"))).toContain('"state": "completed"');
-    expect((await readFile(result.paths.logFile,"utf8"))).toContain("render.completed");
+    const status=await readFile(result.paths.statusFile,"utf8");
+    const logs=await readFile(result.paths.logFile,"utf8");
+    expect(status).toContain('"state": "completed"');
+    expect(logs).toContain("project.reading");
+    expect(logs).toContain("render.progress");
+    expect(logs).toContain("render.completed");
     expect((await stat(result.outputPath)).isFile()).toBe(true);
   });
 
