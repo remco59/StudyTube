@@ -8,6 +8,7 @@ import {
 } from "@studytube/design-system";
 import {AbsoluteFill, useCurrentFrame, useVideoConfig} from "remotion";
 import {getSceneMotionStyle} from "../motion";
+import {SceneRenderer} from "../scenes/SceneRenderer";
 
 export type SceneFrameProps = {
   chapterTitle: string;
@@ -18,6 +19,7 @@ export const SceneFrame = ({chapterTitle, normalizedScene}: SceneFrameProps) => 
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const {scene, durationInFrames} = normalizedScene;
+  const immersive = scene.type === "title" || scene.type === "chapterIntro";
   const animatedStyle = getSceneMotionStyle({
     frame,
     durationInFrames,
@@ -45,126 +47,67 @@ export const SceneFrame = ({chapterTitle, normalizedScene}: SceneFrameProps) => 
           minHeight: 0,
         }}
       >
-        <div
-          style={{
-            alignItems: "center",
-            display: "flex",
-            justifyContent: "space-between",
-          }}
-        >
+        {!immersive ? (
           <div
             style={{
-              ...typography.label,
-              color: colors.accent,
-              textTransform: "uppercase",
+              alignItems: "center",
+              display: "flex",
+              justifyContent: "space-between",
             }}
           >
-            {chapterTitle}
+            <div
+              style={{
+                ...typography.label,
+                color: colors.accent,
+                textTransform: "uppercase",
+              }}
+            >
+              {chapterTitle}
+            </div>
+            <div
+              style={{
+                ...typography.label,
+                backgroundColor: colors.surface,
+                border: `1px solid ${colors.line}`,
+                borderRadius: radii.pill,
+                color: colors.textMuted,
+                padding: `${spacing.xs}px ${spacing.sm}px`,
+                textTransform: "uppercase",
+              }}
+            >
+              {scene.type}
+            </div>
           </div>
-          <div
-            style={{
-              ...typography.label,
-              backgroundColor: colors.surface,
-              border: `1px solid ${colors.line}`,
-              borderRadius: radii.pill,
-              color: colors.textMuted,
-              padding: `${spacing.xs}px ${spacing.sm}px`,
-              textTransform: "uppercase",
-            }}
-          >
-            {scene.type}
-          </div>
-        </div>
+        ) : null}
 
         <div
           style={{
-            alignItems: "center",
+            alignItems: "stretch",
             display: "flex",
             flex: 1,
             justifyContent: "center",
-            padding: `${spacing.xl}px 0`,
+            minHeight: 0,
+            padding: immersive ? 0 : `${spacing.lg}px 0`,
           }}
         >
-          <div
-            style={{
-              maxWidth: 1320,
-              textAlign: "center",
-            }}
-          >
-            <div
-              style={{
-                ...typography.display,
-                fontSize: 88,
-                marginBottom: spacing.lg,
-              }}
-            >
-              {getPlaceholderHeadline(scene.type)}
-            </div>
-            <div
-              style={{
-                ...typography.body,
-                color: colors.textMuted,
-                margin: "0 auto",
-                maxWidth: 1120,
-              }}
-            >
-              {scene.narration}
-            </div>
-          </div>
+          <SceneRenderer normalizedScene={normalizedScene} />
         </div>
 
-        <div
-          style={{
-            ...typography.label,
-            color: colors.textMuted,
-            display: "flex",
-            justifyContent: "space-between",
-            textTransform: "uppercase",
-          }}
-        >
-          <span>{scene.id}</span>
-          <span>StudyTube composition shell</span>
-        </div>
+        {!immersive ? (
+          <div
+            style={{
+              ...typography.label,
+              color: colors.textMuted,
+              display: "flex",
+              justifyContent: "space-between",
+              textTransform: "uppercase",
+            }}
+          >
+            <span>{scene.id}</span>
+            <span>StudyTube</span>
+          </div>
+        ) : null}
       </div>
     </AbsoluteFill>
   );
-};
-
-const getPlaceholderHeadline = (sceneType: NormalizedScene["scene"]["type"]): string => {
-  switch (sceneType) {
-    case "title":
-      return "Title scene";
-    case "chapterIntro":
-      return "Chapter intro";
-    case "kineticText":
-      return "Kinetic text";
-    case "definition":
-      return "Definition";
-    case "bigNumber":
-      return "Big number";
-    case "comparison":
-      return "Comparison";
-    case "timeline":
-      return "Timeline";
-    case "process":
-      return "Process";
-    case "flowchart":
-      return "Flowchart";
-    case "diagram":
-      return "Diagram";
-    case "iconScene":
-      return "Icon scene";
-    case "document":
-      return "Document";
-    case "documentHighlight":
-      return "Document highlight";
-    case "image":
-      return "Image";
-    case "question":
-      return "Question";
-    case "visualGag":
-      return "Visual gag";
-    case "recap":
-      return "Recap";
-  }
 };
