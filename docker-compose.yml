@@ -1,0 +1,44 @@
+services:
+  piper:
+    build:
+      context: ./docker/piper
+    container_name: studytube-piper
+    restart: unless-stopped
+    environment:
+      PIPER_VOICE: ${PIPER_VOICE:-nl_NL-mls-medium}
+      PIPER_DATA_DIR: /data
+    volumes:
+      - ${PIPER_DATA_PATH:-./piper-data}:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/info', timeout=4).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  studytube:
+    build:
+      context: .
+    container_name: studytube
+    restart: unless-stopped
+    depends_on:
+      piper:
+        condition: service_healthy
+    ports:
+      - "${STUDYTUBE_PORT:-3000}:3000"
+    environment:
+      STUDYTUBE_DATA_DIR: /data
+      STUDYTUBE_RENDERER_ENTRY: /app/apps/renderer/src/index.ts
+      PIPER_URL: http://piper:5000
+      PIPER_VOICE: ${PIPER_VOICE:-nl_NL-mls-medium}
+      PIPER_LENGTH_SCALE: ${PIPER_LENGTH_SCALE:-1}
+      NEXT_TELEMETRY_DISABLED: "1"
+    volumes:
+      - ${STUDYTUBE_DATA_PATH:-./data}:/data
+    shm_size: "1gb"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
