@@ -9,6 +9,15 @@ export type StudyTubeJobStatus={
   projectTitle?:string;
   outputPath?:string;
   error?:string;
+  downloadedAt?:string;
+  expiresAt?:string;
+};
+
+export type JobLogEntry={
+  timestamp:string;
+  event:string;
+  message:string;
+  data?:unknown;
 };
 
 export type JobPaths={
