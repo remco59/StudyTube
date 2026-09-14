@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/pipeline.ts",
+    "./types": "./src/types.ts"
+  },
   "scripts": {
     "render": "tsx src/cli.ts",
     "test": "vitest run",
