@@ -1,0 +1,16 @@
+{
+  "name": "studytube",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "engines": {"node": ">=24.0.0"},
+  "scripts": {
+    "dev:web": "npm run dev --workspace @studytube/web",
+    "dev:renderer": "npm run studio --workspace @studytube/renderer",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "check": "npm run lint && npm run typecheck && npm run build"
+  },
+  "devDependencies": {"typescript": "6.0.3"}
+}
