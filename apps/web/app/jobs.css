@@ -1,0 +1,253 @@
+.renderMain {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 18px;
+}
+
+.jobDetails {
+  overflow: hidden;
+  border: 1px solid #2f3440;
+  border-radius: 14px;
+  background: #111419;
+}
+
+.jobDetails summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  color: #c7c9cf;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+  list-style: none;
+}
+
+.jobDetails summary::-webkit-details-marker {
+  display: none;
+}
+
+.jobDetails summary::before {
+  content: "+";
+  width: 18px;
+  color: #9488e8;
+  font-size: 1rem;
+}
+
+.jobDetails[open] summary::before {
+  content: "−";
+}
+
+.jobDetails summary > span:first-of-type {
+  margin-right: auto;
+}
+
+.detailMeta {
+  overflow: hidden;
+  max-width: 46%;
+  color: #646a75;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logConsole {
+  display: grid;
+  max-height: 320px;
+  overflow: auto;
+  border-top: 1px solid #272c35;
+  background: #0b0d10;
+  padding: 8px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.72rem;
+}
+
+.logLine {
+  display: grid;
+  grid-template-columns: 72px minmax(120px, 170px) minmax(0, 1fr);
+  gap: 10px;
+  padding: 6px 12px;
+  color: #b7bbc4;
+  line-height: 1.45;
+}
+
+.logLine:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.logLine time {
+  color: #5f6570;
+}
+
+.logEvent {
+  overflow: hidden;
+  color: #9c91ef;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logEmpty {
+  padding: 16px 14px;
+  color: #666c77;
+}
+
+.jobsPanel {
+  margin-top: 18px;
+  border: 1px solid #292d35;
+  border-radius: 24px;
+  background: rgba(18, 21, 26, 0.72);
+  padding: 24px;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.12);
+}
+
+.jobsHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.jobsHeading .eyebrow {
+  margin-bottom: 8px;
+}
+
+.jobsList {
+  display: grid;
+  gap: 8px;
+}
+
+.jobRow {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid #292e38;
+  border-radius: 14px;
+  background: #14171c;
+  padding: 13px 14px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.jobRow:hover {
+  border-color: #46405f;
+  background: #171a20;
+  transform: translateY(-1px);
+}
+
+.jobRow.selected {
+  border-color: rgba(123, 97, 255, 0.5);
+  background: rgba(123, 97, 255, 0.07);
+}
+
+.jobIdentity {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.jobIdentity strong,
+.jobIdentity span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jobIdentity strong {
+  font-size: 0.9rem;
+}
+
+.jobIdentity span {
+  color: #6f7580;
+  font-size: 0.75rem;
+}
+
+.jobState {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.jobStatePill {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  border: 1px solid #343945;
+  border-radius: 999px;
+  padding: 0 9px;
+  background: #171a20;
+  color: #9ca1ac;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.jobStatePill.complete {
+  border-color: rgba(92, 221, 161, 0.24);
+  background: rgba(92, 221, 161, 0.07);
+  color: #79ddaE;
+}
+
+.jobStatePill.failed {
+  border-color: rgba(255, 109, 119, 0.24);
+  background: rgba(255, 109, 119, 0.07);
+  color: #ef9aa1;
+}
+
+.jobStatePill.active {
+  border-color: rgba(169, 156, 255, 0.28);
+  background: rgba(123, 97, 255, 0.08);
+  color: #b9b0ff;
+}
+
+.jobProgress {
+  width: 38px;
+  color: #777d88;
+  font-size: 0.74rem;
+  text-align: right;
+}
+
+@media (max-width: 700px) {
+  .logLine {
+    grid-template-columns: 66px minmax(0, 1fr);
+  }
+
+  .logLine > span:last-child {
+    grid-column: 1 / -1;
+    padding-left: 76px;
+  }
+
+  .jobRow {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .jobState {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 520px) {
+  .jobsPanel {
+    border-radius: 18px;
+    padding: 18px;
+  }
+
+  .detailMeta {
+    display: none;
+  }
+
+  .logLine > span:last-child {
+    padding-left: 0;
+  }
+}
