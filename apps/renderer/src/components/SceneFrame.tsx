@@ -8,7 +8,7 @@ import {
 } from "@studytube/design-system";
 import {AbsoluteFill, useCurrentFrame, useVideoConfig} from "remotion";
 import {getSceneMotionStyle} from "../motion";
-import {SceneRenderer} from "../scenes/SceneRenderer";
+import {SceneRouter} from "../scenes/SceneRouter";
 
 export type SceneFrameProps = {
   chapterTitle: string;
@@ -90,7 +90,7 @@ export const SceneFrame = ({chapterTitle, normalizedScene}: SceneFrameProps) => 
             padding: immersive ? 0 : `${spacing.lg}px 0`,
           }}
         >
-          <SceneRenderer normalizedScene={normalizedScene} />
+          <SceneRouter normalizedScene={normalizedScene} />
         </div>
 
         {!immersive ? (
