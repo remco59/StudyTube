@@ -10,7 +10,6 @@ import {
   PiperHttpProvider,
   prepareProjectNarration,
   SyntheticWavProvider,
-  toRendererNarrationManifest,
   type TtsProvider,
 } from "@studytube/tts";
 import {appendJobLog,createJobPaths,initializeJobPaths,writeJobStatus} from "./jobStore";
@@ -59,6 +58,13 @@ export class StudyTubeJobError extends Error{
   }
 }
 
+export const resolveRendererEntryPoint=(env:NodeJS.ProcessEnv=process.env,metaUrl=import.meta.url):string=>{
+  const configured=env.STUDYTUBE_RENDERER_ENTRY?.trim();
+  if(configured)return resolve(configured);
+  const repoRoot=resolve(fileURLToPath(new URL("../../..",metaUrl)));
+  return join(repoRoot,"apps","renderer","src","index.ts");
+};
+
 export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineDependencies={}):Promise<StudyTubeJobResult>=>{
   const now=deps.now??(()=>new Date());
   const jobId=options.jobId??createJobId(now());
@@ -106,8 +112,7 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
     const outputName=`${slugify(project.metadata.title)||"studytube"}-${jobId}.mp4`;
     const outputPath=join(paths.outputDir,outputName);
     await update("bundling",.4);
-    const repoRoot=resolve(fileURLToPath(new URL("../../..",import.meta.url)));
-    const entryPoint=join(repoRoot,"apps","renderer","src","index.ts");
+    const entryPoint=resolveRendererEntryPoint();
     const render=deps.render??renderStudyTubeComposition;
     await render({
       entryPoint,

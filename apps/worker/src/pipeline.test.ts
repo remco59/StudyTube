@@ -1,9 +1,9 @@
 import {mkdtemp,mkdir,readFile,rm,stat,writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
-import {dirname,join} from "node:path";
+import {dirname,join,resolve} from "node:path";
 import {SyntheticWavProvider} from "@studytube/tts";
 import {afterEach,describe,expect,it,vi} from "vitest";
-import {runStudyTubeJob,StudyTubeJobError} from "./pipeline";
+import {resolveRendererEntryPoint,runStudyTubeJob,StudyTubeJobError} from "./pipeline";
 
 const roots:string[]=[];
 const makeRoot=async()=>{const root=await mkdtemp(join(tmpdir(),"studytube-worker-"));roots.push(root);return root;};
@@ -18,6 +18,12 @@ const writeProject=async(root:string,missingAsset=false)=>{
   await writeFile(projectPath,JSON.stringify(project));
   return projectPath;
 };
+
+describe("resolveRendererEntryPoint",()=>{
+  it("uses an explicit container/runtime entry point when configured",()=>{
+    expect(resolveRendererEntryPoint({STUDYTUBE_RENDERER_ENTRY:"/app/apps/renderer/src/index.ts"} as NodeJS.ProcessEnv)).toBe(resolve("/app/apps/renderer/src/index.ts"));
+  });
+});
 
 describe("runStudyTubeJob",()=>{
   it("stages assets and narration and completes a render job",async()=>{
