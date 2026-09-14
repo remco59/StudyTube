@@ -1,0 +1,76 @@
+{
+  "version": "1.0",
+  "metadata": {
+    "title": "Design Science uitgelegd",
+    "language": "nl-NL",
+    "targetDuration": 300,
+    "style": "educational-explainer",
+    "description": "A small example project used while building the StudyTube renderer."
+  },
+  "chapters": [
+    {
+      "id": "intro",
+      "title": "Waarom Design Science?",
+      "scenes": [
+        {
+          "id": "intro-01",
+          "type": "title",
+          "narration": "Wat als onderzoek niet alleen de wereld probeert te begrijpen, maar ook iets bouwt om haar te verbeteren?",
+          "motion": "reveal",
+          "visual": {
+            "eyebrow": "Design Science",
+            "title": "Onderzoeken door te bouwen",
+            "subtitle": "Van probleem naar artefact naar evaluatie"
+          }
+        },
+        {
+          "id": "intro-02",
+          "type": "comparison",
+          "narration": "Traditioneel onderzoek richt zich vaak op begrijpen. Design Science voegt daar bewust ontwerpen en veranderen aan toe.",
+          "motion": "slide",
+          "visual": {
+            "left": {
+              "title": "Begrijpen",
+              "body": "Wat gebeurt er en waarom?",
+              "icon": "search"
+            },
+            "right": {
+              "title": "Veranderen",
+              "body": "Wat kunnen we ontwerpen om het probleem te verbeteren?",
+              "icon": "hammer"
+            }
+          }
+        },
+        {
+          "id": "intro-03",
+          "type": "process",
+          "narration": "De kern is verrassend praktisch: begrijp het probleem, ontwerp een oplossing, test die oplossing en leer van wat er gebeurt.",
+          "motion": "draw",
+          "visual": {
+            "title": "De simpele versie",
+            "steps": [
+              {"title": "Probleem", "icon": "alert-circle"},
+              {"title": "Ontwerp", "icon": "pencil"},
+              {"title": "Evaluatie", "icon": "check-circle"},
+              {"title": "Leren", "icon": "lightbulb"}
+            ]
+          }
+        },
+        {
+          "id": "intro-04",
+          "type": "recap",
+          "narration": "Onthoud voorlopig drie dingen: er is een echt probleem, je bouwt een artefact en je evalueert of dat artefact daadwerkelijk helpt.",
+          "motion": "reveal",
+          "visual": {
+            "title": "Dit moet blijven hangen",
+            "points": [
+              "Begin bij een relevant probleem",
+              "Bouw een artefact",
+              "Evalueer of het werkt"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
