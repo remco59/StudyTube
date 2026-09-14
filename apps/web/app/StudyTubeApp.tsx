@@ -48,9 +48,9 @@ export const StudyTubeApp=()=>{
   },[]);
 
   useEffect(()=>{
-    void refreshJobs();
+    const initialTimer=window.setTimeout(()=>void refreshJobs(),0);
     const timer=window.setInterval(()=>void refreshJobs(),30_000);
-    return()=>window.clearInterval(timer);
+    return()=>{window.clearTimeout(initialTimer);window.clearInterval(timer);};
   },[refreshJobs]);
 
   const handleProjectFile=(file:File|null)=>{
