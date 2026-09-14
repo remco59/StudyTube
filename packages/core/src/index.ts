@@ -174,3 +174,5 @@ const assertPositiveFiniteNumber = (value: number, label: string): void => {
     throw new StudyTubeTimingError(`${label} must be a finite number greater than zero`);
   }
 };
+
+export * from "./captions";
