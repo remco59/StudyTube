@@ -48,6 +48,11 @@ export async function POST(request:Request){
       await writeFile(destination,new Uint8Array(await file.arrayBuffer()));
     }
 
+    const createdAt=new Date().toISOString();
+    const jobRoot=join(dataDir,"jobs",jobId);
+    await mkdir(jobRoot,{recursive:true});
+    await writeFile(join(jobRoot,"status.json"),`${JSON.stringify({jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt,projectTitle:project.metadata.title},null,2)}\n`,`utf8`);
+
     void runStudyTubeJob({projectPath,dataDir,jobId})
       .catch(()=>undefined)
       .finally(()=>rm(uploadRoot,{recursive:true,force:true}).catch(()=>undefined));
