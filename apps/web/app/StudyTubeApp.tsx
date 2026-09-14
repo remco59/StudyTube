@@ -32,12 +32,13 @@ export const StudyTubeApp=()=>{
       if(!response.ok)return;
       const result=await response.json() as {jobs:JobStatus[]};
       const nextJobs=result.jobs??[];
+      const firstLoad=!jobsLoaded.current;
       setJobs(nextJobs);
       setJob((current)=>{
         if(preferredJobId)return nextJobs.find((item)=>item.jobId===preferredJobId)??current;
         if(current?.jobId==="starting")return current;
         if(current)return nextJobs.find((item)=>item.jobId===current.jobId)??null;
-        if(!jobsLoaded.current)return nextJobs.find((item)=>!isTerminal(item.state))??nextJobs[0]??null;
+        if(firstLoad)return nextJobs.find((item)=>!isTerminal(item.state))??nextJobs[0]??null;
         return null;
       });
       jobsLoaded.current=true;
