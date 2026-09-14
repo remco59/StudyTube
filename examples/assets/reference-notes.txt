@@ -1,0 +1,17 @@
+DESIGN SCIENCE – REFERENTIENOTITIES
+
+Doel
+Design Science verbindt een relevant praktijkprobleem aan een doelgericht ontworpen artefact en een controleerbare evaluatie.
+
+Kernregel
+Koppel iedere belangrijke ontwerpkeuze aan probleemsignaal, relevante kennis en een toetsbare verwachting.
+
+Werkvolgorde
+1. Begrijp probleem en context.
+2. Onderbouw requirements en ontwerpprincipes.
+3. Bouw precies genoeg om de belangrijkste onzekerheid te testen.
+4. Evalueer de bewering die je over het artefact wilt doen.
+5. Verwerk resultaten in een volgende ontwerp- en leerstap.
+
+Let op
+De cyclus is iteratief. Nieuwe testresultaten kunnen zowel het artefact als de oorspronkelijke probleemdefinitie veranderen.

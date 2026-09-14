@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700" role="img" aria-labelledby="title desc">
+  <title id="title">Design Science cycle</title>
+  <desc id="desc">Five connected stages: Understand, Ground, Build, Evaluate and Learn.</desc>
+  <rect width="1200" height="700" rx="48" fill="#11151b"/>
+  <text x="600" y="92" text-anchor="middle" fill="#f4f1e8" font-family="Arial, sans-serif" font-size="50" font-weight="700">Design Science-cyclus</text>
+  <g font-family="Arial, sans-serif" font-size="26" font-weight="700" text-anchor="middle">
+    <g transform="translate(180 350)"><circle r="92" fill="#2b254a" stroke="#a99cff" stroke-width="4"/><text y="8" fill="#f4f1e8">Begrijpen</text></g>
+    <g transform="translate(390 210)"><circle r="92" fill="#252b39" stroke="#7ed8ff" stroke-width="4"/><text y="8" fill="#f4f1e8">Onderbouwen</text></g>
+    <g transform="translate(650 210)"><circle r="92" fill="#2b254a" stroke="#a99cff" stroke-width="4"/><text y="8" fill="#f4f1e8">Bouwen</text></g>
+    <g transform="translate(900 350)"><circle r="92" fill="#252b39" stroke="#7ed8ff" stroke-width="4"/><text y="8" fill="#f4f1e8">Evalueren</text></g>
+    <g transform="translate(650 510)"><circle r="92" fill="#2b254a" stroke="#a99cff" stroke-width="4"/><text y="8" fill="#f4f1e8">Leren</text></g>
+  </g>
+  <g fill="none" stroke="#787f90" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M260 300 C300 255 320 235 330 230"/>
+    <path d="M485 210 H550"/>
+    <path d="M740 240 C790 260 815 285 835 315"/>
+    <path d="M855 420 C820 455 770 485 740 495"/>
+    <path d="M555 505 C420 490 300 445 245 405"/>
+  </g>
+  <g fill="#a99cff"><path d="M326 216 l28 7 -20 21z"/><path d="M550 196 l28 14 -28 14z"/><path d="M830 300 l22 24 -30 5z"/><path d="M747 482 l-7 29 -21 -20z"/><path d="M252 392 l-17 25 -12 -28z"/></g>
+  <text x="600" y="650" text-anchor="middle" fill="#9ca2ad" font-family="Arial, sans-serif" font-size="24">Geen star stappenplan, maar een herhaalbare leerlogica.</text>
+</svg>
