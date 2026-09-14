@@ -1,0 +1,24 @@
+{
+  "name": "@studytube/worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "render": "tsx src/cli.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/bundler": "4.0.524",
+    "@remotion/renderer": "4.0.524",
+    "@studytube/core": "*",
+    "@studytube/schema": "*",
+    "@studytube/tts": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "6.0.3",
+    "vitest": "5.0.0"
+  }
+}
