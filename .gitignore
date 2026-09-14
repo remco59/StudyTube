@@ -1,0 +1,17 @@
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# StudyTube generated data
+.data/
+jobs/
+renders/
+cache/
