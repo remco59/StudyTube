@@ -1,3 +1,4 @@
+import type {Dirent} from "node:fs";
 import {readdir,readFile,rename,rm,writeFile} from "node:fs/promises";
 import {join,resolve} from "node:path";
 import type {JobLogEntry,StudyTubeJobStatus} from "@studytube/worker/types";
@@ -22,7 +23,7 @@ export const readJobStatus=async(jobId:string):Promise<StudyTubeJobStatus>=>
 export const listJobStatuses=async():Promise<StudyTubeJobStatus[]>=>{
   await cleanupExpiredJobs();
   const jobsRoot=join(getDataDir(),"jobs");
-  let entries;
+  let entries:Dirent[];
   try{entries=await readdir(jobsRoot,{withFileTypes:true});}catch(error){
     if(isMissing(error))return [];
     throw error;
@@ -67,13 +68,13 @@ export const removeJob=async(jobId:string)=>rm(getJobRoot(jobId),{recursive:true
 
 export const scheduleJobCleanup=(jobId:string,expiresAt:string)=>{
   const delay=Math.max(0,Date.parse(expiresAt)-Date.now());
-  const timer=setTimeout(()=>{void removeJob(jobId).catch(()=>undefined);},delay);
-  timer.unref?.();
+  const timer:NodeJS.Timeout=setTimeout(()=>{void removeJob(jobId).catch(()=>undefined);},delay);
+  timer.unref();
 };
 
 export const cleanupExpiredJobs=async()=>{
   const jobsRoot=join(getDataDir(),"jobs");
-  let entries;
+  let entries:Dirent[];
   try{entries=await readdir(jobsRoot,{withFileTypes:true});}catch(error){
     if(isMissing(error))return;
     throw error;
