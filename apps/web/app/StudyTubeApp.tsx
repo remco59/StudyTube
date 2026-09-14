@@ -1,10 +1,12 @@
 "use client";
 
 import {useEffect,useMemo,useRef,useState} from "react";
+import {buildChatGptPrompt} from "../lib/chatgptPrompt";
 
 type RequiredAsset={id:string;type:"image"|"document";path:string;fileName:string};
 type ValidationResult={valid:true;summary:{title:string;language:string;targetDuration:number;chapters:number;scenes:number;assets:number};assets:RequiredAsset[]}|{valid:false;issues:{path:string;message:string}[]};
 type JobStatus={jobId:string;state:string;progress:number;projectTitle?:string;outputPath?:string;error?:string};
+type PromptLanguage="nl-NL"|"en-US";
 
 export const StudyTubeApp=()=>{
   const [projectFile,setProjectFile]=useState<File|null>(null);
@@ -13,6 +15,10 @@ export const StudyTubeApp=()=>{
   const [validating,setValidating]=useState(false);
   const [job,setJob]=useState<JobStatus|null>(null);
   const [error,setError]=useState<string|null>(null);
+  const [promptDuration,setPromptDuration]=useState(8);
+  const [promptLanguage,setPromptLanguage]=useState<PromptLanguage>("nl-NL");
+  const [promptScope,setPromptScope]=useState("");
+  const [promptCopied,setPromptCopied]=useState(false);
   const validationRequest=useRef(0);
 
   const handleProjectFile=(file:File|null)=>{
@@ -66,6 +72,17 @@ export const StudyTubeApp=()=>{
   const missingAssets=validation?.valid?validation.assets.filter((asset)=>!matchedAssets.has(asset.id)):[];
   const busy=Boolean(job&&job.state!=="completed"&&job.state!=="failed");
 
+  const copyPrompt=async()=>{
+    const prompt=buildChatGptPrompt({targetDurationMinutes:promptDuration,language:promptLanguage,scope:promptScope});
+    try{
+      await copyText(prompt);
+      setPromptCopied(true);
+      window.setTimeout(()=>setPromptCopied(false),1800);
+    }catch(cause){
+      setError(cause instanceof Error?cause.message:"Could not copy the ChatGPT prompt");
+    }
+  };
+
   const startRender=async()=>{
     if(!projectFile||!validation?.valid||missingAssets.length>0)return;
     setError(null);setJob({jobId:"starting",state:"queued",progress:0});
@@ -80,7 +97,25 @@ export const StudyTubeApp=()=>{
   return <main className="appShell">
     <header className="topbar"><div className="brand"><span className="brandMark">S</span><span>StudyTube</span></div><span className="badge">Local render</span></header>
     <section className="workspace">
-      <div className="intro"><p className="eyebrow">JSON → narration → motion → MP4</p><h1>Turn your study material into an explainer.</h1><p className="lede">Upload the <code>.studytube.json</code> made with ChatGPT, add any referenced files, and StudyTube handles the rest locally.</p></div>
+      <div className="intro"><p className="eyebrow">JSON → narration → motion → MP4</p><h1>Turn your study material into an explainer.</h1><p className="lede">Create a schema-safe StudyTube project with ChatGPT, upload the generated <code>.studytube.json</code>, and StudyTube handles narration and rendering locally.</p></div>
+
+      <section className="promptPanel">
+        <div className="promptCopy">
+          <p className="eyebrow">Create · ChatGPT</p>
+          <h2>Generate the project JSON with ChatGPT.</h2>
+          <p>Choose the video settings, copy the prompt, and paste it into a ChatGPT conversation with your study material. The prompt includes StudyTube&apos;s supported scene types and validation rules.</p>
+          <div className="promptSteps"><span>1 · Add your study material to ChatGPT</span><span>2 · Paste the generated prompt</span><span>3 · Save the response as <code>.studytube.json</code></span></div>
+        </div>
+        <div className="promptBuilder">
+          <div className="promptFields">
+            <label><span>Duration</span><div className="durationInput"><input type="number" min="0.5" max="120" step="0.5" value={promptDuration} onChange={(event)=>setPromptDuration(clampDuration(Number(event.target.value)))}/><span>min</span></div></label>
+            <label><span>Language</span><select value={promptLanguage} onChange={(event)=>setPromptLanguage(event.target.value as PromptLanguage)}><option value="nl-NL">Dutch (nl-NL)</option><option value="en-US">English (en-US)</option></select></label>
+          </div>
+          <label className="scopeField"><span>Chapters or scope <em>optional</em></span><textarea rows={3} placeholder="e.g. Chapters 2–4, focus on Design Science and artefacts" value={promptScope} onChange={(event)=>setPromptScope(event.target.value)}/></label>
+          <button className="promptButton" onClick={()=>void copyPrompt()}>{promptCopied?"✓ Prompt copied":"Copy ChatGPT prompt"}</button>
+          <p className="promptHint">The copied prompt targets schema v1.0 and a {formatDuration(Math.round(promptDuration*60))} video.</p>
+        </div>
+      </section>
 
       <div className="grid">
         <section className="panel">
@@ -120,5 +155,13 @@ export const StudyTubeApp=()=>{
 };
 
 const Metric=({label,value}:{label:string;value:string})=><div className="metric"><span>{label}</span><strong>{value}</strong></div>;
+const clampDuration=(minutes:number)=>Number.isFinite(minutes)?Math.max(0.5,Math.min(120,minutes)):8;
 const formatDuration=(seconds:number)=>{const total=Math.max(0,Math.round(seconds));return `${Math.floor(total/60)}:${String(total%60).padStart(2,"0")}`;};
 const humanState=(state?:string)=>({queued:"Preparing render…",validating:"Validating project…",synthesizing:"Generating narration…",staging:"Preparing assets…",bundling:"Building video…",rendering:"Rendering MP4…"}[state??""]??"Working…");
+const copyText=async(text:string)=>{
+  if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);return;}
+  const textarea=document.createElement("textarea");
+  textarea.value=text;textarea.style.position="fixed";textarea.style.opacity="0";document.body.appendChild(textarea);textarea.select();
+  const copied=document.execCommand("copy");document.body.removeChild(textarea);
+  if(!copied)throw new Error("Could not copy the prompt to your clipboard");
+};
