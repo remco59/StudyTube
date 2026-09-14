@@ -1,0 +1,2 @@
+Design Science demo document asset.
+This file exists to exercise StudyTube project-local document resolution in development builds.

@@ -1,17 +1,27 @@
 import {Composition} from "remotion";
-import {HelloComposition} from "./HelloComposition";
+import {video} from "@studytube/design-system";
+import {
+  StudyTubeComposition,
+  type StudyTubeCompositionProps,
+} from "./StudyTubeComposition";
+import {SAMPLE_NORMALIZED_PROJECT} from "./sampleProject";
 
 export const RemotionRoot = () => {
   return (
-    <>
-      <Composition
-        id="StudyTubeHello"
-        component={HelloComposition}
-        durationInFrames={150}
-        fps={30}
-        width={1920}
-        height={1080}
-      />
-    </>
+    <Composition
+      id="StudyTube"
+      component={StudyTubeComposition}
+      defaultProps={{project: SAMPLE_NORMALIZED_PROJECT}}
+      durationInFrames={SAMPLE_NORMALIZED_PROJECT.totalFrames}
+      fps={SAMPLE_NORMALIZED_PROJECT.fps}
+      width={video.width}
+      height={video.height}
+      calculateMetadata={({props}) => ({
+        durationInFrames: props.project.totalFrames,
+        fps: props.project.fps,
+      })}
+    />
   );
 };
+
+export type {StudyTubeCompositionProps};
