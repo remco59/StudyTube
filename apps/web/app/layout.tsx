@@ -3,6 +3,7 @@ import type {ReactNode} from "react";
 import "./globals.css";
 import "./prompt.css";
 import "./jobs.css";
+import "./workflow.css";
 
 export const metadata: Metadata = {
   title: "StudyTube",
