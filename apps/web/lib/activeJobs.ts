@@ -12,6 +12,8 @@ export const registerActiveJob=(jobId:string):AbortSignal=>{
   return controller.signal;
 };
 
+export const isActiveJob=(jobId:string):boolean=>activeJobs.has(jobId);
+
 export const cancelActiveJob=(jobId:string):boolean=>{
   const controller=activeJobs.get(jobId);
   if(!controller)return false;
