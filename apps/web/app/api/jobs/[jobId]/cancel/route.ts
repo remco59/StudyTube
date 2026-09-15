@@ -1,5 +1,5 @@
 import {cancelActiveJob} from "@/lib/activeJobs";
-import {readJobStatus} from "@/lib/jobs";
+import {markJobInterrupted,readJobStatus} from "@/lib/jobs";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
@@ -12,7 +12,8 @@ export async function POST(_request:Request,{params}:{params:Promise<{jobId:stri
       return Response.json({error:`Job is already ${status.state}`,status},{status:409});
     }
     if(!cancelActiveJob(jobId)){
-      return Response.json({error:"Job is not active in this server process. It may have been interrupted by a restart."},{status:409});
+      const interrupted=await markJobInterrupted(jobId);
+      return Response.json({ok:true,jobId,interrupted:true,status:interrupted});
     }
     return Response.json({ok:true,jobId},{status:202});
   }catch{
