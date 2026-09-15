@@ -11,6 +11,24 @@ export type RenderStudyTubeOptions={
   onProgress?:(progress:RenderProgress)=>void|Promise<void>;
 };
 
+export type RemotionRenderSettings={
+  concurrency:number;
+  timeoutInMilliseconds:number;
+};
+
+const readPositiveInteger=(env:NodeJS.ProcessEnv,name:string,fallback:number):number=>{
+  const raw=env[name]?.trim();
+  if(!raw)return fallback;
+  const parsed=Number(raw);
+  if(!Number.isInteger(parsed)||parsed<1)throw new Error(`${name} must be a positive integer, received "${raw}"`);
+  return parsed;
+};
+
+export const resolveRemotionRenderSettings=(env:NodeJS.ProcessEnv=process.env):RemotionRenderSettings=>({
+  concurrency:readPositiveInteger(env,"STUDYTUBE_RENDER_CONCURRENCY",2),
+  timeoutInMilliseconds:readPositiveInteger(env,"STUDYTUBE_RENDER_TIMEOUT_MS",120_000),
+});
+
 export const renderStudyTubeComposition=async(options:RenderStudyTubeOptions):Promise<void>=>{
   await options.onProgress?.({progress:0,stage:"bundling"});
   const serveUrl=await bundle({
@@ -20,6 +38,7 @@ export const renderStudyTubeComposition=async(options:RenderStudyTubeOptions):Pr
   });
   const inputProps=options.props as unknown as Record<string,unknown>;
   const composition=await selectComposition({serveUrl,id:"StudyTube",inputProps});
+  const renderSettings=resolveRemotionRenderSettings();
   await renderMedia({
     serveUrl,
     composition,
@@ -27,6 +46,8 @@ export const renderStudyTubeComposition=async(options:RenderStudyTubeOptions):Pr
     outputLocation:options.outputPath,
     inputProps,
     overwrite:true,
+    concurrency:renderSettings.concurrency,
+    timeoutInMilliseconds:renderSettings.timeoutInMilliseconds,
     onProgress:({progress,stitchStage})=>{void options.onProgress?.({progress:.12+progress*.88,stage:stitchStage});},
   });
 };
