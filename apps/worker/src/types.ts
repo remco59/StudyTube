@@ -1,4 +1,4 @@
-export type JobState="queued"|"validating"|"synthesizing"|"staging"|"bundling"|"rendering"|"completed"|"failed";
+export type JobState="queued"|"validating"|"synthesizing"|"staging"|"bundling"|"rendering"|"completed"|"failed"|"cancelled";
 
 export type StudyTubeJobStatus={
   jobId:string;
