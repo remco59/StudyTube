@@ -62,6 +62,7 @@ export const StudyTubeApp=()=>{
     setJob(null);
     setLogs([]);
     setDetailsOpen(false);
+    setCancellingJobId(null);
     setError(null);
     if(!file){setValidating(false);return;}
 
@@ -94,10 +95,6 @@ export const StudyTubeApp=()=>{
     poll();
     const timer=window.setInterval(poll,1200);
     return()=>{cancelled=true;window.clearInterval(timer);};
-  },[jobId,jobState]);
-
-  useEffect(()=>{
-    if(!jobId||isTerminal(jobState))setCancellingJobId(null);
   },[jobId,jobState]);
 
   useEffect(()=>{
@@ -143,6 +140,7 @@ export const StudyTubeApp=()=>{
 
   const startRender=async()=>{
     if(!projectFile||!validation?.valid||missingAssets.length>0||hasActiveJob)return;
+    setCancellingJobId(null);
     setError(null);setLogs([]);setDetailsOpen(false);setJob({jobId:"starting",state:"queued",progress:0,projectTitle:validation.summary.title});
     const form=new FormData();form.append("project",projectFile);
     for(const asset of validation.assets){const file=matchedAssets.get(asset.id);if(file)form.append(`asset:${asset.id}`,file,file.name);}
@@ -174,6 +172,7 @@ export const StudyTubeApp=()=>{
     setJob(next);
     setLogs([]);
     setDetailsOpen(false);
+    setCancellingJobId(null);
   };
 
   return <main className="appShell">
