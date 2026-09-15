@@ -8,14 +8,19 @@ type ValidationResult={valid:true;summary:{title:string;language:string;targetDu
 type JobStatus={jobId:string;state:string;progress:number;createdAt?:string;updatedAt?:string;projectTitle?:string;outputPath?:string;error?:string;downloadedAt?:string;expiresAt?:string};
 type JobLogEntry={timestamp:string;event:string;message:string;data?:unknown};
 type PromptLanguage="nl-NL"|"en-US";
+type AppTab="create"|"jobs";
+type CreateStep=0|1|2;
 
 export const StudyTubeApp=()=>{
+  const [activeTab,setActiveTab]=useState<AppTab>("create");
+  const [createStep,setCreateStep]=useState<CreateStep>(0);
   const [projectFile,setProjectFile]=useState<File|null>(null);
   const [assetFiles,setAssetFiles]=useState<File[]>([]);
   const [validation,setValidation]=useState<ValidationResult|null>(null);
   const [validating,setValidating]=useState(false);
   const [job,setJob]=useState<JobStatus|null>(null);
   const [jobs,setJobs]=useState<JobStatus[]>([]);
+  const [managedJobId,setManagedJobId]=useState<string|null>(null);
   const [logs,setLogs]=useState<JobLogEntry[]>([]);
   const [detailsOpen,setDetailsOpen]=useState(false);
   const [error,setError]=useState<string|null>(null);
@@ -25,26 +30,30 @@ export const StudyTubeApp=()=>{
   const [promptCopied,setPromptCopied]=useState(false);
   const [cancellingJobId,setCancellingJobId]=useState<string|null>(null);
   const validationRequest=useRef(0);
-  const jobsLoaded=useRef(false);
 
-  const refreshJobs=useCallback(async(preferredJobId?:string)=>{
+  const refreshJobs=useCallback(async()=>{
     try{
       const response=await fetch("/api/jobs",{cache:"no-store"});
       if(!response.ok)return;
       const result=await response.json() as {jobs:JobStatus[]};
       const nextJobs=result.jobs??[];
-      const firstLoad=!jobsLoaded.current;
       setJobs(nextJobs);
       setJob((current)=>{
-        if(preferredJobId)return nextJobs.find((item)=>item.jobId===preferredJobId)??current;
-        if(current?.jobId==="starting")return current;
-        if(current)return nextJobs.find((item)=>item.jobId===current.jobId)??null;
-        if(firstLoad)return nextJobs.find((item)=>!isTerminal(item.state))??nextJobs[0]??null;
-        return null;
+        if(!current)return null;
+        if(current.jobId==="starting")return current;
+        return nextJobs.find((item)=>item.jobId===current.jobId)??current;
       });
-      jobsLoaded.current=true;
+      setManagedJobId((current)=>{
+        if(current&&nextJobs.some((item)=>item.jobId===current))return current;
+        return nextJobs[0]?.jobId??null;
+      });
+      setCancellingJobId((current)=>{
+        if(!current)return null;
+        const cancelling=nextJobs.find((item)=>item.jobId===current);
+        return !cancelling||isTerminal(cancelling.state)?null:current;
+      });
     }catch{
-      // The render UI can still work with the currently selected job if history loading fails.
+      // Keep the current UI usable if the persisted job list is temporarily unavailable.
     }
   },[]);
 
@@ -54,15 +63,18 @@ export const StudyTubeApp=()=>{
     return()=>{window.clearTimeout(initialTimer);window.clearInterval(timer);};
   },[refreshJobs]);
 
+  useEffect(()=>{
+    if(activeTab!=="jobs")return;
+    const timer=window.setInterval(()=>void refreshJobs(),1500);
+    return()=>window.clearInterval(timer);
+  },[activeTab,refreshJobs]);
+
   const handleProjectFile=(file:File|null)=>{
     const requestId=++validationRequest.current;
     setProjectFile(file);
     setAssetFiles([]);
     setValidation(null);
     setJob(null);
-    setLogs([]);
-    setDetailsOpen(false);
-    setCancellingJobId(null);
     setError(null);
     if(!file){setValidating(false);return;}
 
@@ -97,21 +109,24 @@ export const StudyTubeApp=()=>{
     return()=>{cancelled=true;window.clearInterval(timer);};
   },[jobId,jobState]);
 
+  const managedJob=useMemo(()=>jobs.find((item)=>item.jobId===managedJobId)??null,[jobs,managedJobId]);
+  const managedJobState=managedJob?.state;
+
   useEffect(()=>{
-    if(!detailsOpen||!jobId||jobId==="starting")return;
+    if(activeTab!=="jobs"||!detailsOpen||!managedJobId)return;
     let cancelled=false;
     const load=()=>{
-      void fetch(`/api/jobs/${jobId}/logs`,{cache:"no-store"}).then(async(response)=>{
+      void fetch(`/api/jobs/${managedJobId}/logs`,{cache:"no-store"}).then(async(response)=>{
         if(!response.ok)return;
         const result=await response.json() as {logs:JobLogEntry[]};
         if(!cancelled)setLogs(result.logs??[]);
       });
     };
     load();
-    if(isTerminal(jobState))return()=>{cancelled=true;};
+    if(isTerminal(managedJobState))return()=>{cancelled=true;};
     const timer=window.setInterval(load,1200);
     return()=>{cancelled=true;window.clearInterval(timer);};
-  },[detailsOpen,jobId,jobState]);
+  },[activeTab,detailsOpen,managedJobId,managedJobState]);
 
   const matchedAssets=useMemo(()=>{
     const result=new Map<string,File>();
@@ -126,6 +141,8 @@ export const StudyTubeApp=()=>{
   const missingAssets=validation?.valid?validation.assets.filter((asset)=>!matchedAssets.has(asset.id)):[];
   const busy=Boolean(job&&!isTerminal(job.state));
   const hasActiveJob=busy||jobs.some((item)=>!isTerminal(item.state));
+  const renderReady=Boolean(validation?.valid&&missingAssets.length===0);
+  const canOpenRender=Boolean(job)||renderReady;
 
   const copyPrompt=async()=>{
     const prompt=buildChatGptPrompt({targetDurationMinutes:promptDuration,language:promptLanguage,scope:promptScope});
@@ -141,7 +158,8 @@ export const StudyTubeApp=()=>{
   const startRender=async()=>{
     if(!projectFile||!validation?.valid||missingAssets.length>0||hasActiveJob)return;
     setCancellingJobId(null);
-    setError(null);setLogs([]);setDetailsOpen(false);setJob({jobId:"starting",state:"queued",progress:0,projectTitle:validation.summary.title});
+    setError(null);
+    setJob({jobId:"starting",state:"queued",progress:0,projectTitle:validation.summary.title});
     const form=new FormData();form.append("project",projectFile);
     for(const asset of validation.assets){const file=matchedAssets.get(asset.id);if(file)form.append(`asset:${asset.id}`,file,file.name);}
     const response=await fetch("/api/jobs",{method:"POST",body:form});
@@ -149,101 +167,155 @@ export const StudyTubeApp=()=>{
     if(!response.ok||!result.jobId){setJob(null);setError(result.error??"Could not start render");return;}
     const next:JobStatus={jobId:result.jobId,state:"queued",progress:0,createdAt:new Date().toISOString(),projectTitle:validation.summary.title};
     setJob(next);
+    setManagedJobId(next.jobId);
     setJobs((current)=>[next,...current.filter((item)=>item.jobId!==next.jobId)]);
-    void refreshJobs(result.jobId);
+    setCreateStep(2);
+    void refreshJobs();
   };
 
-  const cancelRender=async()=>{
-    if(!job||job.jobId==="starting"||isTerminal(job.state)||cancellingJobId===job.jobId)return;
+  const cancelJob=async(target:JobStatus)=>{
+    if(target.jobId==="starting"||isTerminal(target.state)||cancellingJobId===target.jobId)return;
     setError(null);
-    setCancellingJobId(job.jobId);
+    setCancellingJobId(target.jobId);
     try{
-      const response=await fetch(`/api/jobs/${job.jobId}/cancel`,{method:"POST"});
+      const response=await fetch(`/api/jobs/${target.jobId}/cancel`,{method:"POST"});
       const result=await response.json() as {error?:string};
       if(!response.ok){setCancellingJobId(null);setError(result.error??"Could not cancel render");return;}
-      void refreshJobs(job.jobId);
+      void refreshJobs();
     }catch(cause){
       setCancellingJobId(null);
       setError(cause instanceof Error?cause.message:"Could not cancel render");
     }
   };
 
-  const selectJob=(next:JobStatus)=>{
-    setJob(next);
+  const selectManagedJob=(next:JobStatus)=>{
+    setManagedJobId(next.jobId);
     setLogs([]);
     setDetailsOpen(false);
-    setCancellingJobId(null);
+    setError(null);
+  };
+
+  const openJobs=()=>{
+    setActiveTab("jobs");
+    void refreshJobs();
   };
 
   return <main className="appShell">
-    <header className="topbar"><div className="brand"><span className="brandMark">S</span><span>StudyTube</span></div><span className="badge">Local render</span></header>
+    <header className="topbar">
+      <div className="brand"><span className="brandMark">S</span><span>StudyTube</span></div>
+      <nav className="appTabs" aria-label="StudyTube sections">
+        <button type="button" className={activeTab==="create"?"active":""} onClick={()=>setActiveTab("create")}>Create</button>
+        <button type="button" className={activeTab==="jobs"?"active":""} onClick={openJobs}>Jobs{jobs.length>0?<span>{jobs.length}</span>:null}</button>
+      </nav>
+      <span className="badge topbarBadge">Local render</span>
+    </header>
+
     <section className="workspace">
-      <div className="intro"><p className="eyebrow">JSON → narration → motion → MP4</p><h1>Turn your study material into an explainer.</h1><p className="lede">Create a schema-safe StudyTube project with ChatGPT, upload the generated <code>.studytube.json</code>, and StudyTube handles narration and rendering locally.</p></div>
+      {activeTab==="create"?<>
+        <div className="intro compactIntro"><p className="eyebrow">Create</p><h1>Turn study material into a video.</h1><p className="lede">Generate the project prompt, upload the JSON, then let StudyTube render the finished explainer.</p></div>
 
-      <section className="promptPanel">
-        <div className="promptCopy">
-          <p className="eyebrow">Create · ChatGPT</p>
-          <h2>Generate the project JSON with ChatGPT.</h2>
-          <p>Choose the video settings, copy the prompt, and paste it into a ChatGPT conversation with your study material. The prompt includes StudyTube&apos;s supported scene types and validation rules.</p>
-          <div className="promptSteps"><span>1 · Add your study material to ChatGPT</span><span>2 · Paste the generated prompt</span><span>3 · Save the response as <code>.studytube.json</code></span></div>
-        </div>
-        <div className="promptBuilder">
-          <div className="promptFields">
-            <label><span>Duration</span><div className="durationInput"><input type="number" min="0.5" max="120" step="0.5" value={promptDuration} onChange={(event)=>setPromptDuration(clampDuration(Number(event.target.value)))}/><span>min</span></div></label>
-            <label><span>Language</span><select value={promptLanguage} onChange={(event)=>setPromptLanguage(event.target.value as PromptLanguage)}><option value="nl-NL">Dutch (nl-NL)</option><option value="en-US">English (en-US)</option></select></label>
+        <section className="workflowCard">
+          <div className="workflowHeader">
+            <div><p className="eyebrow">New video</p><h2>Three steps, one workflow.</h2></div>
+            <span className="workflowCounter">Step {createStep+1} of 3</span>
           </div>
-          <label className="scopeField"><span>Chapters or scope <em>optional</em></span><textarea rows={3} placeholder="e.g. Chapters 2–4, focus on Design Science and artefacts" value={promptScope} onChange={(event)=>setPromptScope(event.target.value)}/></label>
-          <button className="promptButton" onClick={()=>void copyPrompt()}>{promptCopied?"✓ Prompt copied":"Copy ChatGPT prompt"}</button>
-          <p className="promptHint">The copied prompt targets schema v1.0 and a {formatDuration(Math.round(promptDuration*60))} video.</p>
-        </div>
-      </section>
 
-      <div className="grid">
-        <section className="panel">
-          <div className="panelHeading"><div><span className="step">01</span><h2>Project</h2></div>{validation?.valid?<span className="successPill">Valid</span>:null}</div>
-          <label className="dropzone">
-            <input type="file" accept=".json,.studytube.json,application/json" onChange={(event)=>handleProjectFile(event.target.files?.[0]??null)}/>
-            <span className="dropIcon">↥</span><strong>{projectFile?.name??"Choose StudyTube JSON"}</strong><span>{validating?"Validating…":"Drop or select your generated project file"}</span>
-          </label>
+          <div className="workflowSteps" role="tablist" aria-label="Create video steps">
+            <button type="button" className={createStep===0?"active":""} onClick={()=>setCreateStep(0)}><span>1</span><strong>Prompt</strong><small>Generate JSON</small></button>
+            <button type="button" className={createStep===1?"active":""} onClick={()=>setCreateStep(1)}><span>2</span><strong>Upload</strong><small>Validate project</small></button>
+            <button type="button" className={createStep===2?"active":""} disabled={!canOpenRender} onClick={()=>setCreateStep(2)}><span>3</span><strong>Render</strong><small>Create MP4</small></button>
+          </div>
 
-          {validation?.valid?<div className="summary">
-            <div className="summaryTitle"><span>Project</span><strong>{validation.summary.title}</strong></div>
-            <div className="metrics"><Metric label="Target" value={formatDuration(validation.summary.targetDuration)}/><Metric label="Chapters" value={String(validation.summary.chapters)}/><Metric label="Scenes" value={String(validation.summary.scenes)}/><Metric label="Language" value={validation.summary.language}/></div>
-          </div>:null}
+          <div className="workflowBody">
+            {createStep===0?<>
+              <div className="wizardPrompt">
+                <div className="promptCopy">
+                  <p className="eyebrow">ChatGPT prompt</p>
+                  <h2>Generate a StudyTube project.</h2>
+                  <p>Choose the video settings, copy the prompt, and paste it into a ChatGPT conversation with your study material. Save the result as a <code>.studytube.json</code> file.</p>
+                  <div className="promptSteps"><span>1 · Add study material</span><span>2 · Paste prompt</span><span>3 · Save the JSON</span></div>
+                </div>
+                <div className="promptBuilder">
+                  <div className="promptFields">
+                    <label><span>Duration</span><div className="durationInput"><input type="number" min="0.5" max="120" step="0.5" value={promptDuration} onChange={(event)=>setPromptDuration(clampDuration(Number(event.target.value)))}/><span>min</span></div></label>
+                    <label><span>Language</span><select value={promptLanguage} onChange={(event)=>setPromptLanguage(event.target.value as PromptLanguage)}><option value="nl-NL">Dutch (nl-NL)</option><option value="en-US">English (en-US)</option></select></label>
+                  </div>
+                  <label className="scopeField"><span>Chapters or scope <em>optional</em></span><textarea rows={3} placeholder="e.g. Chapters 2–4, focus on Design Science and artefacts" value={promptScope} onChange={(event)=>setPromptScope(event.target.value)}/></label>
+                  <button className="promptButton" onClick={()=>void copyPrompt()}>{promptCopied?"✓ Prompt copied":"Copy ChatGPT prompt"}</button>
+                  <p className="promptHint">Targets schema v1.0 · {formatDuration(Math.round(promptDuration*60))} video</p>
+                </div>
+              </div>
+              <div className="workflowFooter"><span>You can skip this step if you already have a StudyTube JSON.</span><button type="button" className="primaryButton compactButton" onClick={()=>setCreateStep(1)}>Continue to upload</button></div>
+            </>:null}
 
-          {validation&&!validation.valid?<div className="errorBox"><strong>Project is not valid yet</strong>{validation.issues.slice(0,6).map((issue,index)=><p key={`${issue.path}-${index}`}>{issue.path?`${issue.path}: `:""}{issue.message}</p>)}</div>:null}
+            {createStep===1?<>
+              <div className="wizardUpload">
+                <div className="wizardSectionHeader"><div><p className="eyebrow">Project file</p><h2>Upload your StudyTube JSON.</h2><p>StudyTube validates the project first and then asks for any referenced assets.</p></div>{validation?.valid?<span className="successPill">Valid</span>:null}</div>
+                <label className="dropzone">
+                  <input type="file" accept=".json,.studytube.json,application/json" onChange={(event)=>handleProjectFile(event.target.files?.[0]??null)}/>
+                  <span className="dropIcon">↥</span><strong>{projectFile?.name??"Choose StudyTube JSON"}</strong><span>{validating?"Validating…":"Drop or select your generated project file"}</span>
+                </label>
+
+                {validation?.valid?<div className="summary">
+                  <div className="summaryTitle"><span>Project</span><strong>{validation.summary.title}</strong></div>
+                  <div className="metrics"><Metric label="Target" value={formatDuration(validation.summary.targetDuration)}/><Metric label="Chapters" value={String(validation.summary.chapters)}/><Metric label="Scenes" value={String(validation.summary.scenes)}/><Metric label="Language" value={validation.summary.language}/></div>
+                </div>:null}
+
+                {validation&&!validation.valid?<div className="errorBox"><strong>Project is not valid yet</strong>{validation.issues.slice(0,6).map((issue,index)=><p key={`${issue.path}-${index}`}>{issue.path?`${issue.path}: `:""}{issue.message}</p>)}</div>:null}
+
+                {validation?.valid?<div className="assetsBlock">
+                  <div className="assetsBlockHeader"><div><strong>Referenced assets</strong><span>{validation.assets.length===0?"Nothing else to upload.":`${validation.assets.length} required`}</span></div>{validation.assets.length>0?<label className="assetPicker"><input type="file" multiple onChange={(event)=>setAssetFiles(Array.from(event.target.files??[]))}/><span>Select files</span></label>:null}</div>
+                  {validation.assets.length===0?<div className="assetComplete">✓ This project has no external assets.</div>:<div className="assetList">{validation.assets.map((asset)=>{const match=matchedAssets.get(asset.id);return <div className="assetRow" key={asset.id}><div><strong>{asset.fileName}</strong><span>{asset.type} · {asset.path}</span></div><span className={match?"assetOk":"assetMissing"}>{match?"✓ matched":"missing"}</span></div>;})}</div>}
+                </div>:null}
+              </div>
+              <div className="workflowFooter"><button type="button" className="secondaryButton" onClick={()=>setCreateStep(0)}>Back</button><button type="button" className="primaryButton compactButton" disabled={!renderReady} onClick={()=>setCreateStep(2)}>Continue to render</button></div>
+            </>:null}
+
+            {createStep===2?<>
+              <div className="wizardRender">
+                <div className="renderStageCopy">
+                  <p className="eyebrow">Render</p>
+                  <h2>{job?.state==="completed"?"Your video is ready.":job?.state==="failed"?"Render failed.":job?.state==="cancelled"?"Render cancelled.":busy?humanState(job?.state):hasActiveJob?"A render is already running.":"Ready to create the MP4."}</h2>
+                  <p>{renderDescription(job,busy,hasActiveJob)}</p>
+                  {validation?.valid?<div className="renderProjectSummary"><strong>{validation.summary.title}</strong><span>{formatDuration(validation.summary.targetDuration)} · {validation.summary.scenes} scenes · {validation.summary.language}</span></div>:null}
+                </div>
+                <div className="renderAction wizardRenderAction">
+                  {busy?<div className="progress"><div className="progressTrack"><span style={{width:`${Math.round((job?.progress??0)*100)}%`}}/></div><strong>{Math.round((job?.progress??0)*100)}%</strong></div>:null}
+                  {job?.state==="completed"?<a className="primaryButton" href={`/api/jobs/${job.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(),1200)}>Download MP4</a>:job&&busy&&job.jobId!=="starting"?<button className="cancelButton" disabled={cancellingJobId===job.jobId} onClick={()=>void cancelJob(job)}>{cancellingJobId===job.jobId?"Cancelling…":"Cancel render"}</button>:busy?<button className="primaryButton" disabled>Starting…</button>:hasActiveJob?<button type="button" className="primaryButton" onClick={openJobs}>View running job</button>:<button className="primaryButton" disabled={!renderReady} onClick={()=>void startRender()}>Generate video</button>}
+                  {job&&job.jobId!=="starting"?<button type="button" className="secondaryButton" onClick={()=>{setManagedJobId(job.jobId);openJobs();}}>Open in Jobs</button>:null}
+                </div>
+              </div>
+              <div className="workflowFooter"><button type="button" className="secondaryButton" disabled={busy} onClick={()=>setCreateStep(1)}>Back to upload</button><span>Rendering continues on the server if you close this tab.</span></div>
+            </>:null}
+          </div>
         </section>
+      </>:<>
+        <div className="intro compactIntro"><p className="eyebrow">Jobs</p><h1>Manage your renders.</h1><p className="lede">Follow active renders, inspect logs, download finished videos, or cancel work you no longer need.</p></div>
 
-        <section className="panel">
-          <div className="panelHeading"><div><span className="step">02</span><h2>Assets</h2></div>{validation?.valid?<span className="mutedPill">{validation.assets.length} required</span>:null}</div>
-          {!validation?.valid?<p className="emptyState">Validate a project first. Referenced images and documents will appear here.</p>:validation.assets.length===0?<div className="emptyState successText">✓ This project has no external assets.</div>:<>
-            <label className="assetPicker"><input type="file" multiple onChange={(event)=>setAssetFiles(Array.from(event.target.files??[]))}/><span>Select referenced files</span></label>
-            <div className="assetList">{validation.assets.map((asset)=>{const match=matchedAssets.get(asset.id);return <div className="assetRow" key={asset.id}><div><strong>{asset.fileName}</strong><span>{asset.type} · {asset.path}</span></div><span className={match?"assetOk":"assetMissing"}>{match?"✓ matched":"missing"}</span></div>;})}</div>
-          </>}
-        </section>
-      </div>
+        <div className="jobsWorkspace">
+          <section className="jobsPanel">
+            <div className="jobsHeading"><div><p className="eyebrow">Saved on this server</p><h2>Render jobs</h2></div><div className="jobsHeadingActions"><span className="mutedPill">{jobs.length} saved</span><button type="button" className="iconButton" onClick={()=>void refreshJobs()} aria-label="Refresh jobs">↻</button></div></div>
+            {jobs.length===0?<div className="jobsEmpty"><strong>No jobs yet.</strong><span>Create your first video from the Create tab.</span><button type="button" className="primaryButton compactButton" onClick={()=>setActiveTab("create")}>Create video</button></div>:<div className="jobsList">{jobs.map((item)=><button type="button" className={`jobRow${managedJobId===item.jobId?" selected":""}`} key={item.jobId} onClick={()=>selectManagedJob(item)}>
+              <div className="jobIdentity"><strong>{item.projectTitle??"StudyTube render"}</strong><span>{item.createdAt?formatJobDate(item.createdAt):item.jobId}</span></div>
+              <div className="jobState"><span className={`jobStatePill ${stateClass(item.state)}`}>{jobStatusLabel(item)}</span>{!isTerminal(item.state)?<span className="jobProgress">{Math.round(item.progress*100)}%</span>:null}</div>
+            </button>)}</div>}
+          </section>
 
-      <section className="renderPanel">
-        <div className="renderMain">
-          <div><p className="eyebrow">03 · Render</p><h2>{job?.state==="completed"?"Your video is ready.":job?.state==="failed"?"Render failed.":job?.state==="cancelled"?"Render cancelled.":busy?humanState(job?.state):"Ready when you are."}</h2><p>{renderDescription(job,busy,hasActiveJob)}</p></div>
-          {job&&job.jobId!=="starting"?<details className="jobDetails" open={detailsOpen} onToggle={(event)=>setDetailsOpen(event.currentTarget.open)}>
-            <summary><span>{detailsOpen?"Hide details":"Show details"}</span><span className="detailMeta">{job.jobId}</span></summary>
-            <div className="logConsole">{logs.length===0?<div className="logEmpty">{busy?"Waiting for pipeline logs…":"No logs recorded for this job."}</div>:logs.map((entry,index)=><div className="logLine" key={`${entry.timestamp}-${entry.event}-${index}`}><time>{formatLogTime(entry.timestamp)}</time><span className="logEvent">{entry.event}</span><span>{entry.message}</span></div>)}</div>
-          </details>:null}
+          {managedJob?<section className="jobManager">
+            <div className="jobManagerHeader"><div><p className="eyebrow">Selected job</p><h2>{managedJob.projectTitle??"StudyTube render"}</h2><span className="jobIdText">{managedJob.jobId}</span></div><span className={`jobStatePill ${stateClass(managedJob.state)}`}>{jobStatusLabel(managedJob)}</span></div>
+            {!isTerminal(managedJob.state)?<div className="managerProgress"><div className="progress"><div className="progressTrack"><span style={{width:`${Math.round(managedJob.progress*100)}%`}}/></div><strong>{Math.round(managedJob.progress*100)}%</strong></div><span>{humanState(managedJob.state)}</span></div>:null}
+            {managedJob.error?<div className="errorBox managerError"><strong>Render stopped</strong><p>{managedJob.error}</p></div>:null}
+            <div className="jobActionBar">
+              {managedJob.state==="completed"?<a className="primaryButton compactButton" href={`/api/jobs/${managedJob.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(),1200)}>Download MP4</a>:null}
+              {!isTerminal(managedJob.state)?<button className="cancelButton compactButton" disabled={cancellingJobId===managedJob.jobId} onClick={()=>void cancelJob(managedJob)}>{cancellingJobId===managedJob.jobId?"Cancelling…":"Cancel render"}</button>:null}
+            </div>
+            <details className="jobDetails managerDetails" open={detailsOpen} onToggle={(event)=>setDetailsOpen(event.currentTarget.open)}>
+              <summary><span>{detailsOpen?"Hide logs":"Show logs"}</span><span className="detailMeta">{managedJob.updatedAt?`Updated ${formatJobDate(managedJob.updatedAt)}`:"Pipeline details"}</span></summary>
+              <div className="logConsole">{logs.length===0?<div className="logEmpty">{!isTerminal(managedJob.state)?"Waiting for pipeline logs…":"No logs recorded for this job."}</div>:logs.map((entry,index)=><div className="logLine" key={`${entry.timestamp}-${entry.event}-${index}`}><time>{formatLogTime(entry.timestamp)}</time><span className="logEvent">{entry.event}</span><span>{entry.message}</span></div>)}</div>
+            </details>
+          </section>:null}
         </div>
-        <div className="renderAction">
-          {busy?<div className="progress"><div className="progressTrack"><span style={{width:`${Math.round((job?.progress??0)*100)}%`}}/></div><strong>{Math.round((job?.progress??0)*100)}%</strong></div>:null}
-          {job?.state==="completed"?<a className="primaryButton" href={`/api/jobs/${job.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(job.jobId),1200)}>Download MP4</a>:job&&busy&&job.jobId!=="starting"?<button className="cancelButton" disabled={cancellingJobId===job.jobId} onClick={()=>void cancelRender()}>{cancellingJobId===job.jobId?"Cancelling…":"Cancel render"}</button>:busy?<button className="primaryButton" disabled>Starting…</button>:<button className="primaryButton" disabled={!validation?.valid||missingAssets.length>0||hasActiveJob} onClick={()=>void startRender()}>{hasActiveJob?"Render already running":"Generate video"}</button>}
-        </div>
-      </section>
-
-      {jobs.length>0?<section className="jobsPanel">
-        <div className="jobsHeading"><div><p className="eyebrow">Saved on this server</p><h2>Recent jobs</h2></div><span className="mutedPill">{jobs.length} saved</span></div>
-        <div className="jobsList">{jobs.slice(0,8).map((item)=><button type="button" className={`jobRow${job?.jobId===item.jobId?" selected":""}`} key={item.jobId} onClick={()=>selectJob(item)}>
-          <div className="jobIdentity"><strong>{item.projectTitle??"StudyTube render"}</strong><span>{item.createdAt?formatJobDate(item.createdAt):item.jobId}</span></div>
-          <div className="jobState"><span className={`jobStatePill ${stateClass(item.state)}`}>{jobStatusLabel(item)}</span>{!isTerminal(item.state)?<span className="jobProgress">{Math.round(item.progress*100)}%</span>:null}</div>
-        </button>)}</div>
-      </section>:null}
+      </>}
 
       {error?<div className="globalError">{error}</div>:null}
     </section>
@@ -257,13 +329,13 @@ const humanState=(state?:string)=>({queued:"Preparing render…",validating:"Ana
 const isTerminal=(state?:string)=>state==="completed"||state==="failed"||state==="cancelled";
 const sortJobs=(a:JobStatus,b:JobStatus)=>Date.parse(b.createdAt??"")-Date.parse(a.createdAt??"");
 const renderDescription=(job:JobStatus|null,busy:boolean,hasActiveJob:boolean)=>{
-  if(job?.state==="failed")return job.error??"The render pipeline stopped. Open details to inspect the logs.";
-  if(job?.state==="cancelled")return "This render was cancelled. You can start a new render when you are ready.";
+  if(job?.state==="failed")return job.error??"The render pipeline stopped. Open the job to inspect its logs.";
+  if(job?.state==="cancelled")return "This render was cancelled. You can start it again when you are ready.";
   if(job?.state==="completed"&&job.downloadedAt)return "Downloaded. StudyTube will remove this job automatically about one hour after the first download.";
-  if(job?.state==="completed")return "Finished videos stay on the server until you download them.";
-  if(busy)return "The render continues on your server even if you refresh or close this tab.";
-  if(hasActiveJob)return "Another saved render is still running. Open it under Recent jobs to follow its progress.";
-  return "No editing timeline. The output is a finished 1080p MP4.";
+  if(job?.state==="completed")return "The finished video stays on the server until you download it.";
+  if(busy)return "StudyTube is rendering this project on your server.";
+  if(hasActiveJob)return "Another saved render is still running. Open Jobs to follow or cancel it.";
+  return "StudyTube will synthesize the narration and render a finished 1080p MP4.";
 };
 const jobStatusLabel=(job:JobStatus)=>{
   if(job.state==="completed")return job.downloadedAt?"Downloaded":"Ready";
