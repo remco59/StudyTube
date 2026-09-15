@@ -51,7 +51,7 @@ export const markJobInterrupted=async(jobId:string):Promise<StudyTubeJobStatus>=
     updatedAt:new Date().toISOString(),
   };
   await writeStatusAtomic(jobId,next);
-  await cleanupJobWorkingData(jobId);
+  await cleanupJobWorkingData(jobId).catch(()=>undefined);
   return next;
 };
 
