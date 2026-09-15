@@ -233,7 +233,7 @@ export const StudyTubeApp=()=>{
         </div>
         <div className="renderAction">
           {busy?<div className="progress"><div className="progressTrack"><span style={{width:`${Math.round((job?.progress??0)*100)}%`}}/></div><strong>{Math.round((job?.progress??0)*100)}%</strong></div>:null}
-          {job?.state==="completed"?<a className="primaryButton" href={`/api/jobs/${job.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(job.jobId),1200)}>Download MP4</a>:busy&&job?.jobId!=="starting"?<button className="cancelButton" disabled={cancellingJobId===job.jobId} onClick={()=>void cancelRender()}>{cancellingJobId===job.jobId?"Cancelling…":"Cancel render"}</button>:busy?<button className="primaryButton" disabled>Starting…</button>:<button className="primaryButton" disabled={!validation?.valid||missingAssets.length>0||hasActiveJob} onClick={()=>void startRender()}>{hasActiveJob?"Render already running":"Generate video"}</button>}
+          {job?.state==="completed"?<a className="primaryButton" href={`/api/jobs/${job.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(job.jobId),1200)}>Download MP4</a>:job&&busy&&job.jobId!=="starting"?<button className="cancelButton" disabled={cancellingJobId===job.jobId} onClick={()=>void cancelRender()}>{cancellingJobId===job.jobId?"Cancelling…":"Cancel render"}</button>:busy?<button className="primaryButton" disabled>Starting…</button>:<button className="primaryButton" disabled={!validation?.valid||missingAssets.length>0||hasActiveJob} onClick={()=>void startRender()}>{hasActiveJob?"Render already running":"Generate video"}</button>}
         </div>
       </section>
 
