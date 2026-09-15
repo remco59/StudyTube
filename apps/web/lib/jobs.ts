@@ -17,11 +17,29 @@ export const assertJobId=(jobId:string)=>{
 };
 
 const getJobRoot=(jobId:string)=>join(getDataDir(),"jobs",assertJobId(jobId));
+const getUploadRoot=(jobId:string)=>join(getDataDir(),"uploads",assertJobId(jobId));
 const getStatusPath=(jobId:string)=>join(getJobRoot(jobId),"status.json");
 const isTerminalState=(state:StudyTubeJobStatus["state"])=>state==="completed"||state==="failed"||state==="cancelled";
 
 export const readJobStatus=async(jobId:string):Promise<StudyTubeJobStatus>=>
   JSON.parse(await readFile(getStatusPath(jobId),"utf8")) as StudyTubeJobStatus;
+
+export const cleanupJobWorkingData=async(jobId:string)=>{
+  const root=getJobRoot(jobId);
+  await Promise.all([
+    rm(join(root,"public"),{recursive:true,force:true}),
+    rm(join(root,"output"),{recursive:true,force:true}),
+    rm(join(root,"project.studytube.json"),{force:true}),
+    rm(join(root,"render-props.json"),{force:true}),
+    rm(getUploadRoot(jobId),{recursive:true,force:true}),
+  ]);
+};
+
+export const cleanupCancelledJobWorkingData=async(jobId:string):Promise<StudyTubeJobStatus>=>{
+  const status=await readJobStatus(jobId);
+  if(status.state==="cancelled")await cleanupJobWorkingData(jobId);
+  return status;
+};
 
 export const markJobInterrupted=async(jobId:string):Promise<StudyTubeJobStatus>=>{
   const status=await readJobStatus(jobId);
@@ -33,6 +51,7 @@ export const markJobInterrupted=async(jobId:string):Promise<StudyTubeJobStatus>=
     updatedAt:new Date().toISOString(),
   };
   await writeStatusAtomic(jobId,next);
+  await cleanupJobWorkingData(jobId);
   return next;
 };
 
@@ -86,7 +105,10 @@ export const markJobDownloaded=async(jobId:string):Promise<StudyTubeJobStatus>=>
   return next;
 };
 
-export const removeJob=async(jobId:string)=>rm(getJobRoot(jobId),{recursive:true,force:true});
+export const removeJob=async(jobId:string)=>Promise.all([
+  rm(getJobRoot(jobId),{recursive:true,force:true}),
+  rm(getUploadRoot(jobId),{recursive:true,force:true}),
+]);
 
 export const scheduleJobCleanup=(jobId:string,expiresAt:string)=>{
   const delay=Math.max(0,Date.parse(expiresAt)-Date.now());
