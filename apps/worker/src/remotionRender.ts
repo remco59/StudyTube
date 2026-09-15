@@ -8,6 +8,7 @@ export type RenderStudyTubeOptions={
   publicDir:string;
   outputPath:string;
   props:{project:NormalizedStudyTubeProject;narration?:NarrationManifest;showCaptions?:boolean};
+  signal?:AbortSignal;
   onProgress?:(progress:RenderProgress)=>void|Promise<void>;
 };
 
@@ -29,15 +30,28 @@ export const resolveRemotionRenderSettings=(env:NodeJS.ProcessEnv=process.env):R
   timeoutInMilliseconds:readPositiveInteger(env,"STUDYTUBE_RENDER_TIMEOUT_MS",120_000),
 });
 
+const throwIfCancelled=(signal?:AbortSignal)=>{
+  if(signal?.aborted)throw new Error("Render cancelled");
+};
+
+const makeRemotionCancelSignal=(signal:AbortSignal):NonNullable<Parameters<typeof renderMedia>[0]["cancelSignal"]>=>
+  (cancel)=>{
+    if(signal.aborted){cancel();return;}
+    signal.addEventListener("abort",cancel,{once:true});
+  };
+
 export const renderStudyTubeComposition=async(options:RenderStudyTubeOptions):Promise<void>=>{
+  throwIfCancelled(options.signal);
   await options.onProgress?.({progress:0,stage:"bundling"});
   const serveUrl=await bundle({
     entryPoint:options.entryPoint,
     publicDir:options.publicDir,
     onProgress:(progress)=>{void options.onProgress?.({progress:progress*.12,stage:"bundling"});},
   });
+  throwIfCancelled(options.signal);
   const inputProps=options.props as unknown as Record<string,unknown>;
   const composition=await selectComposition({serveUrl,id:"StudyTube",inputProps});
+  throwIfCancelled(options.signal);
   const renderSettings=resolveRemotionRenderSettings();
   await renderMedia({
     serveUrl,
@@ -48,6 +62,7 @@ export const renderStudyTubeComposition=async(options:RenderStudyTubeOptions):Pr
     overwrite:true,
     concurrency:renderSettings.concurrency,
     timeoutInMilliseconds:renderSettings.timeoutInMilliseconds,
+    cancelSignal:options.signal?makeRemotionCancelSignal(options.signal):undefined,
     onProgress:({progress,stitchStage})=>{void options.onProgress?.({progress:.12+progress*.88,stage:stitchStage});},
   });
 };
