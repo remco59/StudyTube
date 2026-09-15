@@ -1,6 +1,11 @@
-import {readFile} from "node:fs/promises";
+import type {Dirent} from "node:fs";
+import {readdir,readFile,rename,rm,writeFile} from "node:fs/promises";
 import {join,resolve} from "node:path";
-import type {StudyTubeJobStatus} from "@studytube/worker/types";
+import type {JobLogEntry,StudyTubeJobStatus} from "@studytube/worker/types";
+
+const DOWNLOAD_RETENTION_MS=60*60*1000;
+const MAX_LISTED_JOBS=50;
+const MAX_LOG_ENTRIES=300;
 
 export const getDataDir=()=>resolve(process.env.STUDYTUBE_DATA_DIR??"data");
 
@@ -9,8 +14,87 @@ export const assertJobId=(jobId:string)=>{
   return jobId;
 };
 
-export const readJobStatus=async(jobId:string):Promise<StudyTubeJobStatus>=>{
-  const safe=assertJobId(jobId);
-  const statusPath=join(getDataDir(),"jobs",safe,"status.json");
-  return JSON.parse(await readFile(statusPath,"utf8")) as StudyTubeJobStatus;
+const getJobRoot=(jobId:string)=>join(getDataDir(),"jobs",assertJobId(jobId));
+const getStatusPath=(jobId:string)=>join(getJobRoot(jobId),"status.json");
+
+export const readJobStatus=async(jobId:string):Promise<StudyTubeJobStatus>=>
+  JSON.parse(await readFile(getStatusPath(jobId),"utf8")) as StudyTubeJobStatus;
+
+export const listJobStatuses=async():Promise<StudyTubeJobStatus[]>=>{
+  await cleanupExpiredJobs();
+  const jobsRoot=join(getDataDir(),"jobs");
+  let entries:Dirent[];
+  try{entries=await readdir(jobsRoot,{withFileTypes:true});}catch(error){
+    if(isMissing(error))return [];
+    throw error;
+  }
+  const statuses=await Promise.all(entries.filter((entry)=>entry.isDirectory()).map(async(entry)=>{
+    try{return await readJobStatus(entry.name);}catch{return null;}
+  }));
+  return statuses
+    .filter((status):status is StudyTubeJobStatus=>status!==null)
+    .sort((a,b)=>Date.parse(b.createdAt)-Date.parse(a.createdAt))
+    .slice(0,MAX_LISTED_JOBS);
 };
+
+export const readJobLogs=async(jobId:string):Promise<JobLogEntry[]>=>{
+  const path=join(getJobRoot(jobId),"logs.ndjson");
+  let text:string;
+  try{text=await readFile(path,"utf8");}catch(error){
+    if(isMissing(error))return [];
+    throw error;
+  }
+  return text.split("\n").filter(Boolean).flatMap((line)=>{
+    try{return [JSON.parse(line) as JobLogEntry];}catch{return [];}
+  }).slice(-MAX_LOG_ENTRIES);
+};
+
+export const markJobDownloaded=async(jobId:string):Promise<StudyTubeJobStatus>=>{
+  const status=await readJobStatus(jobId);
+  if(status.state!=="completed"||!status.outputPath)throw new Error("Video is not ready");
+  if(status.downloadedAt&&status.expiresAt)return status;
+  const downloadedAt=new Date();
+  const next:StudyTubeJobStatus={
+    ...status,
+    downloadedAt:downloadedAt.toISOString(),
+    expiresAt:new Date(downloadedAt.getTime()+DOWNLOAD_RETENTION_MS).toISOString(),
+    updatedAt:downloadedAt.toISOString(),
+  };
+  await writeStatusAtomic(jobId,next);
+  return next;
+};
+
+export const removeJob=async(jobId:string)=>rm(getJobRoot(jobId),{recursive:true,force:true});
+
+export const scheduleJobCleanup=(jobId:string,expiresAt:string)=>{
+  const delay=Math.max(0,Date.parse(expiresAt)-Date.now());
+  const timer:NodeJS.Timeout=setTimeout(()=>{void removeJob(jobId).catch(()=>undefined);},delay);
+  timer.unref();
+};
+
+export const cleanupExpiredJobs=async()=>{
+  const jobsRoot=join(getDataDir(),"jobs");
+  let entries:Dirent[];
+  try{entries=await readdir(jobsRoot,{withFileTypes:true});}catch(error){
+    if(isMissing(error))return;
+    throw error;
+  }
+  const now=Date.now();
+  await Promise.all(entries.filter((entry)=>entry.isDirectory()).map(async(entry)=>{
+    try{
+      const status=await readJobStatus(entry.name);
+      if(status.expiresAt&&Date.parse(status.expiresAt)<=now)await removeJob(entry.name);
+    }catch{
+      // Ignore incomplete or transient job directories. Active workers may still be creating them.
+    }
+  }));
+};
+
+const writeStatusAtomic=async(jobId:string,status:StudyTubeJobStatus)=>{
+  const path=getStatusPath(jobId);
+  const temporary=`${path}.${process.pid}.tmp`;
+  await writeFile(temporary,`${JSON.stringify(status,null,2)}\n`,`utf8`);
+  await rename(temporary,path);
+};
+
+const isMissing=(error:unknown)=>error instanceof Error&&"code" in error&&(error as NodeJS.ErrnoException).code==="ENOENT";

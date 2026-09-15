@@ -3,13 +3,22 @@ import {mkdir,rm,writeFile} from "node:fs/promises";
 import {dirname,join} from "node:path";
 import {parseStudyTubeProject,StudyTubeValidationError} from "@studytube/schema";
 import {runStudyTubeJob} from "@studytube/worker";
-import {getDataDir} from "@/lib/jobs";
+import {cleanupExpiredJobs,getDataDir,listJobStatuses} from "@/lib/jobs";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 
+export async function GET(){
+  try{
+    return Response.json({jobs:await listJobStatuses()},{headers:{"cache-control":"no-store"}});
+  }catch(error){
+    return Response.json({error:error instanceof Error?error.message:"Could not load jobs"},{status:500});
+  }
+}
+
 export async function POST(request:Request){
   try{
+    await cleanupExpiredJobs();
     const form=await request.formData();
     const projectPart=form.get("project");
     if(!(projectPart instanceof File)) return Response.json({error:"Upload a .studytube.json project"},{status:400});
@@ -38,6 +47,11 @@ export async function POST(request:Request){
       await mkdir(dirname(destination),{recursive:true});
       await writeFile(destination,new Uint8Array(await file.arrayBuffer()));
     }
+
+    const createdAt=new Date().toISOString();
+    const jobRoot=join(dataDir,"jobs",jobId);
+    await mkdir(jobRoot,{recursive:true});
+    await writeFile(join(jobRoot,"status.json"),`${JSON.stringify({jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt,projectTitle:project.metadata.title},null,2)}\n`,`utf8`);
 
     void runStudyTubeJob({projectPath,dataDir,jobId})
       .catch(()=>undefined)

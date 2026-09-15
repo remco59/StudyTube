@@ -1,11 +1,12 @@
 "use client";
 
-import {useEffect,useMemo,useRef,useState} from "react";
+import {useCallback,useEffect,useMemo,useRef,useState} from "react";
 import {buildChatGptPrompt} from "../lib/chatgptPrompt";
 
 type RequiredAsset={id:string;type:"image"|"document";path:string;fileName:string};
 type ValidationResult={valid:true;summary:{title:string;language:string;targetDuration:number;chapters:number;scenes:number;assets:number};assets:RequiredAsset[]}|{valid:false;issues:{path:string;message:string}[]};
-type JobStatus={jobId:string;state:string;progress:number;projectTitle?:string;outputPath?:string;error?:string};
+type JobStatus={jobId:string;state:string;progress:number;createdAt?:string;updatedAt?:string;projectTitle?:string;outputPath?:string;error?:string;downloadedAt?:string;expiresAt?:string};
+type JobLogEntry={timestamp:string;event:string;message:string;data?:unknown};
 type PromptLanguage="nl-NL"|"en-US";
 
 export const StudyTubeApp=()=>{
@@ -14,12 +15,43 @@ export const StudyTubeApp=()=>{
   const [validation,setValidation]=useState<ValidationResult|null>(null);
   const [validating,setValidating]=useState(false);
   const [job,setJob]=useState<JobStatus|null>(null);
+  const [jobs,setJobs]=useState<JobStatus[]>([]);
+  const [logs,setLogs]=useState<JobLogEntry[]>([]);
+  const [detailsOpen,setDetailsOpen]=useState(false);
   const [error,setError]=useState<string|null>(null);
   const [promptDuration,setPromptDuration]=useState(8);
   const [promptLanguage,setPromptLanguage]=useState<PromptLanguage>("nl-NL");
   const [promptScope,setPromptScope]=useState("");
   const [promptCopied,setPromptCopied]=useState(false);
   const validationRequest=useRef(0);
+  const jobsLoaded=useRef(false);
+
+  const refreshJobs=useCallback(async(preferredJobId?:string)=>{
+    try{
+      const response=await fetch("/api/jobs",{cache:"no-store"});
+      if(!response.ok)return;
+      const result=await response.json() as {jobs:JobStatus[]};
+      const nextJobs=result.jobs??[];
+      const firstLoad=!jobsLoaded.current;
+      setJobs(nextJobs);
+      setJob((current)=>{
+        if(preferredJobId)return nextJobs.find((item)=>item.jobId===preferredJobId)??current;
+        if(current?.jobId==="starting")return current;
+        if(current)return nextJobs.find((item)=>item.jobId===current.jobId)??null;
+        if(firstLoad)return nextJobs.find((item)=>!isTerminal(item.state))??nextJobs[0]??null;
+        return null;
+      });
+      jobsLoaded.current=true;
+    }catch{
+      // The render UI can still work with the currently selected job if history loading fails.
+    }
+  },[]);
+
+  useEffect(()=>{
+    const initialTimer=window.setTimeout(()=>void refreshJobs(),0);
+    const timer=window.setInterval(()=>void refreshJobs(),30_000);
+    return()=>{window.clearTimeout(initialTimer);window.clearInterval(timer);};
+  },[refreshJobs]);
 
   const handleProjectFile=(file:File|null)=>{
     const requestId=++validationRequest.current;
@@ -27,6 +59,8 @@ export const StudyTubeApp=()=>{
     setAssetFiles([]);
     setValidation(null);
     setJob(null);
+    setLogs([]);
+    setDetailsOpen(false);
     setError(null);
     if(!file){setValidating(false);return;}
 
@@ -45,19 +79,37 @@ export const StudyTubeApp=()=>{
   const jobId=job?.jobId;
   const jobState=job?.state;
   useEffect(()=>{
-    if(!jobId||jobId==="starting"||jobState==="completed"||jobState==="failed")return;
+    if(!jobId||jobId==="starting"||isTerminal(jobState))return;
     let cancelled=false;
     const poll=()=>{
       void fetch(`/api/jobs/${jobId}`,{cache:"no-store"}).then(async(response)=>{
         if(!response.ok)return;
         const next=await response.json() as JobStatus;
-        if(!cancelled)setJob(next);
+        if(cancelled)return;
+        setJob(next);
+        setJobs((current)=>[next,...current.filter((item)=>item.jobId!==next.jobId)].sort(sortJobs));
       });
     };
     poll();
     const timer=window.setInterval(poll,1200);
     return()=>{cancelled=true;window.clearInterval(timer);};
   },[jobId,jobState]);
+
+  useEffect(()=>{
+    if(!detailsOpen||!jobId||jobId==="starting")return;
+    let cancelled=false;
+    const load=()=>{
+      void fetch(`/api/jobs/${jobId}/logs`,{cache:"no-store"}).then(async(response)=>{
+        if(!response.ok)return;
+        const result=await response.json() as {logs:JobLogEntry[]};
+        if(!cancelled)setLogs(result.logs??[]);
+      });
+    };
+    load();
+    if(isTerminal(jobState))return()=>{cancelled=true;};
+    const timer=window.setInterval(load,1200);
+    return()=>{cancelled=true;window.clearInterval(timer);};
+  },[detailsOpen,jobId,jobState]);
 
   const matchedAssets=useMemo(()=>{
     const result=new Map<string,File>();
@@ -70,7 +122,8 @@ export const StudyTubeApp=()=>{
   },[assetFiles,validation]);
 
   const missingAssets=validation?.valid?validation.assets.filter((asset)=>!matchedAssets.has(asset.id)):[];
-  const busy=Boolean(job&&job.state!=="completed"&&job.state!=="failed");
+  const busy=Boolean(job&&!isTerminal(job.state));
+  const hasActiveJob=busy||jobs.some((item)=>!isTerminal(item.state));
 
   const copyPrompt=async()=>{
     const prompt=buildChatGptPrompt({targetDurationMinutes:promptDuration,language:promptLanguage,scope:promptScope});
@@ -84,14 +137,23 @@ export const StudyTubeApp=()=>{
   };
 
   const startRender=async()=>{
-    if(!projectFile||!validation?.valid||missingAssets.length>0)return;
-    setError(null);setJob({jobId:"starting",state:"queued",progress:0});
+    if(!projectFile||!validation?.valid||missingAssets.length>0||hasActiveJob)return;
+    setError(null);setLogs([]);setDetailsOpen(false);setJob({jobId:"starting",state:"queued",progress:0,projectTitle:validation.summary.title});
     const form=new FormData();form.append("project",projectFile);
     for(const asset of validation.assets){const file=matchedAssets.get(asset.id);if(file)form.append(`asset:${asset.id}`,file,file.name);}
     const response=await fetch("/api/jobs",{method:"POST",body:form});
     const result=await response.json() as {jobId?:string;error?:string};
     if(!response.ok||!result.jobId){setJob(null);setError(result.error??"Could not start render");return;}
-    setJob({jobId:result.jobId,state:"queued",progress:0,projectTitle:validation.summary.title});
+    const next:JobStatus={jobId:result.jobId,state:"queued",progress:0,createdAt:new Date().toISOString(),projectTitle:validation.summary.title};
+    setJob(next);
+    setJobs((current)=>[next,...current.filter((item)=>item.jobId!==next.jobId)]);
+    void refreshJobs(result.jobId);
+  };
+
+  const selectJob=(next:JobStatus)=>{
+    setJob(next);
+    setLogs([]);
+    setDetailsOpen(false);
   };
 
   return <main className="appShell">
@@ -143,12 +205,27 @@ export const StudyTubeApp=()=>{
       </div>
 
       <section className="renderPanel">
-        <div><p className="eyebrow">03 · Render</p><h2>{job?.state==="completed"?"Your video is ready.":busy?humanState(job?.state):"Ready when you are."}</h2><p>{job?.state==="failed"?job.error:busy?"StudyTube is running the complete pipeline on your server.":"No editing timeline. The output is a finished 1080p MP4."}</p></div>
+        <div className="renderMain">
+          <div><p className="eyebrow">03 · Render</p><h2>{job?.state==="completed"?"Your video is ready.":job?.state==="failed"?"Render failed.":busy?humanState(job?.state):"Ready when you are."}</h2><p>{renderDescription(job,busy,hasActiveJob)}</p></div>
+          {job&&job.jobId!=="starting"?<details className="jobDetails" open={detailsOpen} onToggle={(event)=>setDetailsOpen(event.currentTarget.open)}>
+            <summary><span>{detailsOpen?"Hide details":"Show details"}</span><span className="detailMeta">{job.jobId}</span></summary>
+            <div className="logConsole">{logs.length===0?<div className="logEmpty">{busy?"Waiting for pipeline logs…":"No logs recorded for this job."}</div>:logs.map((entry,index)=><div className="logLine" key={`${entry.timestamp}-${entry.event}-${index}`}><time>{formatLogTime(entry.timestamp)}</time><span className="logEvent">{entry.event}</span><span>{entry.message}</span></div>)}</div>
+          </details>:null}
+        </div>
         <div className="renderAction">
           {busy?<div className="progress"><div className="progressTrack"><span style={{width:`${Math.round((job?.progress??0)*100)}%`}}/></div><strong>{Math.round((job?.progress??0)*100)}%</strong></div>:null}
-          {job?.state==="completed"?<a className="primaryButton" href={`/api/jobs/${job.jobId}/download`}>Download MP4</a>:<button className="primaryButton" disabled={!validation?.valid||missingAssets.length>0||busy} onClick={()=>void startRender()}>Generate video</button>}
+          {job?.state==="completed"?<a className="primaryButton" href={`/api/jobs/${job.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(job.jobId),1200)}>Download MP4</a>:<button className="primaryButton" disabled={!validation?.valid||missingAssets.length>0||hasActiveJob} onClick={()=>void startRender()}>{hasActiveJob&&!busy?"Render already running":"Generate video"}</button>}
         </div>
       </section>
+
+      {jobs.length>0?<section className="jobsPanel">
+        <div className="jobsHeading"><div><p className="eyebrow">Saved on this server</p><h2>Recent jobs</h2></div><span className="mutedPill">{jobs.length} saved</span></div>
+        <div className="jobsList">{jobs.slice(0,8).map((item)=><button type="button" className={`jobRow${job?.jobId===item.jobId?" selected":""}`} key={item.jobId} onClick={()=>selectJob(item)}>
+          <div className="jobIdentity"><strong>{item.projectTitle??"StudyTube render"}</strong><span>{item.createdAt?formatJobDate(item.createdAt):item.jobId}</span></div>
+          <div className="jobState"><span className={`jobStatePill ${stateClass(item.state)}`}>{jobStatusLabel(item)}</span>{!isTerminal(item.state)?<span className="jobProgress">{Math.round(item.progress*100)}%</span>:null}</div>
+        </button>)}</div>
+      </section>:null}
+
       {error?<div className="globalError">{error}</div>:null}
     </section>
   </main>;
@@ -157,7 +234,25 @@ export const StudyTubeApp=()=>{
 const Metric=({label,value}:{label:string;value:string})=><div className="metric"><span>{label}</span><strong>{value}</strong></div>;
 const clampDuration=(minutes:number)=>Number.isFinite(minutes)?Math.max(0.5,Math.min(120,minutes)):8;
 const formatDuration=(seconds:number)=>{const total=Math.max(0,Math.round(seconds));return `${Math.floor(total/60)}:${String(total%60).padStart(2,"0")}`;};
-const humanState=(state?:string)=>({queued:"Preparing render…",validating:"Validating project…",synthesizing:"Generating narration…",staging:"Preparing assets…",bundling:"Building video…",rendering:"Rendering MP4…"}[state??""]??"Working…");
+const humanState=(state?:string)=>({queued:"Preparing render…",validating:"Analyzing project…",synthesizing:"Generating narration…",staging:"Preparing assets…",bundling:"Building video…",rendering:"Rendering MP4…"}[state??""]??"Working…");
+const isTerminal=(state?:string)=>state==="completed"||state==="failed";
+const sortJobs=(a:JobStatus,b:JobStatus)=>Date.parse(b.createdAt??"")-Date.parse(a.createdAt??"");
+const renderDescription=(job:JobStatus|null,busy:boolean,hasActiveJob:boolean)=>{
+  if(job?.state==="failed")return job.error??"The render pipeline stopped. Open details to inspect the logs.";
+  if(job?.state==="completed"&&job.downloadedAt)return "Downloaded. StudyTube will remove this job automatically about one hour after the first download.";
+  if(job?.state==="completed")return "Finished videos stay on the server until you download them.";
+  if(busy)return "The render continues on your server even if you refresh or close this tab.";
+  if(hasActiveJob)return "Another saved render is still running. Open it under Recent jobs to follow its progress.";
+  return "No editing timeline. The output is a finished 1080p MP4.";
+};
+const jobStatusLabel=(job:JobStatus)=>{
+  if(job.state==="completed")return job.downloadedAt?"Downloaded":"Ready";
+  if(job.state==="failed")return "Failed";
+  return humanState(job.state).replace("…","");
+};
+const stateClass=(state:string)=>state==="completed"?"complete":state==="failed"?"failed":"active";
+const formatLogTime=(value:string)=>new Date(value).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+const formatJobDate=(value:string)=>new Date(value).toLocaleString([],{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});
 const copyText=async(text:string)=>{
   if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);return;}
   const textarea=document.createElement("textarea");

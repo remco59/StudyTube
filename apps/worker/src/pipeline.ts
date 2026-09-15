@@ -72,26 +72,36 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
   const paths=createJobPaths(dataDir,jobId);
   const createdAt=now().toISOString();
   let status:StudyTubeJobStatus={jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt};
+  let statusQueue=Promise.resolve();
+  let logQueue=Promise.resolve();
 
-  const update=async(state:JobState,progress:number,extra:Partial<StudyTubeJobStatus>={})=>{
+  const update=(state:JobState,progress:number,extra:Partial<StudyTubeJobStatus>={})=>{
     status={...status,...extra,state,progress:clamp(progress),updatedAt:now().toISOString()};
-    await writeJobStatus(paths,status);
+    const snapshot={...status};
+    statusQueue=statusQueue.then(()=>writeJobStatus(paths,snapshot));
+    return statusQueue;
+  };
+  const log=(event:string,message:string,data?:unknown)=>{
+    logQueue=logQueue.then(()=>appendJobLog(paths,event,message,data));
+    return logQueue;
   };
 
   await initializeJobPaths(paths);
   await writeJobStatus(paths,status);
-  await appendJobLog(paths,"job.created","Render job created",{projectPath:options.projectPath});
+  await log("job.created","Render job created",{projectPath:options.projectPath});
 
   try{
     await update("validating",.03);
+    await log("project.reading","Reading and analyzing StudyTube project");
     const sourceProjectPath=resolve(options.projectPath);
     const raw=await readFile(sourceProjectPath,"utf8");
     const project=parseStudyTubeProject(JSON.parse(raw));
     await writeFile(paths.projectFile,`${JSON.stringify(project,null,2)}\n`,`utf8`);
     await update("validating",.08,{projectTitle:project.metadata.title});
-    await appendJobLog(paths,"project.validated","Project JSON validated",{title:project.metadata.title,chapters:project.chapters.length});
+    await log("project.validated","Project JSON validated",{title:project.metadata.title,chapters:project.chapters.length,scenes:project.chapters.reduce((count,chapter)=>count+chapter.scenes.length,0)});
 
     await update("synthesizing",.1);
+    await log("narration.started","Generating narration audio");
     const provider=deps.provider??createProvider(options.ttsProvider??"piper");
     const cache=new NarrationAudioCache(join(dataDir,"cache","tts"),provider);
     const prepared=await prepareProjectNarration(project,cache,{
@@ -101,8 +111,9 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
       voice:process.env.PIPER_VOICE,
     });
     await update("staging",.35);
-    await appendJobLog(paths,"narration.ready","Narration synthesized and measured",{scenes:Object.keys(prepared.tracks).length,provider:provider.id});
+    await log("narration.ready","Narration synthesized and measured",{scenes:Object.keys(prepared.tracks).length,provider:provider.id});
 
+    await log("assets.staging","Preparing project assets and narration for the renderer",{assets:Object.keys(project.assets??{}).length});
     const sourceRoot=dirname(sourceProjectPath);
     await stageProjectAssets(project.assets??{},sourceRoot,paths.publicDir);
     const narration=await stageNarration(prepared.tracks,paths.publicDir);
@@ -112,26 +123,41 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
     const outputName=`${slugify(project.metadata.title)||"studytube"}-${jobId}.mp4`;
     const outputPath=join(paths.outputDir,outputName);
     await update("bundling",.4);
+    await log("render.started","Building renderer and starting MP4 render",{frames:prepared.normalizedProject.totalFrames});
     const entryPoint=resolveRendererEntryPoint();
     const render=deps.render??renderStudyTubeComposition;
+    let lastRenderBucket=-1;
+    let lastRenderStage="";
     await render({
       entryPoint,
       publicDir:paths.publicDir,
       outputPath,
       props,
-      onProgress:async({progress,stage})=>{
-        const mapped=.4+clamp(progress)*.58;
-        await update(stage==="bundling"?"bundling":"rendering",mapped);
+      onProgress:({progress,stage})=>{
+        const safeProgress=clamp(progress);
+        const state=stage==="bundling"?"bundling":"rendering";
+        const mapped=.4+safeProgress*.58;
+        void update(state,mapped);
+        const bucket=Math.floor(safeProgress*10)*10;
+        const stageName=stage??state;
+        if(bucket>lastRenderBucket||stageName!==lastRenderStage){
+          lastRenderBucket=bucket;
+          lastRenderStage=stageName;
+          void log("render.progress",`${stageName==="bundling"?"Bundling":"Rendering"} video: ${Math.min(100,bucket)}%`,{stage:stageName,progress:safeProgress});
+        }
       },
     });
+    await Promise.all([statusQueue,logQueue]);
 
-    await appendJobLog(paths,"render.completed","MP4 render completed",{outputPath,totalFrames:prepared.normalizedProject.totalFrames});
+    await log("render.completed","MP4 render completed",{outputPath,totalFrames:prepared.normalizedProject.totalFrames});
     await update("completed",1,{outputPath});
+    await Promise.all([statusQueue,logQueue]);
     return {jobId,paths,status,outputPath};
   }catch(error){
     const message=error instanceof Error?error.message:String(error);
-    await appendJobLog(paths,"job.failed",message).catch(()=>undefined);
+    await log("job.failed",message).catch(()=>undefined);
     await update("failed",status.progress,{error:message}).catch(()=>undefined);
+    await Promise.all([statusQueue.catch(()=>undefined),logQueue.catch(()=>undefined)]);
     throw new StudyTubeJobError(jobId,paths.root,error);
   }
 };
