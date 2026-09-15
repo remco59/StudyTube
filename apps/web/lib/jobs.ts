@@ -2,10 +2,12 @@ import type {Dirent} from "node:fs";
 import {readdir,readFile,rename,rm,writeFile} from "node:fs/promises";
 import {join,resolve} from "node:path";
 import type {JobLogEntry,StudyTubeJobStatus} from "@studytube/worker/types";
+import {isActiveJob} from "@/lib/activeJobs";
 
 const DOWNLOAD_RETENTION_MS=60*60*1000;
 const MAX_LISTED_JOBS=50;
 const MAX_LOG_ENTRIES=300;
+const INTERRUPTED_MESSAGE="Render interrupted because the StudyTube server process restarted or stopped.";
 
 export const getDataDir=()=>resolve(process.env.STUDYTUBE_DATA_DIR??"data");
 
@@ -16,9 +18,29 @@ export const assertJobId=(jobId:string)=>{
 
 const getJobRoot=(jobId:string)=>join(getDataDir(),"jobs",assertJobId(jobId));
 const getStatusPath=(jobId:string)=>join(getJobRoot(jobId),"status.json");
+const isTerminalState=(state:StudyTubeJobStatus["state"])=>state==="completed"||state==="failed"||state==="cancelled";
 
 export const readJobStatus=async(jobId:string):Promise<StudyTubeJobStatus>=>
   JSON.parse(await readFile(getStatusPath(jobId),"utf8")) as StudyTubeJobStatus;
+
+export const markJobInterrupted=async(jobId:string):Promise<StudyTubeJobStatus>=>{
+  const status=await readJobStatus(jobId);
+  if(isTerminalState(status.state)||isActiveJob(jobId))return status;
+  const next:StudyTubeJobStatus={
+    ...status,
+    state:"failed",
+    error:INTERRUPTED_MESSAGE,
+    updatedAt:new Date().toISOString(),
+  };
+  await writeStatusAtomic(jobId,next);
+  return next;
+};
+
+export const readLiveJobStatus=async(jobId:string):Promise<StudyTubeJobStatus>=>{
+  const status=await readJobStatus(jobId);
+  if(isTerminalState(status.state)||isActiveJob(jobId))return status;
+  return markJobInterrupted(jobId);
+};
 
 export const listJobStatuses=async():Promise<StudyTubeJobStatus[]>=>{
   await cleanupExpiredJobs();
@@ -29,7 +51,7 @@ export const listJobStatuses=async():Promise<StudyTubeJobStatus[]>=>{
     throw error;
   }
   const statuses=await Promise.all(entries.filter((entry)=>entry.isDirectory()).map(async(entry)=>{
-    try{return await readJobStatus(entry.name);}catch{return null;}
+    try{return await readLiveJobStatus(entry.name);}catch{return null;}
   }));
   return statuses
     .filter((status):status is StudyTubeJobStatus=>status!==null)
