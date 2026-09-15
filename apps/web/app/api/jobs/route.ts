@@ -4,7 +4,7 @@ import {dirname,join} from "node:path";
 import {parseStudyTubeProject,StudyTubeValidationError} from "@studytube/schema";
 import {runStudyTubeJob} from "@studytube/worker";
 import {registerActiveJob,unregisterActiveJob} from "@/lib/activeJobs";
-import {cleanupExpiredJobs,getDataDir,listJobStatuses} from "@/lib/jobs";
+import {cleanupCancelledJobWorkingData,cleanupExpiredJobs,getDataDir,listJobStatuses} from "@/lib/jobs";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
@@ -57,9 +57,10 @@ export async function POST(request:Request){
     const signal=registerActiveJob(jobId);
     void runStudyTubeJob({projectPath,dataDir,jobId,signal})
       .catch(()=>undefined)
-      .finally(()=>{
+      .finally(async()=>{
         unregisterActiveJob(jobId);
-        return rm(uploadRoot,{recursive:true,force:true}).catch(()=>undefined);
+        await rm(uploadRoot,{recursive:true,force:true}).catch(()=>undefined);
+        await cleanupCancelledJobWorkingData(jobId).catch(()=>undefined);
       });
 
     return Response.json({jobId},{status:202});
