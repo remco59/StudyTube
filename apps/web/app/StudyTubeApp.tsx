@@ -23,6 +23,7 @@ export const StudyTubeApp=()=>{
   const [promptLanguage,setPromptLanguage]=useState<PromptLanguage>("nl-NL");
   const [promptScope,setPromptScope]=useState("");
   const [promptCopied,setPromptCopied]=useState(false);
+  const [cancellingJobId,setCancellingJobId]=useState<string|null>(null);
   const validationRequest=useRef(0);
   const jobsLoaded=useRef(false);
 
@@ -96,6 +97,10 @@ export const StudyTubeApp=()=>{
   },[jobId,jobState]);
 
   useEffect(()=>{
+    if(!jobId||isTerminal(jobState))setCancellingJobId(null);
+  },[jobId,jobState]);
+
+  useEffect(()=>{
     if(!detailsOpen||!jobId||jobId==="starting")return;
     let cancelled=false;
     const load=()=>{
@@ -148,6 +153,21 @@ export const StudyTubeApp=()=>{
     setJob(next);
     setJobs((current)=>[next,...current.filter((item)=>item.jobId!==next.jobId)]);
     void refreshJobs(result.jobId);
+  };
+
+  const cancelRender=async()=>{
+    if(!job||job.jobId==="starting"||isTerminal(job.state)||cancellingJobId===job.jobId)return;
+    setError(null);
+    setCancellingJobId(job.jobId);
+    try{
+      const response=await fetch(`/api/jobs/${job.jobId}/cancel`,{method:"POST"});
+      const result=await response.json() as {error?:string};
+      if(!response.ok){setCancellingJobId(null);setError(result.error??"Could not cancel render");return;}
+      void refreshJobs(job.jobId);
+    }catch(cause){
+      setCancellingJobId(null);
+      setError(cause instanceof Error?cause.message:"Could not cancel render");
+    }
   };
 
   const selectJob=(next:JobStatus)=>{
@@ -206,7 +226,7 @@ export const StudyTubeApp=()=>{
 
       <section className="renderPanel">
         <div className="renderMain">
-          <div><p className="eyebrow">03 · Render</p><h2>{job?.state==="completed"?"Your video is ready.":job?.state==="failed"?"Render failed.":busy?humanState(job?.state):"Ready when you are."}</h2><p>{renderDescription(job,busy,hasActiveJob)}</p></div>
+          <div><p className="eyebrow">03 · Render</p><h2>{job?.state==="completed"?"Your video is ready.":job?.state==="failed"?"Render failed.":job?.state==="cancelled"?"Render cancelled.":busy?humanState(job?.state):"Ready when you are."}</h2><p>{renderDescription(job,busy,hasActiveJob)}</p></div>
           {job&&job.jobId!=="starting"?<details className="jobDetails" open={detailsOpen} onToggle={(event)=>setDetailsOpen(event.currentTarget.open)}>
             <summary><span>{detailsOpen?"Hide details":"Show details"}</span><span className="detailMeta">{job.jobId}</span></summary>
             <div className="logConsole">{logs.length===0?<div className="logEmpty">{busy?"Waiting for pipeline logs…":"No logs recorded for this job."}</div>:logs.map((entry,index)=><div className="logLine" key={`${entry.timestamp}-${entry.event}-${index}`}><time>{formatLogTime(entry.timestamp)}</time><span className="logEvent">{entry.event}</span><span>{entry.message}</span></div>)}</div>
@@ -214,7 +234,7 @@ export const StudyTubeApp=()=>{
         </div>
         <div className="renderAction">
           {busy?<div className="progress"><div className="progressTrack"><span style={{width:`${Math.round((job?.progress??0)*100)}%`}}/></div><strong>{Math.round((job?.progress??0)*100)}%</strong></div>:null}
-          {job?.state==="completed"?<a className="primaryButton" href={`/api/jobs/${job.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(job.jobId),1200)}>Download MP4</a>:<button className="primaryButton" disabled={!validation?.valid||missingAssets.length>0||hasActiveJob} onClick={()=>void startRender()}>{hasActiveJob&&!busy?"Render already running":"Generate video"}</button>}
+          {job?.state==="completed"?<a className="primaryButton" href={`/api/jobs/${job.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(job.jobId),1200)}>Download MP4</a>:busy&&job?.jobId!=="starting"?<button className="cancelButton" disabled={cancellingJobId===job.jobId} onClick={()=>void cancelRender()}>{cancellingJobId===job.jobId?"Cancelling…":"Cancel render"}</button>:busy?<button className="primaryButton" disabled>Starting…</button>:<button className="primaryButton" disabled={!validation?.valid||missingAssets.length>0||hasActiveJob} onClick={()=>void startRender()}>{hasActiveJob?"Render already running":"Generate video"}</button>}
         </div>
       </section>
 
@@ -235,10 +255,11 @@ const Metric=({label,value}:{label:string;value:string})=><div className="metric
 const clampDuration=(minutes:number)=>Number.isFinite(minutes)?Math.max(0.5,Math.min(120,minutes)):8;
 const formatDuration=(seconds:number)=>{const total=Math.max(0,Math.round(seconds));return `${Math.floor(total/60)}:${String(total%60).padStart(2,"0")}`;};
 const humanState=(state?:string)=>({queued:"Preparing render…",validating:"Analyzing project…",synthesizing:"Generating narration…",staging:"Preparing assets…",bundling:"Building video…",rendering:"Rendering MP4…"}[state??""]??"Working…");
-const isTerminal=(state?:string)=>state==="completed"||state==="failed";
+const isTerminal=(state?:string)=>state==="completed"||state==="failed"||state==="cancelled";
 const sortJobs=(a:JobStatus,b:JobStatus)=>Date.parse(b.createdAt??"")-Date.parse(a.createdAt??"");
 const renderDescription=(job:JobStatus|null,busy:boolean,hasActiveJob:boolean)=>{
   if(job?.state==="failed")return job.error??"The render pipeline stopped. Open details to inspect the logs.";
+  if(job?.state==="cancelled")return "This render was cancelled. You can start a new render when you are ready.";
   if(job?.state==="completed"&&job.downloadedAt)return "Downloaded. StudyTube will remove this job automatically about one hour after the first download.";
   if(job?.state==="completed")return "Finished videos stay on the server until you download them.";
   if(busy)return "The render continues on your server even if you refresh or close this tab.";
@@ -248,9 +269,10 @@ const renderDescription=(job:JobStatus|null,busy:boolean,hasActiveJob:boolean)=>
 const jobStatusLabel=(job:JobStatus)=>{
   if(job.state==="completed")return job.downloadedAt?"Downloaded":"Ready";
   if(job.state==="failed")return "Failed";
+  if(job.state==="cancelled")return "Cancelled";
   return humanState(job.state).replace("…","");
 };
-const stateClass=(state:string)=>state==="completed"?"complete":state==="failed"?"failed":"active";
+const stateClass=(state:string)=>state==="completed"?"complete":state==="failed"?"failed":state==="cancelled"?"cancelled":"active";
 const formatLogTime=(value:string)=>new Date(value).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"});
 const formatJobDate=(value:string)=>new Date(value).toLocaleString([],{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});
 const copyText=async(text:string)=>{
