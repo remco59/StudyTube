@@ -3,7 +3,7 @@ import {tmpdir} from "node:os";
 import {dirname,join,resolve} from "node:path";
 import {SyntheticWavProvider} from "@studytube/tts";
 import {afterEach,describe,expect,it,vi} from "vitest";
-import {resolveRendererEntryPoint,runStudyTubeJob,StudyTubeJobError} from "./pipeline";
+import {resolveRendererEntryPoint,runStudyTubeJob,StudyTubeJobCancelledError,StudyTubeJobError} from "./pipeline";
 
 const roots:string[]=[];
 const makeRoot=async()=>{const root=await mkdtemp(join(tmpdir(),"studytube-worker-"));roots.push(root);return root;};
@@ -48,6 +48,24 @@ describe("runStudyTubeJob",()=>{
     expect(logs).toContain("render.progress");
     expect(logs).toContain("render.completed");
     expect((await stat(result.outputPath)).isFile()).toBe(true);
+  });
+
+  it("marks a render as cancelled when its abort signal is triggered",async()=>{
+    const root=await makeRoot();
+    const projectPath=await writeProject(root);
+    const controller=new AbortController();
+    const render=vi.fn(async({signal})=>{
+      controller.abort();
+      expect(signal?.aborted).toBe(true);
+      throw new Error("renderMedia() was cancelled");
+    });
+
+    await expect(runStudyTubeJob({projectPath,dataDir:join(root,"data"),jobId:"job-cancel",ttsProvider:"synthetic",signal:controller.signal},{provider:new SyntheticWavProvider(),render})).rejects.toBeInstanceOf(StudyTubeJobCancelledError);
+    const status=await readFile(join(root,"data","jobs","job-cancel","status.json"),"utf8");
+    const logs=await readFile(join(root,"data","jobs","job-cancel","logs.ndjson"),"utf8");
+    expect(status).toContain('"state": "cancelled"');
+    expect(status).not.toContain('"state": "failed"');
+    expect(logs).toContain("job.cancelled");
   });
 
   it("preserves failed status and logs when an asset cannot be staged",async()=>{
