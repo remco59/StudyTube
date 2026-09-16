@@ -15,7 +15,6 @@ services:
       start_period: 10s
 
   piper:
-    profiles: ["offline-tts"]
     build:
       context: ./docker/piper
     container_name: studytube-piper
@@ -32,6 +31,83 @@ services:
       retries: 5
       start_period: 60s
 
+  omnivoice:
+    build:
+      context: ./docker/omnivoice
+    container_name: studytube-omnivoice
+    restart: unless-stopped
+    environment:
+      OMNIVOICE_DEVICE: ${OMNIVOICE_DEVICE:-cpu}
+      OMNIVOICE_MODEL: ${OMNIVOICE_MODEL:-k2-fsa/OmniVoice}
+      HF_HOME: /models/huggingface
+    volumes:
+      - ${OMNIVOICE_DATA_PATH:-./omnivoice-data}:/models
+    shm_size: "2gb"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:5060/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  cloud-tts:
+    build:
+      context: ./docker/cloud-tts
+    container_name: studytube-cloud-tts
+    restart: unless-stopped
+    environment:
+      GOOGLE_APPLICATION_CREDENTIALS: /credentials/google.json
+      AZURE_SPEECH_KEY: ${AZURE_SPEECH_KEY:-}
+      AZURE_SPEECH_REGION: ${AZURE_SPEECH_REGION:-}
+      AZURE_SPEECH_ENDPOINT: ${AZURE_SPEECH_ENDPOINT:-}
+    volumes:
+      - ${STUDYTUBE_CREDENTIALS_PATH:-./credentials}:/credentials:ro
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:5070/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  chatterbox:
+    build:
+      context: ./docker/chatterbox
+    container_name: studytube-chatterbox
+    restart: unless-stopped
+    environment:
+      CHATTERBOX_DEVICE: ${CHATTERBOX_DEVICE:-cpu}
+      CHATTERBOX_DATA_DIR: /models
+      HF_HOME: /models/huggingface
+    volumes:
+      - ${CHATTERBOX_DATA_PATH:-./chatterbox-data}:/models
+    shm_size: "2gb"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:5080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  xtts:
+    build:
+      context: ./docker/xtts
+    container_name: studytube-xtts
+    restart: unless-stopped
+    environment:
+      XTTS_DEVICE: ${XTTS_DEVICE:-cpu}
+      XTTS_MODEL: ${XTTS_MODEL:-tts_models/multilingual/multi-dataset/xtts_v2}
+      COQUI_TOS_AGREED: ${COQUI_TOS_AGREED:-0}
+      TTS_HOME: /models/coqui
+    volumes:
+      - ${XTTS_DATA_PATH:-./xtts-data}:/models
+    shm_size: "2gb"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:5090/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   studytube:
     build:
       context: .
@@ -39,6 +115,16 @@ services:
     restart: unless-stopped
     depends_on:
       neural-tts:
+        condition: service_healthy
+      piper:
+        condition: service_healthy
+      omnivoice:
+        condition: service_healthy
+      cloud-tts:
+        condition: service_healthy
+      chatterbox:
+        condition: service_healthy
+      xtts:
         condition: service_healthy
     ports:
       - "${STUDYTUBE_PORT:-3000}:3000"
@@ -54,6 +140,21 @@ services:
       PIPER_URL: http://piper:5000
       PIPER_VOICE: ${PIPER_VOICE:-nl_NL-mls-medium}
       PIPER_LENGTH_SCALE: ${PIPER_LENGTH_SCALE:-1}
+      OMNIVOICE_URL: http://omnivoice:5060
+      OMNIVOICE_SPEED: ${OMNIVOICE_SPEED:-1}
+      OMNIVOICE_NUM_STEPS: ${OMNIVOICE_NUM_STEPS:-16}
+      OMNIVOICE_NORMALIZE_TEXT: ${OMNIVOICE_NORMALIZE_TEXT:-true}
+      CHATTERBOX_URL: http://chatterbox:5080
+      CHATTERBOX_T3_MODEL: ${CHATTERBOX_T3_MODEL:-v2}
+      CHATTERBOX_EXAGGERATION: ${CHATTERBOX_EXAGGERATION:-0.5}
+      CHATTERBOX_CFG_WEIGHT: ${CHATTERBOX_CFG_WEIGHT:-0.5}
+      CHATTERBOX_TEMPERATURE: ${CHATTERBOX_TEMPERATURE:-0.8}
+      XTTS_URL: http://xtts:5090
+      XTTS_SPEAKER: ${XTTS_SPEAKER:-Ana Florence}
+      XTTS_SPEED: ${XTTS_SPEED:-1}
+      CLOUD_TTS_URL: http://cloud-tts:5070
+      GOOGLE_CHIRP_VOICE: ${GOOGLE_CHIRP_VOICE:-nl-NL-Chirp3-HD-Charon}
+      AZURE_TTS_VOICE: ${AZURE_TTS_VOICE:-nl-NL-MaartenNeural}
       NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
       NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,video,utility}
       NEXT_TELEMETRY_DISABLED: "1"
