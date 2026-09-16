@@ -74,7 +74,7 @@
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   width: min(820px, calc(100vw - 48px));
-  max-height: min(90vh, 920px);
+  max-height: min(90dvh, 920px);
   overflow: hidden;
   border: 1px solid rgba(123, 97, 255, 0.42);
   border-radius: 20px;
@@ -186,6 +186,14 @@
   filter: brightness(1.06);
 }
 
+/* The workflow card's backdrop-filter creates a containing block for fixed descendants.
+   While the teaching modal is open, let the modal use the viewport instead of being
+   clipped to the card's rounded bounds. */
+.workflowCard:has(.teachingStrategyModalBackdrop) {
+  overflow: visible;
+  backdrop-filter: none;
+}
+
 @media (max-width: 620px) {
   .teachingStrategyModalBackdrop {
     padding: 10px;
@@ -193,7 +201,7 @@
 
   .teachingStrategyModal {
     width: calc(100vw - 20px);
-    max-height: calc(100vh - 20px);
+    max-height: calc(100dvh - 20px);
     border-radius: 16px;
   }
 
