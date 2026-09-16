@@ -146,7 +146,7 @@ const ProcessScene = ({scene}: {scene: SceneOf<"process">}) => {
               >
                 {index + 1}
               </div>
-              {step.icon ? <div style={{fontSize: 36}}>{step.icon}</div> : null}
+              {step.icon ? <IconGlyph icon={step.icon} size={36} /> : null}
             </div>
             <div style={{...typography.heading, fontSize: 38, marginTop: spacing.md}}>{step.title}</div>
             {step.description ? (
@@ -326,7 +326,11 @@ const DiagramScene = ({scene}: {scene: SceneOf<"diagram">}) => {
                 zIndex: 2,
               }}
             >
-              {item.icon ? <div style={{fontSize: 28, marginBottom: 6}}>{item.icon}</div> : null}
+              {item.icon ? (
+                <div style={{display: "flex", justifyContent: "center", marginBottom: 6}}>
+                  <IconGlyph icon={item.icon} size={28} />
+                </div>
+              ) : null}
               <div style={{fontSize: 27, fontWeight: 800}}>{item.label}</div>
               {item.detail ? <div style={{color: colors.textMuted, fontSize: 19, marginTop: 4}}>{item.detail}</div> : null}
             </div>
