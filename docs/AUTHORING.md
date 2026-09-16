@@ -90,8 +90,18 @@ Use only these v1 types:
 - `diagram`: one central concept with 2–8 surrounding factors.
 - `iconScene`: scan-friendly set of examples or categories.
 - `image`: a real image asset included in the project ZIP.
+- `video`: a packaged or resolved video asset when motion footage helps the explanation.
 - `document`: a real document asset included in the project ZIP when source context matters visually.
 - `documentHighlight`: one short important passage/idea from an included document.
+- `annotatedImage`: an image with semantic callouts that point to important regions.
+- `bulletReveal`: a short set of points revealed progressively when sequencing matters.
+- `dataChart`: supported numeric evidence shown as a chart; never invent data to use it.
+- `matrix`: a two-dimensional framework or classification.
+- `cycle`: a repeating process where the final stage connects back to the start.
+- `multipleChoice`: an active-recall question with answer options and a correct answer.
+- `workedExample`: a compact step-by-step application of a concept or method.
+- `hierarchy`: levels, ranks or parent-child relationships.
+- `quote`: exact wording from supplied literature when the wording itself deserves emphasis.
 - `question`: a real conceptual question or transition.
 - `visualGag`: occasional visual joke using an existing preset.
 - `recap`: 2–6 compact takeaways at the end of a substantial chapter.
@@ -182,7 +192,7 @@ Before returning a finished project, verify:
 4. Every media scene references an existing asset of the correct type.
 5. Every declared asset is actually present in the ZIP at the declared path.
 6. Every flowchart edge points to a node in the same scene.
-7. No unsupported scene type or motion intent is used.
+7. Every scene type and motion intent is from the supported v1 lists above.
 8. On-screen copy stays compact.
 9. Narration word count roughly matches the requested duration.
 10. The sequence has enough visual variation to avoid a spoken PowerPoint.
