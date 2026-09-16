@@ -33,6 +33,23 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+# Install dependencies in a cache-friendly layer. Source-code changes no longer
+# invalidate npm install; this layer is rebuilt only when a workspace manifest changes.
+COPY package.json ./
+COPY apps/renderer/package.json apps/renderer/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY apps/worker/package.json apps/worker/package.json
+COPY packages/core/package.json packages/core/package.json
+COPY packages/design-system/package.json packages/design-system/package.json
+COPY packages/schema/package.json packages/schema/package.json
+COPY packages/tts/package.json packages/tts/package.json
+
+# Build-time tools such as TypeScript and @remotion/cli are devDependencies,
+# so install them before switching the runtime environment to production.
+RUN npm install
+
+# Copy application source only after dependency installation so normal code edits
+# can reuse the cached npm layer.
 COPY . .
 
 # Intel VAAPI needs the system FFmpeg, but Debian does not ship libfdk_aac.
@@ -43,9 +60,6 @@ RUN mkdir -p /opt/studytube-intel-ffmpeg \
     && chmod +x /opt/studytube-intel-ffmpeg/ffmpeg \
     && ln -s /usr/bin/ffprobe /opt/studytube-intel-ffmpeg/ffprobe
 
-# Build-time tools such as TypeScript and @remotion/cli are devDependencies,
-# so install them before switching the runtime environment to production.
-RUN npm install
 RUN npm run build
 RUN npx remotion browser ensure
 
