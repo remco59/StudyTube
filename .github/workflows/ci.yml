@@ -35,5 +35,12 @@ jobs:
       - name: Validate Docker Compose
         run: docker compose config --quiet
 
+      - name: Ensure NVIDIA is not a hard startup requirement
+        run: |
+          if grep -Eq '^[[:space:]]+gpus:' docker-compose.yml; then
+            echo 'Default docker-compose.yml must not require an NVIDIA runtime.'
+            exit 1
+          fi
+
       - name: Build containers
         run: docker compose build

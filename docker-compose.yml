@@ -59,7 +59,6 @@ services:
       NEXT_TELEMETRY_DISABLED: "1"
     devices:
       - /dev/dri:/dev/dri
-    gpus: all
     volumes:
       - ${STUDYTUBE_DATA_PATH:-./data}:/data
     shm_size: "1gb"
