@@ -103,4 +103,25 @@ describe("jobs",()=>{
     await cleanupExpiredJobs();
     await expect(readFile(join(root,"jobs","job-expired","status.json"),"utf8")).rejects.toThrow();
   });
+
+  it("finds the most recently completed job with a matching project title",async()=>{
+    const root=await useDataDir();
+    const {findLatestCompletedJobByTitle}=await import("./jobs");
+    await writeStatus(root,"job-older",{jobId:"job-older",state:"completed",progress:1,projectTitle:"My video",createdAt:"2024-01-01T00:00:00.000Z",updatedAt:"2024-01-01T00:00:00.000Z"});
+    await writeStatus(root,"job-newer",{jobId:"job-newer",state:"completed",progress:1,projectTitle:"My video",createdAt:"2024-02-01T00:00:00.000Z",updatedAt:"2024-02-01T00:00:00.000Z"});
+    await writeStatus(root,"job-other-title",{jobId:"job-other-title",state:"completed",progress:1,projectTitle:"Another video",createdAt:"2024-03-01T00:00:00.000Z",updatedAt:"2024-03-01T00:00:00.000Z"});
+    await writeStatus(root,"job-not-completed",{jobId:"job-not-completed",state:"failed",progress:1,projectTitle:"My video",createdAt:"2024-04-01T00:00:00.000Z",updatedAt:"2024-04-01T00:00:00.000Z"});
+
+    const match=await findLatestCompletedJobByTitle("My video");
+    expect(match?.jobId).toBe("job-newer");
+    expect(await findLatestCompletedJobByTitle("No such project")).toBeNull();
+  });
+
+  it("reads a job's stored project file",async()=>{
+    const root=await useDataDir();
+    const {readJobProjectFile}=await import("./jobs");
+    await mkdir(join(root,"jobs","job-with-project"),{recursive:true});
+    await writeFile(join(root,"jobs","job-with-project","project.studytube.json"),JSON.stringify({title:"stored"}));
+    expect(JSON.parse(await readJobProjectFile("job-with-project"))).toEqual({title:"stored"});
+  });
 });

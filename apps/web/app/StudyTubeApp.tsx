@@ -8,7 +8,9 @@ type RequiredAsset={id:string;type:"image"|"document";path:string;fileName:strin
 type PreviewScene={id:string;type:string;narration:string;estimatedDurationSeconds:number};
 type PreviewChapter={id:string;title:string;estimatedDurationSeconds:number;scenes:PreviewScene[]};
 type ProjectPreview={estimatedDurationSeconds:number;chapters:PreviewChapter[]};
-type ValidationResult={valid:true;packageType:"json"|"zip";summary:{title:string;language:string;targetDuration:number;chapters:number;scenes:number;assets:number;estimatedDurationSeconds:number};assets:RequiredAsset[];preview:ProjectPreview}|{valid:false;issues:{path:string;message:string}[]};
+type SceneDiffEntry={sceneId:string;chapterId:string;chapterTitle:string;narrationPreview:string;status:"added"|"removed"|"modified"|"unchanged"};
+type ProjectDiff={added:number;removed:number;modified:number;unchanged:number;entries:SceneDiffEntry[];previousJobId:string;previousRenderedAt:string};
+type ValidationResult={valid:true;packageType:"json"|"zip";summary:{title:string;language:string;targetDuration:number;chapters:number;scenes:number;assets:number;estimatedDurationSeconds:number};assets:RequiredAsset[];preview:ProjectPreview;diff?:ProjectDiff}|{valid:false;issues:{path:string;message:string}[]};
 type RenderEngine="cpu"|"intel"|"nvidia";
 type RenderCapability={id:RenderEngine;label:string;available:boolean;detail:string};
 type RenderCapabilities={engines:RenderCapability[]};
@@ -319,6 +321,16 @@ export const StudyTubeApp=()=>{
                   {validation.assets.length===0?<div className="assetComplete">✓ Text-only JSON project. Nothing else to upload.</div>:<div className="assetList">{validation.assets.map((asset)=><div className="assetRow" key={asset.id}><div><strong>{asset.fileName}</strong><span>{asset.type} · {asset.path}</span></div><span className="assetOk">✓ included</span></div>)}</div>}
                 </div>:null}
 
+                {validation?.valid&&validation.diff?<details className="diffBlock">
+                  <summary><strong>Changes since your last render</strong><span>{formatDiffSummary(validation.diff)} · {formatJobDate(validation.diff.previousRenderedAt)}</span></summary>
+                  <div className="diffEntryList">{validation.diff.entries.filter((entry)=>entry.status!=="unchanged").map((entry)=><div className="diffEntry" key={entry.sceneId}>
+                    <div className="diffEntryMeta"><span className={`diffStatus ${entry.status}`}>{entry.status}</span><span>{entry.chapterTitle} · {entry.sceneId}</span></div>
+                    <p>{entry.narrationPreview}</p>
+                  </div>)}
+                  {validation.diff.entries.every((entry)=>entry.status==="unchanged")?<div className="assetComplete">✓ No changes since the last render of this project.</div>:null}
+                  </div>
+                </details>:null}
+
                 {validation?.valid?<details className="previewBlock">
                   <summary><strong>Scene-by-scene preview</strong><span>{validation.preview.chapters.reduce((count,chapter)=>count+chapter.scenes.length,0)} scenes · ~{formatDuration(validation.preview.estimatedDurationSeconds)} estimated</span></summary>
                   <div className="previewChapters">{validation.preview.chapters.map((chapter)=><div className="previewChapter" key={chapter.id}>
@@ -441,6 +453,14 @@ const formatEta=(seconds:number)=>{
 };
 const formatLogTime=(value:string)=>new Date(value).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"});
 const formatJobDate=(value:string)=>new Date(value).toLocaleString([],{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});
+const formatDiffSummary=(diff:ProjectDiff)=>{
+  const parts=[
+    diff.added>0?`${diff.added} added`:null,
+    diff.removed>0?`${diff.removed} removed`:null,
+    diff.modified>0?`${diff.modified} modified`:null,
+  ].filter((part):part is string=>part!==null);
+  return parts.length>0?parts.join(", "):"No changes";
+};
 const copyText=async(text:string)=>{
   if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);return;}
   const textarea=document.createElement("textarea");
