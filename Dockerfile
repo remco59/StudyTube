@@ -53,16 +53,21 @@ RUN npm install
 COPY . .
 
 # Intel VAAPI needs the system FFmpeg, but Debian does not ship libfdk_aac.
-# Route Remotion's Intel-only FFmpeg calls through a compatibility wrapper
-# that rewrites libfdk_aac to the built-in AAC encoder before executing FFmpeg.
-# Remotion treats binariesDirectory as the home for all native renderer binaries,
-# so copy its compositor there too instead of only supplying ffmpeg and ffprobe.
+# Remotion's binariesDirectory must contain the complete native compositor runtime,
+# including its bundled libav*.so/libsw*.so libraries. Copy the whole platform
+# package first, then replace only ffmpeg/ffprobe with StudyTube's Intel choices.
 RUN mkdir -p /opt/studytube-intel-ffmpeg \
+    && cp -a /app/node_modules/@remotion/compositor-linux-x64-gnu/. /opt/studytube-intel-ffmpeg/ \
     && cp /app/docker/ffmpeg-intel/ffmpeg /opt/studytube-intel-ffmpeg/ffmpeg \
-    && chmod +x /opt/studytube-intel-ffmpeg/ffmpeg \
-    && ln -s /usr/bin/ffprobe /opt/studytube-intel-ffmpeg/ffprobe \
-    && cp /app/node_modules/@remotion/compositor-linux-x64-gnu/remotion /opt/studytube-intel-ffmpeg/remotion \
-    && chmod +x /opt/studytube-intel-ffmpeg/remotion
+    && chmod +x /opt/studytube-intel-ffmpeg/ffmpeg /opt/studytube-intel-ffmpeg/remotion \
+    && ln -sf /usr/bin/ffprobe /opt/studytube-intel-ffmpeg/ffprobe \
+    && test -f /opt/studytube-intel-ffmpeg/libavcodec.so \
+    && test -f /opt/studytube-intel-ffmpeg/libavformat.so \
+    && if ldd /opt/studytube-intel-ffmpeg/remotion | grep -q 'not found'; then \
+         echo 'Remotion compositor has unresolved shared-library dependencies'; \
+         ldd /opt/studytube-intel-ffmpeg/remotion; \
+         exit 1; \
+       fi
 
 RUN npm run build
 RUN npx remotion browser ensure
