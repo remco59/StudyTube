@@ -2,10 +2,10 @@
 
 import {useCallback,useEffect,useMemo,useRef,useState} from "react";
 import {buildChatGptPrompt} from "../lib/chatgptPrompt";
-import {defaultTtsSelection,getTtsReferenceFile,serializeTtsSettings,TtsSelector,type TtsProviderChoice,type TtsSelection} from "./TtsSelector";
+import {defaultTtsSelection,serializeTtsSettings,TtsSelector,type TtsProviderChoice,type TtsSelection} from "./TtsSelector";
 
 type RequiredAsset={id:string;type:"image"|"document";path:string;fileName:string};
-type ValidationResult={valid:true;summary:{title:string;language:string;targetDuration:number;chapters:number;scenes:number;assets:number};assets:RequiredAsset[]}|{valid:false;issues:{path:string;message:string}[]};
+type ValidationResult={valid:true;packageType:"json"|"zip";summary:{title:string;language:string;targetDuration:number;chapters:number;scenes:number;assets:number};assets:RequiredAsset[]}|{valid:false;issues:{path:string;message:string}[]};
 type RenderEngine="cpu"|"intel"|"nvidia";
 type RenderCapability={id:RenderEngine;label:string;available:boolean;detail:string};
 type RenderCapabilities={engines:RenderCapability[]};
@@ -21,7 +21,6 @@ export const StudyTubeApp=()=>{
   const [activeTab,setActiveTab]=useState<AppTab>("create");
   const [createStep,setCreateStep]=useState<CreateStep>(0);
   const [projectFile,setProjectFile]=useState<File|null>(null);
-  const [assetFiles,setAssetFiles]=useState<File[]>([]);
   const [validation,setValidation]=useState<ValidationResult|null>(null);
   const [validating,setValidating]=useState(false);
   const [job,setJob]=useState<JobStatus|null>(null);
@@ -49,14 +48,10 @@ export const StudyTubeApp=()=>{
       const nextJobs=result.jobs??[];
       setJobs(nextJobs);
       setJob((current)=>{
-        if(!current)return null;
-        if(current.jobId==="starting")return current;
+        if(!current||current.jobId==="starting")return current;
         return nextJobs.find((item)=>item.jobId===current.jobId)??current;
       });
-      setManagedJobId((current)=>{
-        if(current&&nextJobs.some((item)=>item.jobId===current))return current;
-        return nextJobs[0]?.jobId??null;
-      });
+      setManagedJobId((current)=>current&&nextJobs.some((item)=>item.jobId===current)?current:nextJobs[0]?.jobId??null);
       setCancellingJobId((current)=>{
         if(!current)return null;
         const cancelling=nextJobs.find((item)=>item.jobId===current);
@@ -98,15 +93,15 @@ export const StudyTubeApp=()=>{
   const handleProjectFile=(file:File|null)=>{
     const requestId=++validationRequest.current;
     setProjectFile(file);
-    setAssetFiles([]);
     setValidation(null);
     setJob(null);
     setError(null);
     if(!file){setValidating(false);return;}
 
     setValidating(true);
-    void file.text().then(async(text)=>{
-      const response=await fetch("/api/validate",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({text})});
+    const form=new FormData();
+    form.append("project",file,file.name);
+    void fetch("/api/validate",{method:"POST",body:form}).then(async(response)=>{
       const result=await response.json() as ValidationResult;
       if(requestId===validationRequest.current)setValidation(result);
     }).catch((cause)=>{
@@ -154,20 +149,9 @@ export const StudyTubeApp=()=>{
     return()=>{cancelled=true;window.clearInterval(timer);};
   },[activeTab,detailsOpen,managedJobId,managedJobState]);
 
-  const matchedAssets=useMemo(()=>{
-    const result=new Map<string,File>();
-    if(!validation?.valid)return result;
-    for(const asset of validation.assets){
-      const matches=assetFiles.filter((file)=>file.name===asset.fileName);
-      if(matches.length===1)result.set(asset.id,matches[0]);
-    }
-    return result;
-  },[assetFiles,validation]);
-
-  const missingAssets=validation?.valid?validation.assets.filter((asset)=>!matchedAssets.has(asset.id)):[];
   const busy=Boolean(job&&!isTerminal(job.state));
   const hasActiveJob=busy||jobs.some((item)=>!isTerminal(item.state));
-  const renderReady=Boolean(validation?.valid&&missingAssets.length===0);
+  const renderReady=Boolean(projectFile&&validation?.valid);
   const canOpenRender=Boolean(job)||renderReady;
   const selectedRenderCapability=renderCapabilities?.engines.find((item)=>item.id===renderEngine);
   const renderEngineAvailable=renderEngine==="cpu"||(selectedRenderCapability?.available??false);
@@ -184,21 +168,27 @@ export const StudyTubeApp=()=>{
   };
 
   const startRender=async()=>{
-    if(!projectFile||!validation?.valid||missingAssets.length>0||hasActiveJob||!renderEngineAvailable)return;
+    if(!projectFile||!validation?.valid||hasActiveJob||!renderEngineAvailable)return;
     setCancellingJobId(null);
     setError(null);
     setJob({jobId:"starting",state:"queued",progress:0,projectTitle:validation.summary.title,renderEngine,ttsProvider:ttsSelection.provider});
     const form=new FormData();
-    form.append("project",projectFile);
+    form.append("project",projectFile,projectFile.name);
     form.append("renderEngine",renderEngine);
     form.append("ttsProvider",ttsSelection.provider);
     form.append("ttsSettings",serializeTtsSettings(ttsSelection));
-    const ttsReference=getTtsReferenceFile(ttsSelection);
-    if(ttsReference)form.append("ttsReference",ttsReference,ttsReference.name);
-    for(const asset of validation.assets){const file=matchedAssets.get(asset.id);if(file)form.append(`asset:${asset.id}`,file,file.name);}
+    if((ttsSelection.provider==="omnivoice"||ttsSelection.provider==="chatterbox"||ttsSelection.provider==="xtts")&&ttsSelection[ttsSelection.provider].referenceFile){
+      const reference=ttsSelection[ttsSelection.provider].referenceFile;
+      if(reference)form.append("ttsReference",reference,reference.name);
+    }
     const response=await fetch("/api/jobs",{method:"POST",body:form});
     const result=await response.json() as {jobId?:string;renderEngine?:RenderEngine;ttsProvider?:TtsProviderChoice;error?:string};
-    if(!response.ok||!result.jobId){setJob(null);setError(result.error??"Could not start render");void refreshRenderCapabilities();return;}
+    if(!response.ok||!result.jobId){
+      setJob(null);
+      setError(result.error??"Could not start render");
+      void refreshRenderCapabilities();
+      return;
+    }
     const next:JobStatus={jobId:result.jobId,state:"queued",progress:0,createdAt:new Date().toISOString(),projectTitle:validation.summary.title,renderEngine:result.renderEngine??renderEngine,ttsProvider:result.ttsProvider??ttsSelection.provider};
     setJob(next);
     setManagedJobId(next.jobId);
@@ -269,17 +259,13 @@ export const StudyTubeApp=()=>{
 
     <section className="workspace">
       {activeTab==="create"?<>
-        <div className="intro compactIntro"><p className="eyebrow">Create</p><h1>Turn study material into a video.</h1><p className="lede">Generate the project prompt, upload the JSON, then let StudyTube render the finished explainer.</p></div>
+        <div className="intro compactIntro"><p className="eyebrow">Create</p><h1>Turn study material into a video.</h1><p className="lede">Generate a StudyTube project, upload one JSON or ZIP file, then render the finished explainer.</p></div>
 
         <section className="workflowCard">
-          <div className="workflowHeader">
-            <div><p className="eyebrow">New video</p><h2>Three steps, one workflow.</h2></div>
-            <span className="workflowCounter">Step {createStep+1} of 3</span>
-          </div>
-
+          <div className="workflowHeader"><div><p className="eyebrow">New video</p><h2>Three steps, one workflow.</h2></div><span className="workflowCounter">Step {createStep+1} of 3</span></div>
           <div className="workflowSteps" role="tablist" aria-label="Create video steps">
-            <button type="button" className={createStep===0?"active":""} onClick={()=>setCreateStep(0)}><span>1</span><strong>Prompt</strong><small>Generate JSON</small></button>
-            <button type="button" className={createStep===1?"active":""} onClick={()=>setCreateStep(1)}><span>2</span><strong>Upload</strong><small>Validate project</small></button>
+            <button type="button" className={createStep===0?"active":""} onClick={()=>setCreateStep(0)}><span>1</span><strong>Prompt</strong><small>Generate project</small></button>
+            <button type="button" className={createStep===1?"active":""} onClick={()=>setCreateStep(1)}><span>2</span><strong>Upload</strong><small>JSON or ZIP</small></button>
             <button type="button" className={createStep===2?"active":""} disabled={!canOpenRender} onClick={()=>setCreateStep(2)}><span>3</span><strong>Render</strong><small>Create MP4</small></button>
           </div>
 
@@ -289,8 +275,8 @@ export const StudyTubeApp=()=>{
                 <div className="promptCopy">
                   <p className="eyebrow">ChatGPT prompt</p>
                   <h2>Generate a StudyTube project.</h2>
-                  <p>Choose the video settings, copy the prompt, and paste it into a ChatGPT conversation with your study material. Save the result as a <code>.studytube.json</code> file.</p>
-                  <div className="promptSteps"><span>1 · Add study material</span><span>2 · Paste prompt</span><span>3 · Save the JSON</span></div>
+                  <p>Ask ChatGPT for a text-only <code>.studytube.json</code>, or a <code>.studytube.zip</code> when the video uses images or documents.</p>
+                  <div className="promptSteps"><span>1 · Add study material</span><span>2 · Paste prompt</span><span>3 · Download JSON or ZIP</span></div>
                 </div>
                 <div className="promptBuilder">
                   <div className="promptFields">
@@ -302,27 +288,27 @@ export const StudyTubeApp=()=>{
                   <p className="promptHint">Targets schema v1.0 · {formatDuration(Math.round(promptDuration*60))} video</p>
                 </div>
               </div>
-              <div className="workflowFooter"><span>You can skip this step if you already have a StudyTube JSON.</span><button type="button" className="primaryButton compactButton" onClick={()=>setCreateStep(1)}>Continue to upload</button></div>
+              <div className="workflowFooter"><span>You can skip this step if you already have a StudyTube project.</span><button type="button" className="primaryButton compactButton" onClick={()=>setCreateStep(1)}>Continue to upload</button></div>
             </>:null}
 
             {createStep===1?<>
               <div className="wizardUpload">
-                <div className="wizardSectionHeader"><div><p className="eyebrow">Project file</p><h2>Upload your StudyTube JSON.</h2><p>StudyTube validates the project first and then asks for any referenced assets.</p></div>{validation?.valid?<span className="successPill">Valid</span>:null}</div>
+                <div className="wizardSectionHeader"><div><p className="eyebrow">Project file</p><h2>Upload your StudyTube project.</h2><p>Use JSON for text-only projects. Use a StudyTube ZIP when the project contains images or documents.</p></div>{validation?.valid?<span className="successPill">Valid</span>:null}</div>
                 <label className="dropzone">
-                  <input type="file" accept=".json,.studytube.json,application/json" onChange={(event)=>handleProjectFile(event.target.files?.[0]??null)}/>
-                  <span className="dropIcon">↥</span><strong>{projectFile?.name??"Choose StudyTube JSON"}</strong><span>{validating?"Validating…":"Drop or select your generated project file"}</span>
+                  <input type="file" accept=".json,.studytube.json,.zip,.studytube.zip,application/json,application/zip" onChange={(event)=>handleProjectFile(event.target.files?.[0]??null)}/>
+                  <span className="dropIcon">↥</span><strong>{projectFile?.name??"Choose StudyTube JSON or ZIP"}</strong><span>{validating?"Validating…":"Drop or select your generated project file"}</span>
                 </label>
 
                 {validation?.valid?<div className="summary">
-                  <div className="summaryTitle"><span>Project</span><strong>{validation.summary.title}</strong></div>
+                  <div className="summaryTitle"><span>{validation.packageType==="zip"?"Packaged project":"Text-only project"}</span><strong>{validation.summary.title}</strong></div>
                   <div className="metrics"><Metric label="Target" value={formatDuration(validation.summary.targetDuration)}/><Metric label="Chapters" value={String(validation.summary.chapters)}/><Metric label="Scenes" value={String(validation.summary.scenes)}/><Metric label="Language" value={validation.summary.language}/></div>
                 </div>:null}
 
                 {validation&&!validation.valid?<div className="errorBox"><strong>Project is not valid yet</strong>{validation.issues.slice(0,6).map((issue,index)=><p key={`${issue.path}-${index}`}>{issue.path?`${issue.path}: `:""}{issue.message}</p>)}</div>:null}
 
                 {validation?.valid?<div className="assetsBlock">
-                  <div className="assetsBlockHeader"><div><strong>Referenced assets</strong><span>{validation.assets.length===0?"Nothing else to upload.":`${validation.assets.length} required`}</span></div>{validation.assets.length>0?<label className="assetPicker"><input type="file" multiple onChange={(event)=>setAssetFiles(Array.from(event.target.files??[]))}/><span>Select files</span></label>:null}</div>
-                  {validation.assets.length===0?<div className="assetComplete">✓ This project has no external assets.</div>:<div className="assetList">{validation.assets.map((asset)=>{const match=matchedAssets.get(asset.id);return <div className="assetRow" key={asset.id}><div><strong>{asset.fileName}</strong><span>{asset.type} · {asset.path}</span></div><span className={match?"assetOk":"assetMissing"}>{match?"✓ matched":"missing"}</span></div>;})}</div>}
+                  <div className="assetsBlockHeader"><div><strong>{validation.assets.length===0?"Assets":"Packaged assets"}</strong><span>{validation.assets.length===0?"No external assets required.":`${validation.assets.length} included in ZIP`}</span></div></div>
+                  {validation.assets.length===0?<div className="assetComplete">✓ Text-only JSON project. Nothing else to upload.</div>:<div className="assetList">{validation.assets.map((asset)=><div className="assetRow" key={asset.id}><div><strong>{asset.fileName}</strong><span>{asset.type} · {asset.path}</span></div><span className="assetOk">✓ included</span></div>)}</div>}
                 </div>:null}
               </div>
               <div className="workflowFooter"><button type="button" className="secondaryButton" onClick={()=>setCreateStep(0)}>Back</button><button type="button" className="primaryButton compactButton" disabled={!renderReady} onClick={()=>{setCreateStep(2);void refreshRenderCapabilities();}}>Continue to render</button></div>
@@ -334,7 +320,7 @@ export const StudyTubeApp=()=>{
                   <p className="eyebrow">Render</p>
                   <h2>{job?.state==="completed"?"Your video is ready.":job?.state==="failed"?"Render failed.":job?.state==="cancelled"?"Render cancelled.":busy?humanState(job?.state):hasActiveJob?"A render is already running.":"Ready to create the MP4."}</h2>
                   <p>{renderDescription(job,busy,hasActiveJob)}</p>
-                  {validation?.valid?<div className="renderProjectSummary"><strong>{validation.summary.title}</strong><span>{formatDuration(validation.summary.targetDuration)} · {validation.summary.scenes} scenes · {validation.summary.language}</span></div>:null}
+                  {validation?.valid?<div className="renderProjectSummary"><strong>{validation.summary.title}</strong><span>{formatDuration(validation.summary.targetDuration)} · {validation.summary.scenes} scenes · {validation.summary.assets} assets · {validation.summary.language}</span></div>:null}
                   <div className="renderEngineBlock">
                     <div className="renderEngineHeading"><div><strong>Render engine</strong><span>Choose the encoder for this video.</span></div><button type="button" className="engineRefresh" onClick={()=>void refreshRenderCapabilities()} disabled={busy}>↻ Detect</button></div>
                     <div className="renderEngineOptions">{renderEngineChoices.map((engine)=>{
@@ -362,14 +348,10 @@ export const StudyTubeApp=()=>{
         </section>
       </>:<>
         <div className="intro compactIntro"><p className="eyebrow">Jobs</p><h1>Manage your renders.</h1><p className="lede">Follow active renders, inspect logs, download finished videos, cancel running work, or delete old jobs.</p></div>
-
         <div className="jobsWorkspace">
           <section className="jobsPanel">
             <div className="jobsHeading"><div><p className="eyebrow">Saved on this server</p><h2>Render jobs</h2></div><div className="jobsHeadingActions"><span className="mutedPill">{jobs.length} saved</span><button type="button" className="iconButton" onClick={()=>void refreshJobs()} aria-label="Refresh jobs">↻</button></div></div>
-            {jobs.length===0?<div className="jobsEmpty"><strong>No jobs yet.</strong><span>Create your first video from the Create tab.</span><button type="button" className="primaryButton compactButton" onClick={()=>setActiveTab("create")}>Create video</button></div>:<div className="jobsList">{jobs.map((item)=><button type="button" className={`jobRow${managedJobId===item.jobId?" selected":""}`} key={item.jobId} onClick={()=>selectManagedJob(item)}>
-              <div className="jobIdentity"><strong>{item.projectTitle??"StudyTube render"}</strong><span>{item.createdAt?formatJobDate(item.createdAt):item.jobId}</span></div>
-              <div className="jobState"><span className={`jobStatePill ${stateClass(item.state)}`}>{jobStatusLabel(item)}</span>{!isTerminal(item.state)?<span className="jobProgress">{Math.round(item.progress*100)}%</span>:null}</div>
-            </button>)}</div>}
+            {jobs.length===0?<div className="jobsEmpty"><strong>No jobs yet.</strong><span>Create your first video from the Create tab.</span><button type="button" className="primaryButton compactButton" onClick={()=>setActiveTab("create")}>Create video</button></div>:<div className="jobsList">{jobs.map((item)=><button type="button" className={`jobRow${managedJobId===item.jobId?" selected":""}`} key={item.jobId} onClick={()=>selectManagedJob(item)}><div className="jobIdentity"><strong>{item.projectTitle??"StudyTube render"}</strong><span>{item.createdAt?formatJobDate(item.createdAt):item.jobId}</span></div><div className="jobState"><span className={`jobStatePill ${stateClass(item.state)}`}>{jobStatusLabel(item)}</span>{!isTerminal(item.state)?<span className="jobProgress">{Math.round(item.progress*100)}%</span>:null}</div></button>)}</div>}
           </section>
 
           {managedJob?<section className="jobManager">
@@ -401,7 +383,7 @@ const humanState=(state?:string)=>({queued:"Preparing render…",validating:"Ana
 const isTerminal=(state?:string)=>state==="completed"||state==="failed"||state==="cancelled";
 const sortJobs=(a:JobStatus,b:JobStatus)=>Date.parse(b.createdAt??"")-Date.parse(a.createdAt??"");
 const renderEngineLabel=(engine:RenderEngine)=>({cpu:"CPU (software)",intel:"Intel GPU (VAAPI)",nvidia:"NVIDIA NVENC"}[engine]);
-const ttsProviderLabel=(provider:NonNullable<JobStatus["ttsProvider"]>)=>({edge:"Edge TTS",piper:"Piper",omnivoice:"OmniVoice",chatterbox:"Chatterbox Multilingual",xtts:"XTTS v2","google-chirp":"Google Chirp 3 HD",azure:"Azure Speech",synthetic:"Synthetic TTS"}[provider]);
+const ttsProviderLabel=(provider:NonNullable<JobStatus["ttsProvider"]>)=>({edge:"Edge TTS","google-chirp":"Google Chirp 3 HD",azure:"Azure Speech",piper:"Piper",omnivoice:"OmniVoice",chatterbox:"Chatterbox Multilingual",xtts:"XTTS v2",synthetic:"Synthetic TTS"}[provider]);
 const renderDescription=(job:JobStatus|null,busy:boolean,hasActiveJob:boolean)=>{
   if(job?.state==="failed")return job.error??"The render pipeline stopped. Open the job to inspect its logs.";
   if(job?.state==="cancelled")return "This render was cancelled. You can start it again when you are ready.";
