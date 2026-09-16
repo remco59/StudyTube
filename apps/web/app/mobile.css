@@ -1,0 +1,468 @@
+/* Responsive overrides for touch devices and narrow viewports. */
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+label {
+  touch-action: manipulation;
+}
+
+@media (hover: none), (pointer: coarse) {
+  button,
+  .primaryButton,
+  .secondaryButton,
+  .assetPicker,
+  .appTabs a,
+  .appTabs button,
+  .settingsNav a,
+  .settingsNav span,
+  .teachingStrategyDoneButton,
+  .teachingStrategyModalClose {
+    min-height: 44px;
+  }
+
+  .iconButton,
+  .teachingStrategyModalClose {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+@media (max-width: 900px) {
+  .topbar {
+    row-gap: 12px;
+  }
+
+  .appTabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-radius: 16px;
+  }
+
+  .appTabs button,
+  .appTabs a {
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+    padding-inline: 10px;
+    text-align: center;
+  }
+
+  .wizardPrompt,
+  .wizardRender,
+  .jobsWorkspace {
+    min-width: 0;
+  }
+
+  .renderAction,
+  .wizardRenderAction,
+  .renderMain,
+  .jobManager,
+  .jobsPanel {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 700px) {
+  .compactIntro {
+    margin-bottom: 22px;
+  }
+
+  .workflowHeader,
+  .workflowFooter,
+  .wizardSectionHeader,
+  .settingsCardHeader,
+  .jobsHeading {
+    min-width: 0;
+  }
+
+  .workflowSteps {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+  }
+
+  .workflowSteps::-webkit-scrollbar {
+    display: none;
+  }
+
+  .workflowSteps button {
+    min-width: 104px;
+  }
+
+  .assetChoiceGrid,
+  .teachingPresetGrid,
+  .teachingMethodGrid,
+  .teachingGoalGrid,
+  .teachingTechniqueGrid,
+  .personalModeGrid,
+  .teachingDepthOptions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .assetAmountOptions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .assetAmountOption:nth-child(2) {
+    border-right: 0;
+  }
+
+  .assetAmountOption:nth-child(-n + 2) {
+    border-bottom: 1px solid #343a45;
+  }
+
+  .settingsCardHeader,
+  .jobsHeading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settingsActions,
+  .jobActionBar,
+  .queueReorder,
+  .captionLinks {
+    width: 100%;
+  }
+
+  .settingsActions > *,
+  .jobActionBar > *,
+  .queueReorder > *,
+  .captionLinks > * {
+    flex: 1 1 auto;
+  }
+
+  .logConsole,
+  .jobDetails,
+  .renderHistory,
+  .previewBlock,
+  .diffBlock {
+    max-width: 100%;
+  }
+
+  .logLine,
+  .errorBox,
+  .globalError,
+  .managerError,
+  code,
+  pre {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+}
+
+@media (max-width: 620px) {
+  .workspace,
+  .topbar {
+    width: min(100% - 24px, 1240px);
+  }
+
+  .workspace {
+    padding-top: 22px;
+    padding-bottom: calc(42px + env(safe-area-inset-bottom));
+  }
+
+  .intro,
+  .compactIntro {
+    margin-bottom: 24px;
+  }
+
+  h1,
+  .compactIntro h1 {
+    font-size: clamp(2.35rem, 13vw, 4rem);
+    line-height: 0.98;
+    overflow-wrap: anywhere;
+  }
+
+  h2 {
+    overflow-wrap: anywhere;
+  }
+
+  .panel,
+  .renderPanel,
+  .workflowCard,
+  .jobManager,
+  .jobsPanel,
+  .settingsCard {
+    max-width: 100%;
+  }
+
+  .promptFields,
+  .settingsFields,
+  .settingsFields.threeColumns {
+    grid-template-columns: 1fr;
+  }
+
+  .promptBuilder input,
+  .promptBuilder select,
+  .promptBuilder textarea,
+  .settingsFields input,
+  .settingsFields select,
+  .settingsFile input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .primaryButton,
+  .secondaryButton,
+  .cancelButton,
+  .promptButton {
+    min-height: 48px;
+  }
+
+  .renderAction .primaryButton,
+  .wizardRenderAction .primaryButton,
+  .wizardRenderAction .cancelButton {
+    width: 100%;
+  }
+
+  .jobManagerThumbnail {
+    width: min(160px, 100%);
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+
+  .renderHistoryList {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .renderHistoryItem {
+    width: auto;
+  }
+
+  .settingsInputSuffix {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .providerStatus {
+    white-space: normal;
+  }
+
+  .teachingStrategyModalBackdrop {
+    place-items: end stretch;
+    padding: 0;
+  }
+
+  .teachingStrategyModal {
+    width: 100%;
+    max-height: calc(100dvh - env(safe-area-inset-top));
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .teachingStrategyModalHeader {
+    padding-top: max(16px, env(safe-area-inset-top));
+  }
+
+  .teachingStrategyModalFooter {
+    padding-bottom: max(14px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar {
+    align-items: stretch;
+  }
+
+  .brand {
+    min-width: 0;
+  }
+
+  .appTabs {
+    gap: 3px;
+    padding: 3px;
+  }
+
+  .appTabs button,
+  .appTabs a {
+    padding-inline: 7px;
+    font-size: 0.76rem;
+  }
+
+  .appTabs button span {
+    min-width: 19px;
+    height: 19px;
+  }
+
+  .workflowHeader,
+  .wizardPrompt,
+  .wizardUpload,
+  .wizardRender,
+  .jobManager,
+  .jobsPanel,
+  .settingsCard,
+  .panel,
+  .renderPanel,
+  .promptPanel {
+    padding: 16px;
+  }
+
+  .workflowSteps button {
+    min-width: 88px;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    justify-items: center;
+    row-gap: 6px;
+    padding: 12px 8px;
+    text-align: center;
+  }
+
+  .workflowSteps button > span {
+    grid-row: auto;
+  }
+
+  .workflowSteps strong {
+    width: 100%;
+    white-space: normal;
+    line-height: 1.2;
+  }
+
+  .assetChoiceGrid,
+  .teachingPresetGrid,
+  .teachingMethodGrid,
+  .teachingGoalGrid,
+  .teachingTechniqueGrid,
+  .personalModeGrid,
+  .teachingDepthOptions,
+  .assetAmountOptions,
+  .renderHistoryList {
+    grid-template-columns: 1fr;
+  }
+
+  .assetAmountOption,
+  .assetAmountOption:nth-child(2),
+  .assetAmountOption:last-child {
+    border-right: 0;
+    border-bottom: 1px solid #343a45;
+  }
+
+  .assetAmountOption:last-child {
+    border-bottom: 0;
+  }
+
+  .metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .assetRow,
+  .previewBlock summary,
+  .diffBlock summary,
+  .batchBlock summary,
+  .previewChapterHeader,
+  .previewSceneMeta,
+  .diffEntryMeta {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .assetRow > * {
+    max-width: 100%;
+  }
+
+  .jobsHeadingActions,
+  .jobState,
+  .settingsActions,
+  .jobActionBar,
+  .queueReorder,
+  .captionLinks {
+    flex-wrap: wrap;
+  }
+
+  .jobState,
+  .settingsActions > *,
+  .jobActionBar > *,
+  .queueReorder > *,
+  .captionLinks > * {
+    width: 100%;
+  }
+
+  .jobThumbnail {
+    width: 80px;
+    height: 45px;
+  }
+
+  .logLine {
+    grid-template-columns: 1fr;
+    gap: 3px;
+    padding: 8px 10px;
+  }
+
+  .logLine > span:last-child {
+    grid-column: auto;
+    padding-left: 0;
+  }
+
+  .teachingStrategyModal {
+    border-radius: 16px 16px 0 0;
+  }
+
+  .teachingStrategyModalHeader,
+  .teachingStrategyModalBody,
+  .teachingStrategyModalFooter {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .teachingStrategyModalFooter {
+    grid-template-columns: 1fr;
+  }
+
+  .teachingStrategyDoneButton {
+    width: 100%;
+  }
+}
+
+@media (max-width: 360px) {
+  .workspace,
+  .topbar {
+    width: min(100% - 16px, 1240px);
+  }
+
+  .appTabs button,
+  .appTabs a {
+    padding-inline: 5px;
+    font-size: 0.72rem;
+  }
+
+  .appTabs button span {
+    display: none;
+  }
+
+  .workflowHeader,
+  .wizardPrompt,
+  .wizardUpload,
+  .wizardRender,
+  .jobManager,
+  .jobsPanel,
+  .settingsCard,
+  .panel,
+  .renderPanel,
+  .promptPanel {
+    padding: 14px;
+  }
+}
