@@ -4,30 +4,48 @@ StudyTube synthesizes narration before Remotion renders the video. TTS therefore
 
 ## Available engines
 
-The Create → Render screen selects TTS per render. All service containers start with the normal Docker stack; large local models are lazy-loaded only when selected.
+The Create → Render screen selects TTS per render. Edge TTS, Piper and Google Chirp 3 HD are part of the standard Docker stack. Large local engines are optional Docker Compose profiles so normal StudyTube updates do not rebuild several heavy PyTorch images unnecessarily.
 
 - `edge` (default): Microsoft neural voices through `edge-tts`. Fast and lightweight; internet required, no API key configured by StudyTube.
 - `google-chirp`: Google Cloud Chirp 3 HD. Cloud credentials and enabled billing/project are required. Default Dutch voice: `nl-NL-Chirp3-HD-Charon`.
-- `azure`: Azure Speech. Requires `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`.
 - `piper`: lightweight fully local/offline speech. Default Dutch model: `nl_NL-mls-medium`.
-- `omnivoice`: local multilingual OmniVoice with voice design and optional reference-audio cloning.
-- `chatterbox`: local Chatterbox Multilingual with Dutch support and optional zero-shot voice cloning. V2 is the default; V3 remains selectable.
-- `xtts`: local XTTS v2 with Dutch support, built-in speakers and optional reference-audio cloning. The model uses the Coqui Public Model License and synthesis stays disabled until the user explicitly sets `COQUI_TOS_AGREED=1` after accepting that license.
+- `azure`: optional Azure Speech provider. Requires `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`. It shares the lightweight cloud proxy used by Google Chirp.
+- `omnivoice`: optional local multilingual OmniVoice with voice design and reference-audio cloning.
+- `chatterbox`: optional local Chatterbox Multilingual with Dutch support and zero-shot voice cloning. V2 is the default; V3 remains selectable.
+- `xtts`: optional local XTTS v2 with Dutch support, built-in speakers and reference-audio cloning. The model uses the Coqui Public Model License and synthesis stays disabled until the user explicitly sets `COQUI_TOS_AGREED=1` after accepting that license.
 - `synthetic`: deterministic silent WAV generation for CI/tests only; it is not exposed as a normal production option.
 
 Every user-facing engine has a settings button in the render UI. The selected provider is stored in the job status. Provider settings are job-specific, and provider/settings identity is included in narration caching so incompatible audio is not reused.
 
 ## Normal Docker startup
 
-No TTS profiles are required:
+The normal stack needs no profiles:
 
 ```bash
 docker compose up -d --build
 ```
 
-This starts StudyTube plus Edge, Piper, OmniVoice, Chatterbox, XTTS and the cloud TTS proxy. OmniVoice, Chatterbox and XTTS do not load their large speech models during container startup; their first synthesis can therefore take longer while a model is downloaded/loaded. Model files remain in their persistent host directories.
+This starts StudyTube plus Edge TTS, Piper and the lightweight cloud TTS proxy used by Google Chirp 3 HD. The cloud proxy starts successfully even when Google credentials are not configured; Google Chirp only returns a configuration error when it is selected without credentials.
 
-The cloud proxy also starts successfully without Google/Azure credentials. An unconfigured cloud engine only returns a configuration error when that engine is actually used.
+OmniVoice, Chatterbox and XTTS are excluded from the normal build/start path.
+
+## Optional local engines
+
+Start one optional engine by enabling its profile:
+
+```bash
+docker compose --profile omnivoice up -d --build
+docker compose --profile chatterbox up -d --build
+docker compose --profile xtts up -d --build
+```
+
+To enable all optional local engines at once:
+
+```bash
+docker compose --profile optional up -d --build
+```
+
+Once an optional container has been built, later starts can omit `--build` unless its Dockerfile or dependencies changed.
 
 ## Edge TTS
 
@@ -65,7 +83,7 @@ Configure:
 - optionally `AZURE_SPEECH_ENDPOINT`
 - `AZURE_TTS_VOICE` (default `nl-NL-MaartenNeural`)
 
-Azure synthesis uses 24 kHz, 16-bit mono PCM WAV output so it can enter the same StudyTube narration pipeline directly.
+Azure is an optional provider in the UI but shares the standard lightweight cloud proxy with Google Chirp, so it does not add another Docker image to the normal build. Azure synthesis uses 24 kHz, 16-bit mono PCM WAV output so it can enter the same StudyTube narration pipeline directly.
 
 ## Piper
 
