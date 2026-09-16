@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/pipeline.ts",
     "./types": "./src/types.ts",
-    "./render-engine": "./src/renderEngine.ts"
+    "./render-engine": "./src/renderEngine.ts",
+    "./path-safety": "./src/pathSafety.ts"
   },
   "scripts": {
     "render": "tsx src/cli.ts",

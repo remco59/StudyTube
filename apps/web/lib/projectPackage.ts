@@ -1,6 +1,7 @@
 import {mkdir,writeFile} from "node:fs/promises";
 import {dirname,join} from "node:path";
 import {parseStudyTubeProject,type StudyTubeProject} from "@studytube/schema";
+import {normalizeRelativeProjectPath,StudyTubeJobPathError} from "@studytube/worker/path-safety";
 import {strFromU8,unzipSync} from "fflate";
 
 export const STUDYTUBE_PROJECT_JSON="project.studytube.json";
@@ -138,12 +139,12 @@ function parseJson(text:string){
 }
 
 export function safeRelativePath(input:string){
-  const path=input.trim().replace(/^\.\//u,"");
-  const segments=path.split("/");
-  if(!path||path.startsWith("/")||path.includes("\\")||segments.some((segment)=>!segment||segment==="."||segment==="..")||(segments[0]?.includes(":")??false)){
-    throw new StudyTubePackageError(`Unsafe project path: ${input}`);
+  try{
+    return normalizeRelativeProjectPath(input);
+  }catch(error){
+    if(error instanceof StudyTubeJobPathError)throw new StudyTubePackageError(`Unsafe project path: ${input}`);
+    throw error;
   }
-  return path;
 }
 
 function preflightZip(bytes:Uint8Array){

@@ -51,7 +51,7 @@ export const markJobInterrupted=async(jobId:string):Promise<StudyTubeJobStatus>=
     updatedAt:new Date().toISOString(),
   };
   await writeStatusAtomic(jobId,next);
-  await cleanupJobWorkingData(jobId).catch(()=>undefined);
+  await cleanupJobWorkingData(jobId).catch(logSwallowedError(jobId,"clean up working data for interrupted job"));
   return next;
 };
 
@@ -112,7 +112,7 @@ export const removeJob=async(jobId:string)=>Promise.all([
 
 export const scheduleJobCleanup=(jobId:string,expiresAt:string)=>{
   const delay=Math.max(0,Date.parse(expiresAt)-Date.now());
-  const timer:NodeJS.Timeout=setTimeout(()=>{void removeJob(jobId).catch(()=>undefined);},delay);
+  const timer:NodeJS.Timeout=setTimeout(()=>{void removeJob(jobId).catch(logSwallowedError(jobId,"remove expired job"));},delay);
   timer.unref();
 };
 
@@ -142,3 +142,4 @@ const writeStatusAtomic=async(jobId:string,status:StudyTubeJobStatus)=>{
 };
 
 const isMissing=(error:unknown)=>error instanceof Error&&"code" in error&&(error as NodeJS.ErrnoException).code==="ENOENT";
+const logSwallowedError=(jobId:string,action:string)=>(error:unknown)=>{console.error(`StudyTube job ${jobId}: failed to ${action}`,error);};
