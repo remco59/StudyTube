@@ -1,0 +1,224 @@
+.teachingStrategyButton {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+  border: 1px solid rgba(123, 97, 255, 0.38);
+  border-radius: 12px;
+  background: rgba(24, 22, 34, 0.72);
+  padding: 11px 12px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.teachingStrategyButton:hover {
+  border-color: rgba(139, 119, 255, 0.72);
+  background: rgba(32, 28, 47, 0.86);
+}
+
+.teachingStrategyButton:focus-visible,
+.teachingStrategyModalClose:focus-visible,
+.teachingStrategyDoneButton:focus-visible {
+  outline: 2px solid #9b8cff;
+  outline-offset: 2px;
+}
+
+.teachingStrategyButtonCopy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.teachingStrategyButtonCopy strong {
+  color: #ece9e0;
+  font-size: 0.82rem;
+}
+
+.teachingStrategyButtonCopy small {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #747a86;
+  font-size: 0.7rem;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.teachingStrategyButtonAction {
+  flex: 0 0 auto;
+  border: 1px solid rgba(123, 97, 255, 0.34);
+  border-radius: 999px;
+  background: rgba(123, 97, 255, 0.12);
+  padding: 6px 9px;
+  color: #c8c0ff;
+  font-size: 0.69rem;
+  font-weight: 800;
+}
+
+.teachingStrategyModalBackdrop {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  background: rgba(5, 6, 9, 0.78);
+  padding: 24px;
+  backdrop-filter: blur(8px);
+}
+
+.teachingStrategyModal {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(820px, calc(100vw - 48px));
+  max-height: min(90vh, 920px);
+  overflow: hidden;
+  border: 1px solid rgba(123, 97, 255, 0.42);
+  border-radius: 20px;
+  background:
+    radial-gradient(circle at 95% 0%, rgba(123, 97, 255, 0.15), transparent 24rem),
+    #111318;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.5);
+}
+
+.teachingStrategyModalHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 1px solid rgba(76, 81, 93, 0.6);
+  padding: 20px 22px 18px;
+}
+
+.teachingStrategyModalHeader > div {
+  display: grid;
+  gap: 5px;
+}
+
+.teachingStrategyModalHeader .eyebrow {
+  margin: 0;
+}
+
+.teachingStrategyModalHeader h2 {
+  margin: 0;
+  color: #f0ede5;
+  font-size: clamp(1.1rem, 2.2vw, 1.4rem);
+  line-height: 1.2;
+}
+
+.teachingStrategyModalHeader p:not(.eyebrow) {
+  margin: 0;
+  color: #858b96;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.teachingStrategyModalClose {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #343a45;
+  border-radius: 10px;
+  background: #171a1f;
+  color: #aeb3bd;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.teachingStrategyModalClose:hover {
+  border-color: #565d69;
+  color: #f0ede5;
+}
+
+.teachingStrategyModalBody {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 22px 22px;
+  overscroll-behavior: contain;
+}
+
+.teachingStrategyModal .teachingPromptBlock {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.teachingStrategyModal .teachingPromptSectionFirst {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.teachingStrategyModalFooter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border-top: 1px solid rgba(76, 81, 93, 0.6);
+  background: rgba(14, 16, 20, 0.94);
+  padding: 14px 22px;
+}
+
+.teachingStrategyModalFooter .teachingPromptSummary {
+  min-width: 0;
+}
+
+.teachingStrategyDoneButton {
+  min-height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #7b61ff, #9b8cff);
+  padding: 0 18px;
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.teachingStrategyDoneButton:hover {
+  filter: brightness(1.06);
+}
+
+@media (max-width: 620px) {
+  .teachingStrategyModalBackdrop {
+    padding: 10px;
+  }
+
+  .teachingStrategyModal {
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 20px);
+    border-radius: 16px;
+  }
+
+  .teachingStrategyModalHeader,
+  .teachingStrategyModalBody,
+  .teachingStrategyModalFooter {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .teachingStrategyModalFooter {
+    grid-template-columns: 1fr;
+  }
+
+  .teachingStrategyDoneButton {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .teachingStrategyButton {
+    align-items: flex-start;
+  }
+
+  .teachingStrategyButtonAction {
+    margin-top: 1px;
+  }
+}
