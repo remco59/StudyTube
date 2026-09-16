@@ -13,8 +13,9 @@ export type StudyTubeCompositionProps={
 
 export const StudyTubeComposition=({project,narration,showCaptions=true}:StudyTubeCompositionProps)=><AbsoluteFill style={{backgroundColor:colors.canvas,color:colors.text,fontFamily:typography.fontFamily}}>{project.chapters.flatMap((chapter)=>chapter.scenes.map((normalizedScene)=>{
   const track=narration?.[normalizedScene.scene.id];
+  const captionsVisible=Boolean(track&&showCaptions);
   return <Sequence key={normalizedScene.scene.id} from={normalizedScene.startFrame} durationInFrames={normalizedScene.durationInFrames} name={`${chapter.title} / ${normalizedScene.scene.id}`}>
-    <SceneFrame chapterTitle={chapter.title} normalizedScene={normalizedScene} project={project.project}/>
+    <SceneFrame chapterTitle={chapter.title} normalizedScene={normalizedScene} project={project.project} hasCaptions={captionsVisible}/>
     {track?<Audio src={staticFile(normalizeProjectAssetPath(track.sourcePath))}/>:null}
     {track&&showCaptions?<CaptionOverlay cues={track.captions}/>:null}
   </Sequence>;
