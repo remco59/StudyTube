@@ -19,7 +19,10 @@ export const buildChatGptPrompt=({targetDurationMinutes,language,scope}:PromptOp
 
 Your goal is to turn the material into an engaging educational explainer video that helps me understand and remember the important concepts, rather than simply summarizing the source.
 
-Return the finished result as a valid .studytube.json project that can be imported directly into StudyTube.
+Return one finished downloadable StudyTube project file:
+- If the project uses no external image or document assets, return a .studytube.json file.
+- If the project uses one or more image or document assets, return a .studytube.zip file containing project.studytube.json at the archive root plus every referenced asset at its exact project-relative path.
+- Never return a JSON project that references assets separately. Assets belong inside the ZIP.
 
 VIDEO SETTINGS
 - Language: ${language} (${languageNames[language]})
@@ -28,7 +31,7 @@ VIDEO SETTINGS
 - ${scopeInstruction}
 
 CONTENT REQUIREMENTS
-- Base the video only on the supplied study material.
+- Base the educational claims in the video only on the supplied study material.
 - Explain concepts clearly at higher-education level.
 - Prioritize understanding over reproducing the wording of the source.
 - Preserve important terminology from the source.
@@ -46,6 +49,15 @@ CONTENT REQUIREMENTS
 - Write narration as natural spoken ${languageNames[language]}, not academic written prose.
 - Aim for approximately 130-160 spoken words per minute.
 
+VISUAL ASSETS
+- When a real image would genuinely improve understanding or visual variety, you may use an image found on the internet or generate a suitable image with ChatGPT.
+- Only use an internet image if you can actually obtain the image file and include it in the final ZIP. Do not put a remote web URL in asset.path.
+- Prefer generated images, public-domain material, or openly licensed/reusable images when practical.
+- Keep illustrative images faithful to the supplied study material. An image may illustrate a concept, but it must not introduce unsupported factual claims.
+- Save packaged assets below assets/ using safe simple filenames, for example assets/design-cycle.png.
+- For an image asset, include a useful alt description.
+- If you cannot include the actual asset file, do not reference it from the project.
+
 STRICT STUDYTUBE FORMAT
 The root object must have this structure:
 {
@@ -57,12 +69,22 @@ The root object must have this structure:
     "style": "educational-explainer",
     "description": "..."
   },
+  "assets": {},
   "chapters": []
 }
 
-assets is optional. Do not create image or document assets unless I explicitly provide usable asset paths for StudyTube.
+assets is optional when there are no assets. When assets exist, the project must be delivered as a .studytube.zip and every asset path must exist inside that ZIP.
 
-All chapter IDs, scene IDs and flowchart node IDs must contain only letters, numbers, hyphens or underscores and must be unique where required.
+Example image asset:
+"assets": {
+  "design-cycle": {
+    "type": "image",
+    "path": "assets/design-cycle.png",
+    "alt": "Schematic design cycle"
+  }
+}
+
+All chapter IDs, scene IDs, asset IDs and flowchart node IDs must contain only letters, numbers, hyphens or underscores and must be unique where required.
 
 Every scene must contain: id, type, narration and visual.
 Every scene may optionally contain: motion and sources.
@@ -118,7 +140,7 @@ Use visualGag only occasionally and only when it supports the explanation.
 recap
 {"title":"optional","points":["2 to 6 concise points"]}
 
-Only use these scene types when valid StudyTube assets have explicitly been supplied:
+Use these scene types only when the corresponding asset is present in the project package:
 
 image
 {"assetId":"existing image asset ID","fit":"contain | cover","caption":"optional"}
@@ -131,11 +153,12 @@ documentHighlight
 
 If sources from the supplied material are identifiable, scenes may contain:
 "sources":[{"label":"Chapter 2, p. 34","note":"Optional clarification"}]
-Do not invent URLs.
+Do not invent URLs or source details.
 
 VIDEO DESIGN
 Think in scenes rather than slides.
 Prefer definition for terminology, comparison for contrasts, process for sequential methods, flowchart for decisions and relationships, diagram for connected concepts, timeline for chronology, bigNumber for meaningful figures, kineticText for a short important statement, question for active recall, and recap for consolidation.
+Use image scenes selectively when a photograph, illustration, diagram or generated visual adds something the structured StudyTube scenes cannot communicate as well.
 Do not repeat the narration verbatim in the visual.
 Make transitions between scenes logical so the narration feels like one coherent video rather than disconnected cards.
 
@@ -152,12 +175,15 @@ Before returning the file, internally check that:
 9. Every visual object contains only fields supported by that scene type.
 10. Every flowchart edge references an existing node.
 11. No image or document scene references a nonexistent asset.
-12. The output is valid JSON with no comments, trailing commas or placeholders.
+12. Every declared asset exists at the exact same path inside the ZIP.
+13. A text-only project contains no declared assets and is returned as .studytube.json.
+14. A project with assets is returned as .studytube.zip with project.studytube.json at the archive root.
+15. The project JSON is valid JSON with no comments, trailing commas or placeholders.
 
 OUTPUT
-Return only the final valid JSON.
-Do not put it inside a Markdown code block.
-Do not add an explanation before or after it.
-Do not include notes outside the JSON.
-The result must be ready to save directly as a .studytube.json file.`;
+Return the finished file as a downloadable attachment, not as explanatory prose.
+Use .studytube.json for a project without assets.
+Use .studytube.zip for a project with assets.
+For ZIP projects, place project.studytube.json at the archive root and include all assets at their referenced relative paths.
+Do not add an explanation before or after the file.`;
 };
