@@ -2,7 +2,7 @@ import {randomUUID} from "node:crypto";
 import {access,copyFile,mkdir,readFile,rm,writeFile} from "node:fs/promises";
 import {dirname,join,resolve} from "node:path";
 import {fileURLToPath} from "node:url";
-import type {NarrationManifest,NormalizedScene,NormalizedStudyTubeProject} from "@studytube/core";
+import {buildGlobalCaptionCues,captionCuesToSrt,captionCuesToVtt,type NarrationManifest,type NormalizedScene,type NormalizedStudyTubeProject} from "@studytube/core";
 import {parseStudyTubeProject} from "@studytube/schema";
 import {buildSceneManifest,hashJson,planSceneRuns,type SceneManifest,type SceneRun} from "./incrementalRender";
 import {
@@ -85,7 +85,10 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
 
     await log("assets.staging","Preparing project assets and narration for the renderer",{assets:Object.keys(project.assets??{}).length});const sourceRoot=dirname(sourceProjectPath);await stageProjectAssets(project.assets??{},sourceRoot,paths.publicDir);checkCancelled();const narration=await stageNarration(prepared.tracks,paths.publicDir);checkCancelled();
     const props:StudyTubeRenderProps={project:prepared.normalizedProject,narration,showCaptions:options.showCaptions??true};await writeFile(paths.renderPropsFile,`${JSON.stringify(props,null,2)}\n`,`utf8`);
-    const outputName=`${slugify(project.metadata.title)||"studytube"}-${jobId}.mp4`;const outputPath=join(paths.outputDir,outputName);await update("bundling",.4);await log("render.started","Building renderer and starting MP4 render",{frames:prepared.normalizedProject.totalFrames,renderEngine,label:renderEngineLabels[renderEngine],ttsProvider:providerKind});checkCancelled();
+    const outputBaseName=`${slugify(project.metadata.title)||"studytube"}-${jobId}`;const outputName=`${outputBaseName}.mp4`;const outputPath=join(paths.outputDir,outputName);
+    const globalCaptionCues=buildGlobalCaptionCues(prepared.normalizedProject,narration);const srtPath=join(paths.outputDir,`${outputBaseName}.srt`);const vttPath=join(paths.outputDir,`${outputBaseName}.vtt`);
+    await mkdir(paths.outputDir,{recursive:true});await Promise.all([writeFile(srtPath,captionCuesToSrt(globalCaptionCues),"utf8"),writeFile(vttPath,captionCuesToVtt(globalCaptionCues),"utf8")]);
+    await update("bundling",.4);await log("render.started","Building renderer and starting MP4 render",{frames:prepared.normalizedProject.totalFrames,renderEngine,label:renderEngineLabels[renderEngine],ttsProvider:providerKind});checkCancelled();
     const entryPoint=resolveRendererEntryPoint();const render=deps.render??renderStudyTubeComposition;const doExtractSegment=deps.extractSegment??extractSegment;const doConcatenateSegments=deps.concatenateSegments??concatenateSegments;
     const flatScenes=prepared.normalizedProject.chapters.flatMap((chapter)=>chapter.scenes);const totalFrames=prepared.normalizedProject.totalFrames;const renderStartedAt=now().getTime();
     const ttsSettingsSignature=hashJson(options.ttsSettings??{});
@@ -120,7 +123,7 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
       await renderFull({entryPoint,publicDir:paths.publicDir,outputPath,props,renderEngine,render,signal:options.signal,reportProgress});
     }
 
-    checkCancelled();await Promise.all([statusQueue,logQueue]);await log("render.completed","MP4 render completed",{outputPath,totalFrames:prepared.normalizedProject.totalFrames,renderEngine,ttsProvider:providerKind});await update("completed",1,{outputPath});await Promise.all([statusQueue,logQueue]);return {jobId,paths,status,outputPath};
+    checkCancelled();await Promise.all([statusQueue,logQueue]);await log("render.completed","MP4 render completed",{outputPath,totalFrames:prepared.normalizedProject.totalFrames,renderEngine,ttsProvider:providerKind});await update("completed",1,{outputPath,captions:{srtPath,vttPath}});await Promise.all([statusQueue,logQueue]);return {jobId,paths,status,outputPath};
   }catch(error){
     if(options.signal?.aborted){await log("job.cancelled","Render cancelled by user").catch(logSwallowedError(jobId,"log job.cancelled"));await update("cancelled",status.progress,{error:undefined}).catch(logSwallowedError(jobId,"update status to cancelled"));await Promise.all([statusQueue.catch(logSwallowedError(jobId,"flush status queue")),logQueue.catch(logSwallowedError(jobId,"flush log queue"))]);throw new StudyTubeJobCancelledError(jobId,paths.root,error);}
     const message=error instanceof Error?error.message:String(error);await log("job.failed",message).catch(logSwallowedError(jobId,"log job.failed"));await update("failed",status.progress,{error:message}).catch(logSwallowedError(jobId,"update status to failed"));await Promise.all([statusQueue.catch(logSwallowedError(jobId,"flush status queue")),logQueue.catch(logSwallowedError(jobId,"flush log queue"))]);throw new StudyTubeJobError(jobId,paths.root,error);

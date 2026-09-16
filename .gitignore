@@ -12,11 +12,9 @@ package-lock.json
 .env.*
 !.env.example
 
-# StudyTube generated data
+# StudyTube generated data (data/jobs, data/uploads, data/cache, ...)
+/data/
 .data/
-jobs/
-renders/
-cache/
 
 # Local TTS model/cache directories and cloud credentials
 piper-data/

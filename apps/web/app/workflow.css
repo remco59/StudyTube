@@ -575,6 +575,34 @@
   margin-top: 20px;
 }
 
+.captionLinks {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.captionLinks.compact {
+  margin-top: 0;
+  align-self: center;
+}
+
+.captionLinks a {
+  border: 1px solid #343945;
+  border-radius: 999px;
+  background: #171a20;
+  padding: 7px 14px;
+  color: #aaaeb8;
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.captionLinks a:hover {
+  border-color: #635b92;
+  color: #e7e1ff;
+}
+
 .managerDetails {
   margin-top: 20px;
 }

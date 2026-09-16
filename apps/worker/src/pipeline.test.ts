@@ -48,6 +48,16 @@ describe("runStudyTubeJob",()=>{
     expect(logs).toContain("render.progress");
     expect(logs).toContain("render.completed");
     expect((await stat(result.outputPath)).isFile()).toBe(true);
+
+    expect(result.status.captions).toBeDefined();
+    const srt=await readFile(result.status.captions!.srtPath,"utf8");
+    const vtt=await readFile(result.status.captions!.vttPath,"utf8");
+    expect(srt).toMatch(/^1\n00:00:00,000 --> /);
+    expect(srt).toContain("Dit is een test van de automatische renderpipeline.");
+    expect(srt).toContain("Daarna volgt automatisch een tweede scene.");
+    expect(vtt).toMatch(/^WEBVTT\n\n00:00:00\.000 --> /);
+    const secondCueStart=vtt.split("\n\n")[2]?.split(" --> ")[0];
+    expect(secondCueStart).not.toBe("00:00:00.000");
   });
 
   it("reports which scene is currently rendering and an ETA",async()=>{

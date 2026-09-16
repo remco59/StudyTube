@@ -25,6 +25,7 @@ export type StudyTubeJobStatus={
   expiresAt?:string;
   sceneProgress?:SceneProgress;
   baseJobId?:string;
+  captions?:{srtPath:string;vttPath:string};
 };
 
 export type JobLogEntry={
