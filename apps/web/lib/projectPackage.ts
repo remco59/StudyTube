@@ -1,5 +1,6 @@
 import {mkdir,writeFile} from "node:fs/promises";
 import {dirname,join} from "node:path";
+import {normalizeStudyTubeProject} from "@studytube/core";
 import {parseStudyTubeProject,type StudyTubeProject} from "@studytube/schema";
 import {normalizeRelativeProjectPath,StudyTubeJobPathError} from "@studytube/worker/path-safety";
 import {strFromU8,unzipSync} from "fflate";
@@ -53,7 +54,7 @@ export async function stageProjectPackage(parsed:ParsedProjectPackage,root:strin
   return projectPath;
 }
 
-export function summarizeProjectPackage(parsed:ParsedProjectPackage){
+export async function summarizeProjectPackage(parsed:ParsedProjectPackage){
   const scenes=parsed.project.chapters.flatMap((chapter)=>chapter.scenes);
   const assets=Object.entries(parsed.project.assets??{}).map(([id,asset])=>({
     id,
@@ -61,6 +62,7 @@ export function summarizeProjectPackage(parsed:ParsedProjectPackage){
     path:asset.path,
     fileName:asset.path.split("/").at(-1)??asset.path,
   }));
+  const preview=await buildProjectPreview(parsed.project);
   return {
     valid:true as const,
     packageType:parsed.packageType,
@@ -71,8 +73,32 @@ export function summarizeProjectPackage(parsed:ParsedProjectPackage){
       chapters:parsed.project.chapters.length,
       scenes:scenes.length,
       assets:assets.length,
+      estimatedDurationSeconds:preview.estimatedDurationSeconds,
     },
     assets,
+    preview,
+  };
+}
+
+export type ProjectPreviewScene={id:string;type:string;narration:string;estimatedDurationSeconds:number};
+export type ProjectPreviewChapter={id:string;title:string;estimatedDurationSeconds:number;scenes:ProjectPreviewScene[]};
+export type ProjectPreview={estimatedDurationSeconds:number;chapters:ProjectPreviewChapter[]};
+
+async function buildProjectPreview(project:StudyTubeProject):Promise<ProjectPreview>{
+  const normalized=await normalizeStudyTubeProject(project);
+  return {
+    estimatedDurationSeconds:normalized.totalDurationSeconds,
+    chapters:normalized.chapters.map((chapter)=>({
+      id:chapter.id,
+      title:chapter.title,
+      estimatedDurationSeconds:chapter.durationSeconds,
+      scenes:chapter.scenes.map((scene)=>({
+        id:scene.scene.id,
+        type:scene.scene.type,
+        narration:scene.scene.narration,
+        estimatedDurationSeconds:scene.durationSeconds,
+      })),
+    })),
   };
 }
 

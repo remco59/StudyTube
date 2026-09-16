@@ -11,7 +11,7 @@ export async function POST(request:Request){
       return Response.json({valid:false,issues:[{path:"",message:"Upload a .studytube.json or .studytube.zip project file"}]},{status:400});
     }
     const parsed=await parseProjectPackage(projectFile);
-    return Response.json(summarizeProjectPackage(parsed));
+    return Response.json(await summarizeProjectPackage(parsed));
   }catch(error){
     if(error instanceof StudyTubeValidationError)return Response.json({valid:false,issues:error.issues},{status:422});
     if(error instanceof StudyTubePackageError)return Response.json({valid:false,issues:[{path:"",message:error.message}]},{status:error.status});

@@ -5,7 +5,10 @@ import {buildChatGptPrompt} from "../lib/chatgptPrompt";
 import {defaultTtsSelection,serializeTtsSettings,TtsSelector,type TtsProviderChoice,type TtsSelection} from "./TtsSelector";
 
 type RequiredAsset={id:string;type:"image"|"document";path:string;fileName:string};
-type ValidationResult={valid:true;packageType:"json"|"zip";summary:{title:string;language:string;targetDuration:number;chapters:number;scenes:number;assets:number};assets:RequiredAsset[]}|{valid:false;issues:{path:string;message:string}[]};
+type PreviewScene={id:string;type:string;narration:string;estimatedDurationSeconds:number};
+type PreviewChapter={id:string;title:string;estimatedDurationSeconds:number;scenes:PreviewScene[]};
+type ProjectPreview={estimatedDurationSeconds:number;chapters:PreviewChapter[]};
+type ValidationResult={valid:true;packageType:"json"|"zip";summary:{title:string;language:string;targetDuration:number;chapters:number;scenes:number;assets:number;estimatedDurationSeconds:number};assets:RequiredAsset[];preview:ProjectPreview}|{valid:false;issues:{path:string;message:string}[]};
 type RenderEngine="cpu"|"intel"|"nvidia";
 type RenderCapability={id:RenderEngine;label:string;available:boolean;detail:string};
 type RenderCapabilities={engines:RenderCapability[]};
@@ -301,7 +304,7 @@ export const StudyTubeApp=()=>{
 
                 {validation?.valid?<div className="summary">
                   <div className="summaryTitle"><span>{validation.packageType==="zip"?"Packaged project":"Text-only project"}</span><strong>{validation.summary.title}</strong></div>
-                  <div className="metrics"><Metric label="Target" value={formatDuration(validation.summary.targetDuration)}/><Metric label="Chapters" value={String(validation.summary.chapters)}/><Metric label="Scenes" value={String(validation.summary.scenes)}/><Metric label="Language" value={validation.summary.language}/></div>
+                  <div className="metrics"><Metric label="Target" value={formatDuration(validation.summary.targetDuration)}/><Metric label="Est. duration" value={formatDuration(validation.summary.estimatedDurationSeconds)}/><Metric label="Chapters" value={String(validation.summary.chapters)}/><Metric label="Scenes" value={String(validation.summary.scenes)}/><Metric label="Language" value={validation.summary.language}/></div>
                 </div>:null}
 
                 {validation&&!validation.valid?<div className="errorBox"><strong>Project is not valid yet</strong>{validation.issues.slice(0,6).map((issue,index)=><p key={`${issue.path}-${index}`}>{issue.path?`${issue.path}: `:""}{issue.message}</p>)}</div>:null}
@@ -310,6 +313,17 @@ export const StudyTubeApp=()=>{
                   <div className="assetsBlockHeader"><div><strong>{validation.assets.length===0?"Assets":"Packaged assets"}</strong><span>{validation.assets.length===0?"No external assets required.":`${validation.assets.length} included in ZIP`}</span></div></div>
                   {validation.assets.length===0?<div className="assetComplete">✓ Text-only JSON project. Nothing else to upload.</div>:<div className="assetList">{validation.assets.map((asset)=><div className="assetRow" key={asset.id}><div><strong>{asset.fileName}</strong><span>{asset.type} · {asset.path}</span></div><span className="assetOk">✓ included</span></div>)}</div>}
                 </div>:null}
+
+                {validation?.valid?<details className="previewBlock">
+                  <summary><strong>Scene-by-scene preview</strong><span>{validation.preview.chapters.reduce((count,chapter)=>count+chapter.scenes.length,0)} scenes · ~{formatDuration(validation.preview.estimatedDurationSeconds)} estimated</span></summary>
+                  <div className="previewChapters">{validation.preview.chapters.map((chapter)=><div className="previewChapter" key={chapter.id}>
+                    <div className="previewChapterHeader"><strong>{chapter.title}</strong><span>~{formatDuration(chapter.estimatedDurationSeconds)}</span></div>
+                    <div className="previewSceneList">{chapter.scenes.map((scene)=><div className="previewScene" key={scene.id}>
+                      <div className="previewSceneMeta"><span className="previewSceneType">{scene.type}</span><span>~{formatDuration(scene.estimatedDurationSeconds)}</span></div>
+                      <p>{scene.narration}</p>
+                    </div>)}</div>
+                  </div>)}</div>
+                </details>:null}
               </div>
               <div className="workflowFooter"><button type="button" className="secondaryButton" onClick={()=>setCreateStep(0)}>Back</button><button type="button" className="primaryButton compactButton" disabled={!renderReady} onClick={()=>{setCreateStep(2);void refreshRenderCapabilities();}}>Continue to render</button></div>
             </>:null}
@@ -320,7 +334,7 @@ export const StudyTubeApp=()=>{
                   <p className="eyebrow">Render</p>
                   <h2>{job?.state==="completed"?"Your video is ready.":job?.state==="failed"?"Render failed.":job?.state==="cancelled"?"Render cancelled.":busy?humanState(job?.state):hasActiveJob?"A render is already running.":"Ready to create the MP4."}</h2>
                   <p>{renderDescription(job,busy,hasActiveJob)}</p>
-                  {validation?.valid?<div className="renderProjectSummary"><strong>{validation.summary.title}</strong><span>{formatDuration(validation.summary.targetDuration)} · {validation.summary.scenes} scenes · {validation.summary.assets} assets · {validation.summary.language}</span></div>:null}
+                  {validation?.valid?<div className="renderProjectSummary"><strong>{validation.summary.title}</strong><span>~{formatDuration(validation.summary.estimatedDurationSeconds)} estimated · {validation.summary.scenes} scenes · {validation.summary.assets} assets · {validation.summary.language}</span></div>:null}
                   <div className="renderEngineBlock">
                     <div className="renderEngineHeading"><div><strong>Render engine</strong><span>Choose the encoder for this video.</span></div><button type="button" className="engineRefresh" onClick={()=>void refreshRenderCapabilities()} disabled={busy}>↻ Detect</button></div>
                     <div className="renderEngineOptions">{renderEngineChoices.map((engine)=>{
