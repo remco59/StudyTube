@@ -64,8 +64,10 @@ export const SettingsPage=()=>{
 
   useEffect(()=>{
     let cancelled=false;
-    void loadSettings().catch((cause)=>{if(!cancelled)setError(cause instanceof Error?cause.message:"Could not load settings");}).finally(()=>{if(!cancelled)setLoading(false);});
-    return()=>{cancelled=true;};
+    const timer=window.setTimeout(()=>{
+      void loadSettings().catch((cause)=>{if(!cancelled)setError(cause instanceof Error?cause.message:"Could not load settings");}).finally(()=>{if(!cancelled)setLoading(false);});
+    },0);
+    return()=>{cancelled=true;window.clearTimeout(timer);};
   },[loadSettings]);
 
   const saveDefaults=async()=>{
