@@ -1,10 +1,12 @@
 "use client";
 
 import {useState} from "react";
+import {chirpVoiceCatalog,isKnownVoiceLanguage,neuralVoiceCatalog,voiceLanguageOptions,type VoiceOption} from "./voiceCatalog";
 
 export type TtsProviderChoice="edge"|"piper"|"omnivoice"|"chatterbox"|"xtts"|"google-chirp"|"azure";
 export type TtsSelection={
   provider:TtsProviderChoice;
+  language:string;
   edge:{voice:string;rate:string};
   piper:{voice:string;lengthScale:number};
   omnivoice:{speed:number;numSteps:number;instruction:string;normalizeText:boolean;referenceText:string;referenceFile:File|null};
@@ -16,6 +18,7 @@ export type TtsSelection={
 
 export const defaultTtsSelection:TtsSelection={
   provider:"edge",
+  language:"nl-NL",
   edge:{voice:"nl-NL-MaartenNeural",rate:"+0%"},
   piper:{voice:"nl_NL-mls-medium",lengthScale:1},
   omnivoice:{speed:1,numSteps:16,instruction:"male, young adult, medium pitch",normalizeText:true,referenceText:"",referenceFile:null},
@@ -23,6 +26,19 @@ export const defaultTtsSelection:TtsSelection={
   xtts:{speaker:"Ana Florence",speed:1,referenceFile:null},
   googleChirp:{voice:"nl-NL-Chirp3-HD-Charon"},
   azure:{voice:"nl-NL-MaartenNeural"},
+};
+
+export const applyProjectLanguage=(selection:TtsSelection,projectLanguage:string):TtsSelection=>{
+  if(!isKnownVoiceLanguage(projectLanguage)||selection.language===projectLanguage)return selection;
+  const neuralVoice=neuralVoiceCatalog[projectLanguage]?.[0];
+  const chirpVoice=chirpVoiceCatalog[projectLanguage]?.[0];
+  return {
+    ...selection,
+    language:projectLanguage,
+    edge:neuralVoice?{...selection.edge,voice:neuralVoice.id}:selection.edge,
+    azure:neuralVoice?{voice:neuralVoice.id}:selection.azure,
+    googleChirp:chirpVoice?{voice:chirpVoice.id}:selection.googleChirp,
+  };
 };
 
 export const serializeTtsSettings=(selection:TtsSelection)=>JSON.stringify({
@@ -81,9 +97,11 @@ const Settings=({provider,value,onChange}:{provider:TtsProviderChoice;value:TtsS
 };
 
 const EdgeSettings=({value,onChange}:SettingsProps)=><div className="ttsSettingsGrid">
-  <label><span>Voice</span><input value={value.edge.voice} onChange={(event)=>onChange({...value,edge:{...value.edge,voice:event.target.value}})} placeholder="nl-NL-MaartenNeural"/></label>
+  <NeuralVoicePicker language={value.language} voice={value.edge.voice} catalog={neuralVoiceCatalog}
+    onLanguageChange={(language)=>onChange({...value,language})}
+    onVoiceChange={(voice)=>onChange({...value,edge:{...value.edge,voice}})}/>
   <label><span>Rate</span><input value={value.edge.rate} onChange={(event)=>onChange({...value,edge:{...value.edge,rate:event.target.value}})} placeholder="+0%"/></label>
-  <p className="ttsSettingsHint">Rate examples: <code>-5%</code>, <code>+0%</code>, <code>+10%</code>.</p>
+  <p className="ttsSettingsHint wide">Rate examples: <code>-5%</code>, <code>+0%</code>, <code>+10%</code>.</p>
 </div>;
 
 const PiperSettings=({value,onChange}:SettingsProps)=><div className="ttsSettingsGrid">
@@ -118,14 +136,39 @@ const XttsSettings=({value,onChange}:SettingsProps)=><div className="ttsSettings
 </div>;
 
 const GoogleSettings=({value,onChange}:SettingsProps)=><div className="ttsSettingsGrid">
-  <label className="wide"><span>Chirp 3 HD voice</span><input value={value.googleChirp.voice} onChange={(event)=>onChange({...value,googleChirp:{voice:event.target.value}})} placeholder="nl-NL-Chirp3-HD-Charon"/></label>
+  <NeuralVoicePicker language={value.language} voice={value.googleChirp.voice} catalog={chirpVoiceCatalog}
+    onLanguageChange={(language)=>onChange({...value,language})}
+    onVoiceChange={(voice)=>onChange({...value,googleChirp:{voice}})}/>
   <p className="ttsSettingsHint wide">Requires Google Cloud credentials. Current Google free usage is up to 1 million Chirp 3 HD characters per month.</p>
 </div>;
 
 const AzureSettings=({value,onChange}:SettingsProps)=><div className="ttsSettingsGrid">
-  <label className="wide"><span>Azure voice</span><input value={value.azure.voice} onChange={(event)=>onChange({...value,azure:{voice:event.target.value}})} placeholder="nl-NL-MaartenNeural"/></label>
-  <p className="ttsSettingsHint wide">Requires <code>AZURE_SPEECH_KEY</code> and <code>AZURE_SPEECH_REGION</code>. You can also try Dutch HD voices supported by your Azure resource.</p>
+  <NeuralVoicePicker language={value.language} voice={value.azure.voice} catalog={neuralVoiceCatalog}
+    onLanguageChange={(language)=>onChange({...value,language})}
+    onVoiceChange={(voice)=>onChange({...value,azure:{voice}})}/>
+  <p className="ttsSettingsHint wide">Requires <code>AZURE_SPEECH_KEY</code> and <code>AZURE_SPEECH_REGION</code>. You can also try HD voices supported by your Azure resource.</p>
 </div>;
+
+const NeuralVoicePicker=({language,voice,catalog,onLanguageChange,onVoiceChange}:{
+  language:string;voice:string;catalog:Record<string,VoiceOption[]>;
+  onLanguageChange:(language:string)=>void;onVoiceChange:(voice:string)=>void;
+})=>{
+  const options=catalog[language]??[];
+  const isCustom=!options.some((option)=>option.id===voice);
+  return <>
+    <label><span>Language</span><select value={language} onChange={(event)=>{
+      const nextLanguage=event.target.value;
+      onLanguageChange(nextLanguage);
+      const nextVoice=catalog[nextLanguage]?.[0];
+      if(nextVoice)onVoiceChange(nextVoice.id);
+    }}>{voiceLanguageOptions.map((option)=><option key={option.id} value={option.id}>{option.label}</option>)}</select></label>
+    <label><span>Voice</span><select value={isCustom?"custom":voice} onChange={(event)=>{if(event.target.value!=="custom")onVoiceChange(event.target.value);}}>
+      {options.map((option)=><option key={option.id} value={option.id}>{option.label}</option>)}
+      <option value="custom">Custom voice ID…</option>
+    </select></label>
+    {isCustom?<label className="wide"><span>Custom voice ID</span><input value={voice} onChange={(event)=>onVoiceChange(event.target.value)} placeholder="nl-NL-MaartenNeural"/></label>:null}
+  </>;
+};
 
 const ReferenceAudio=({value,hint,onChange}:{value:File|null;hint:string;onChange:(file:File|null)=>void})=><label className="wide"><span>Reference audio <em>optional</em></span><input className="fileInput" type="file" accept="audio/*,.wav,.mp3,.m4a,.flac,.ogg,.webm" onChange={(event)=>onChange(event.target.files?.[0]??null)}/><small>{value?value.name:hint}</small></label>;
 type SettingsProps={value:TtsSelection;onChange:(next:TtsSelection)=>void};
