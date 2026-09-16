@@ -22,7 +22,6 @@ export type StudyTubeJobStatus={
   outputPath?:string;
   error?:string;
   downloadedAt?:string;
-  expiresAt?:string;
   sceneProgress?:SceneProgress;
   baseJobId?:string;
   captions?:{srtPath:string;vttPath:string};

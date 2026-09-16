@@ -5,7 +5,7 @@ import {StudyTubeValidationError} from "@studytube/schema";
 import {resolveTtsProviderKind,type TtsJobSettings} from "@studytube/worker";
 import {parseRenderEngine,requireRenderEngine} from "@studytube/worker/render-engine";
 import {registerActiveJob} from "@/lib/activeJobs";
-import {assertJobId,cleanupExpiredJobs,getDataDir,listJobStatuses} from "@/lib/jobs";
+import {assertJobId,getDataDir,listJobStatuses,pruneOldRenders} from "@/lib/jobs";
 import {parseProjectPackage,stageProjectPackage,StudyTubePackageError} from "@/lib/projectPackage";
 import {enqueueRenderJob,withQueuePosition} from "@/lib/renderQueue";
 
@@ -22,7 +22,7 @@ export async function GET(){
 export async function POST(request:Request){
   const uploadRoots:string[]=[];
   try{
-    await cleanupExpiredJobs();
+    await pruneOldRenders();
     const form=await request.formData();
     const projectParts=form.getAll("project").filter((part):part is File=>part instanceof File);
     if(projectParts.length===0)return Response.json({error:"Upload one or more .studytube.json or .studytube.zip projects"},{status:400});

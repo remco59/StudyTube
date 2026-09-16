@@ -1,4 +1,4 @@
-import {mkdir,mkdtemp,readFile,rm,writeFile} from "node:fs/promises";
+import {mkdir,mkdtemp,readdir,rm,writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {afterEach,beforeEach,describe,expect,it} from "vitest";
@@ -83,25 +83,38 @@ describe("jobs",()=>{
     await expect(markJobDownloaded("job-pending")).rejects.toThrow(/not ready/);
   });
 
-  it("sets an expiry window on first download and keeps it on repeat downloads",async()=>{
+  it("records a download timestamp once and keeps it on repeat downloads",async()=>{
     const root=await useDataDir();
     const {markJobDownloaded}=await import("./jobs");
     await writeStatus(root,"job-done",{jobId:"job-done",state:"completed",progress:1,createdAt:"2024-01-01T00:00:00.000Z",updatedAt:"2024-01-01T00:00:00.000Z",outputPath:join(root,"video.mp4")});
 
     const first=await markJobDownloaded("job-done");
-    expect(first.expiresAt).toBeDefined();
+    expect(first.downloadedAt).toBeDefined();
 
     const second=await markJobDownloaded("job-done");
-    expect(second.expiresAt).toBe(first.expiresAt);
+    expect(second.downloadedAt).toBe(first.downloadedAt);
   });
 
-  it("removes jobs whose retention window has expired",async()=>{
+  it("prunes completed renders of the same project beyond the retention count, oldest first",async()=>{
     const root=await useDataDir();
-    const {cleanupExpiredJobs}=await import("./jobs");
-    const expiredAt=new Date(Date.now()-1000).toISOString();
-    await writeStatus(root,"job-expired",{jobId:"job-expired",state:"completed",progress:1,createdAt:"2024-01-01T00:00:00.000Z",updatedAt:"2024-01-01T00:00:00.000Z",expiresAt:expiredAt});
-    await cleanupExpiredJobs();
-    await expect(readFile(join(root,"jobs","job-expired","status.json"),"utf8")).rejects.toThrow();
+    const {MAX_COMPLETED_RENDERS_PER_PROJECT,pruneOldRenders}=await import("./jobs");
+    for(let index=0;index<MAX_COMPLETED_RENDERS_PER_PROJECT+2;index++){
+      const createdAt=new Date(2024,0,index+1).toISOString();
+      await writeStatus(root,`job-${index}`,{jobId:`job-${index}`,state:"completed",progress:1,projectTitle:"My video",createdAt,updatedAt:createdAt});
+    }
+    await pruneOldRenders();
+    const remaining=await readdir(join(root,"jobs"));
+    expect(remaining.sort()).toEqual(["job-2","job-3","job-4","job-5","job-6"]);
+  });
+
+  it("does not prune jobs from other projects or non-completed jobs",async()=>{
+    const root=await useDataDir();
+    const {pruneOldRenders}=await import("./jobs");
+    await writeStatus(root,"other-project",{jobId:"other-project",state:"completed",progress:1,projectTitle:"Another video",createdAt:"2024-01-01T00:00:00.000Z",updatedAt:"2024-01-01T00:00:00.000Z"});
+    await writeStatus(root,"still-rendering",{jobId:"still-rendering",state:"rendering",progress:.5,projectTitle:"My video",createdAt:"2024-01-01T00:00:00.000Z",updatedAt:"2024-01-01T00:00:00.000Z"});
+    await pruneOldRenders();
+    const remaining=await readdir(join(root,"jobs"));
+    expect(remaining.sort()).toEqual(["other-project","still-rendering"]);
   });
 
   it("finds the most recently completed job with a matching project title",async()=>{
