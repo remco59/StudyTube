@@ -7,12 +7,18 @@ from typing import Optional
 import requests
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import Response
+from google.api_core.exceptions import Unauthenticated
+from google.auth import load_credentials_from_file
+from google.auth.exceptions import RefreshError
+from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.cloud import texttospeech
 from pydantic import BaseModel, Field
 
 app = FastAPI(title="StudyTube Cloud TTS")
 _google_client = None
+_google_credentials = None
 _google_credentials_mtime = None
+GOOGLE_CLOUD_SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 CREDENTIALS_DIR = Path(os.getenv("STUDYTUBE_CREDENTIALS_DIR", "/credentials"))
 CLOUD_SETTINGS_PATH = CREDENTIALS_DIR / "cloud.json"
 
@@ -54,22 +60,56 @@ def azure_configured() -> bool:
     return bool(key and region)
 
 
-def get_google_client():
-    global _google_client, _google_credentials_mtime
+def reset_google_client():
+    global _google_client, _google_credentials, _google_credentials_mtime
+    _google_client = None
+    _google_credentials = None
+    _google_credentials_mtime = None
+
+
+def _google_credentials_file():
     path = google_credentials_path()
     if not path or not path.is_file():
         raise HTTPException(status_code=503, detail="Google Chirp is not configured. Open StudyTube Settings and upload Google credentials.")
     try:
-        mtime = path.stat().st_mtime_ns
+        return path, path.stat().st_mtime_ns
     except OSError as exc:
         raise HTTPException(status_code=503, detail=f"Could not read Google Cloud credentials: {exc}") from exc
-    if _google_client is None or _google_credentials_mtime != mtime:
-        try:
-            _google_client = texttospeech.TextToSpeechClient()
-            _google_credentials_mtime = mtime
-        except Exception as exc:
-            raise HTTPException(status_code=503, detail=f"Could not initialize Google Cloud TTS: {exc}") from exc
+
+
+def get_google_client(force_refresh: bool = False):
+    global _google_client, _google_credentials, _google_credentials_mtime
+    path, mtime = _google_credentials_file()
+    if _google_client is not None and _google_credentials_mtime == mtime and not force_refresh:
+        return _google_client
+
+    try:
+        credentials, _ = load_credentials_from_file(str(path), scopes=[GOOGLE_CLOUD_SCOPE])
+        if force_refresh:
+            credentials.refresh(GoogleAuthRequest())
+        _google_client = texttospeech.TextToSpeechClient(credentials=credentials)
+        _google_credentials = credentials
+        _google_credentials_mtime = mtime
+    except Exception as exc:
+        reset_google_client()
+        action = "refresh" if force_refresh else "initialize"
+        raise HTTPException(status_code=503, detail=f"Could not {action} Google Cloud TTS credentials: {type(exc).__name__}: {exc}") from exc
     return _google_client
+
+
+def is_google_auth_error(exc: Exception) -> bool:
+    if isinstance(exc, (Unauthenticated, RefreshError)):
+        return True
+    message = str(exc).upper()
+    return "ACCESS_TOKEN_EXPIRED" in message or "UNAUTHENTICATED" in message
+
+
+def synthesize_google(client, request: CloudSynthesisRequest):
+    return client.synthesize_speech(
+        input=texttospeech.SynthesisInput(text=request.text),
+        voice=texttospeech.VoiceSelectionParams(language_code=request.language, name=request.voice),
+        audio_config=texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.LINEAR16),
+    )
 
 
 @app.get("/health")
@@ -84,17 +124,25 @@ def health():
 @app.post("/google/synthesize")
 def google_synthesize(request: CloudSynthesisRequest):
     try:
-        client = get_google_client()
-        response = client.synthesize_speech(
-            input=texttospeech.SynthesisInput(text=request.text),
-            voice=texttospeech.VoiceSelectionParams(language_code=request.language, name=request.voice),
-            audio_config=texttospeech.AudioConfig(audio_encoding=texttospeech.AudioEncoding.LINEAR16),
-        )
+        response = synthesize_google(get_google_client(), request)
         return Response(content=response.audio_content, media_type="audio/wav")
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=502, detail=f"Google Chirp generation failed: {type(exc).__name__}: {exc}") from exc
+        if not is_google_auth_error(exc):
+            raise HTTPException(status_code=502, detail=f"Google Chirp generation failed: {type(exc).__name__}: {exc}") from exc
+
+    # Google access tokens are short-lived. The client normally refreshes them
+    # automatically, but if Google rejects a cached token, reload the credential
+    # file, force a refresh and retry this synthesis exactly once.
+    reset_google_client()
+    try:
+        response = synthesize_google(get_google_client(force_refresh=True), request)
+        return Response(content=response.audio_content, media_type="audio/wav")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Google Chirp generation failed after refreshing credentials: {type(exc).__name__}: {exc}") from exc
 
 
 @app.post("/azure/synthesize")
