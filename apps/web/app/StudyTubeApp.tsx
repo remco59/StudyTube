@@ -15,7 +15,7 @@ type RenderEngine="cpu"|"intel"|"nvidia";
 type RenderCapability={id:RenderEngine;label:string;available:boolean;detail:string};
 type RenderCapabilities={engines:RenderCapability[]};
 type SceneProgress={currentSceneId?:string;currentSceneIndex:number;completedScenes:number;totalScenes:number;etaSeconds?:number};
-type JobStatus={jobId:string;state:string;progress:number;createdAt?:string;updatedAt?:string;projectTitle?:string;renderEngine?:RenderEngine;ttsProvider?:TtsProviderChoice|"synthetic";outputPath?:string;error?:string;downloadedAt?:string;expiresAt?:string;sceneProgress?:SceneProgress};
+type JobStatus={jobId:string;state:string;progress:number;createdAt?:string;updatedAt?:string;projectTitle?:string;renderEngine?:RenderEngine;ttsProvider?:TtsProviderChoice|"synthetic";outputPath?:string;error?:string;downloadedAt?:string;expiresAt?:string;sceneProgress?:SceneProgress;captions?:{srtPath:string;vttPath:string}};
 type JobLogEntry={timestamp:string;event:string;message:string;data?:unknown};
 type PromptLanguage="nl-NL"|"en-US";
 type AppTab="create"|"jobs";
@@ -380,6 +380,7 @@ export const StudyTubeApp=()=>{
                   {busy?<div className="progress"><div className="progressTrack"><span style={{width:`${Math.round((job?.progress??0)*100)}%`}}/></div><strong>{Math.round((job?.progress??0)*100)}%</strong></div>:null}
                   {busy&&job?.sceneProgress?<div className="sceneProgress">{formatSceneProgress(job.sceneProgress)}</div>:null}
                   {job?.state==="completed"?<a className="primaryButton" href={`/api/jobs/${job.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(),1200)}>Download MP4</a>:job&&busy&&job.jobId!=="starting"?<button className="cancelButton" disabled={cancellingJobId===job.jobId} onClick={()=>void cancelJob(job)}>{cancellingJobId===job.jobId?"Cancelling…":"Cancel render"}</button>:busy?<button className="primaryButton" disabled>Starting…</button>:hasActiveJob?<button type="button" className="primaryButton" onClick={openJobs}>View running job</button>:<button className="primaryButton" disabled={!renderReady||!renderEngineAvailable} onClick={()=>void startRender()}>Generate video</button>}
+                  {job?.state==="completed"&&job.captions?<CaptionDownloadLinks jobId={job.jobId}/>:null}
                   {job&&job.jobId!=="starting"?<button type="button" className="secondaryButton" onClick={()=>{setManagedJobId(job.jobId);openJobs();}}>Open in Jobs</button>:null}
                 </div>
               </div>
@@ -401,6 +402,7 @@ export const StudyTubeApp=()=>{
             {managedJob.error?<div className="errorBox managerError"><strong>Render stopped</strong><p>{managedJob.error}</p></div>:null}
             <div className="jobActionBar">
               {managedJob.state==="completed"?<a className="primaryButton compactButton" href={`/api/jobs/${managedJob.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(),1200)}>Download MP4</a>:null}
+              {managedJob.state==="completed"&&managedJob.captions?<CaptionDownloadLinks jobId={managedJob.jobId} compact/>:null}
               {!isTerminal(managedJob.state)?<button className="cancelButton compactButton" disabled={cancellingJobId===managedJob.jobId} onClick={()=>void cancelJob(managedJob)}>{cancellingJobId===managedJob.jobId?"Cancelling…":"Cancel render"}</button>:null}
               {isTerminal(managedJob.state)?<button type="button" className="cancelButton compactButton" disabled={deletingJobId===managedJob.jobId} onClick={()=>void deleteJob(managedJob)}>{deletingJobId===managedJob.jobId?"Deleting…":"Delete job"}</button>:null}
             </div>
@@ -418,6 +420,10 @@ export const StudyTubeApp=()=>{
 };
 
 const Metric=({label,value}:{label:string;value:string})=><div className="metric"><span>{label}</span><strong>{value}</strong></div>;
+const CaptionDownloadLinks=({jobId,compact=false}:{jobId:string;compact?:boolean})=><div className={`captionLinks${compact?" compact":""}`}>
+  <a href={`/api/jobs/${jobId}/captions/srt`}>.srt</a>
+  <a href={`/api/jobs/${jobId}/captions/vtt`}>.vtt</a>
+</div>;
 const clampDuration=(minutes:number)=>Number.isFinite(minutes)?Math.max(0.5,Math.min(120,minutes)):8;
 const formatDuration=(seconds:number)=>{const total=Math.max(0,Math.round(seconds));return `${Math.floor(total/60)}:${String(total%60).padStart(2,"0")}`;};
 const humanState=(state?:string)=>({queued:"Preparing render…",validating:"Analyzing project…",synthesizing:"Generating narration…",staging:"Preparing assets…",bundling:"Building video…",rendering:"Rendering MP4…"}[state??""]??"Working…");

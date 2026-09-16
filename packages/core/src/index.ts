@@ -3,6 +3,7 @@ import {
   type StudyTubeProject,
   type StudyTubeScene,
 } from "@studytube/schema";
+import type { NarrationManifest } from "./captions";
 
 export const DEFAULT_FPS = 30;
 export const DEFAULT_SCENE_PADDING_SECONDS = 0.35;
@@ -174,5 +175,65 @@ const assertPositiveFiniteNumber = (value: number, label: string): void => {
     throw new StudyTubeTimingError(`${label} must be a finite number greater than zero`);
   }
 };
+
+export type GlobalCaptionCue = {
+  text: string;
+  startSeconds: number;
+  endSeconds: number;
+};
+
+/**
+ * Narration audio for each scene starts exactly at that scene's global
+ * startFrame (see apps/renderer's StudyTubeComposition), so a scene's own
+ * caption cues, which are timed relative to the start of its narration
+ * track, can be placed on the whole video's timeline by adding that offset.
+ */
+export const buildGlobalCaptionCues = (
+  normalizedProject: NormalizedStudyTubeProject,
+  narration: NarrationManifest,
+): GlobalCaptionCue[] => {
+  const fps = normalizedProject.fps;
+  const cues: GlobalCaptionCue[] = [];
+  for (const chapter of normalizedProject.chapters) {
+    for (const scene of chapter.scenes) {
+      const track = narration[scene.scene.id];
+      if (!track) continue;
+      for (const cue of track.captions) {
+        cues.push({
+          text: cue.text,
+          startSeconds: framesToSeconds(scene.startFrame + cue.startFrame, fps),
+          endSeconds: framesToSeconds(scene.startFrame + cue.endFrameExclusive, fps),
+        });
+      }
+    }
+  }
+  return cues;
+};
+
+const formatCaptionTimestamp = (seconds: number, millisecondsSeparator: string): string => {
+  const totalMilliseconds = Math.max(0, Math.round(seconds * 1000));
+  const hours = Math.floor(totalMilliseconds / 3_600_000);
+  const minutes = Math.floor((totalMilliseconds % 3_600_000) / 60_000);
+  const wholeSeconds = Math.floor((totalMilliseconds % 60_000) / 1000);
+  const milliseconds = totalMilliseconds % 1000;
+  const pad = (value: number, length = 2) => String(value).padStart(length, "0");
+  return `${pad(hours)}:${pad(minutes)}:${pad(wholeSeconds)}${millisecondsSeparator}${pad(milliseconds, 3)}`;
+};
+
+export const formatSrtTimestamp = (seconds: number): string => formatCaptionTimestamp(seconds, ",");
+export const formatVttTimestamp = (seconds: number): string => formatCaptionTimestamp(seconds, ".");
+
+export const captionCuesToSrt = (cues: GlobalCaptionCue[]): string =>
+  cues
+    .map(
+      (cue, index) =>
+        `${index + 1}\n${formatSrtTimestamp(cue.startSeconds)} --> ${formatSrtTimestamp(cue.endSeconds)}\n${cue.text}\n`,
+    )
+    .join("\n");
+
+export const captionCuesToVtt = (cues: GlobalCaptionCue[]): string =>
+  `WEBVTT\n\n${cues
+    .map((cue) => `${formatVttTimestamp(cue.startSeconds)} --> ${formatVttTimestamp(cue.endSeconds)}\n${cue.text}\n`)
+    .join("\n")}`;
 
 export * from "./captions";
