@@ -137,6 +137,192 @@
   font-size: 0.78rem;
 }
 
+.assetPromptBlock {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #303541;
+  border-radius: 14px;
+  background: rgba(18, 21, 26, 0.72);
+  padding: 12px;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.assetPromptBlock.enabled {
+  border-color: rgba(123, 97, 255, 0.48);
+  background: rgba(27, 24, 43, 0.46);
+}
+
+.assetToggleButton {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 11px;
+  align-items: center;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.assetToggleIndicator {
+  position: relative;
+  width: 36px;
+  height: 21px;
+  border: 1px solid #464c58;
+  border-radius: 999px;
+  background: #20242a;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.assetToggleIndicator > span {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #8b919d;
+  transition: transform 150ms ease, background 150ms ease;
+}
+
+.assetToggleButton[aria-pressed="true"] .assetToggleIndicator {
+  border-color: #7b61ff;
+  background: rgba(123, 97, 255, 0.38);
+}
+
+.assetToggleButton[aria-pressed="true"] .assetToggleIndicator > span {
+  transform: translateX(15px);
+  background: #b9afff;
+}
+
+.assetToggleCopy {
+  display: grid;
+  gap: 2px;
+}
+
+.assetToggleCopy strong,
+.assetPromptLabel strong {
+  color: #ece9e0;
+  font-size: 0.82rem;
+}
+
+.assetToggleCopy small,
+.assetPromptLabel span {
+  color: #747a86;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.assetPromptControls {
+  display: grid;
+  gap: 14px;
+  border-top: 1px solid rgba(76, 81, 93, 0.55);
+  padding-top: 12px;
+}
+
+.assetPromptSection {
+  display: grid;
+  gap: 8px;
+}
+
+.assetPromptLabel {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.assetChoiceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.assetTypeOption {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+  align-items: start;
+  border: 1px solid #343a45;
+  border-radius: 11px;
+  background: #15181d;
+  padding: 9px;
+  color: #a6abb5;
+  text-align: left;
+  cursor: pointer;
+}
+
+.assetTypeOption.selected {
+  border-color: #7769c8;
+  background: rgba(123, 97, 255, 0.13);
+}
+
+.assetTypeOption > span:last-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.assetTypeOption strong {
+  color: #e7e3dc;
+  font-size: 0.74rem;
+}
+
+.assetTypeOption small {
+  color: #6f7581;
+  font-size: 0.66rem;
+  line-height: 1.3;
+}
+
+.assetChoiceCheck {
+  display: inline-flex;
+  width: 17px;
+  height: 17px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #454b56;
+  border-radius: 5px;
+  color: #fff;
+  font-size: 0.68rem;
+}
+
+.assetTypeOption.selected .assetChoiceCheck {
+  border-color: #7b61ff;
+  background: #7b61ff;
+}
+
+.assetAmountOptions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid #343a45;
+  border-radius: 11px;
+  background: #15181d;
+}
+
+.assetAmountOption {
+  border: 0;
+  border-right: 1px solid #343a45;
+  background: transparent;
+  padding: 9px 7px;
+  color: #858b96;
+  font-size: 0.72rem;
+  font-weight: 760;
+  cursor: pointer;
+}
+
+.assetAmountOption:last-child {
+  border-right: 0;
+}
+
+.assetAmountOption.selected {
+  background: rgba(123, 97, 255, 0.2);
+  color: #d8d2ff;
+}
+
 .promptButton {
   display: inline-flex;
   min-height: 48px;
@@ -169,6 +355,12 @@
   }
 }
 
+@media (max-width: 620px) {
+  .assetChoiceGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 520px) {
   .promptPanel {
     border-radius: 18px;
@@ -181,5 +373,22 @@
 
   .promptSteps {
     display: grid;
+  }
+
+  .assetPromptLabel {
+    display: grid;
+    gap: 2px;
+  }
+
+  .assetAmountOptions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .assetAmountOption:nth-child(2) {
+    border-right: 0;
+  }
+
+  .assetAmountOption:nth-child(-n+2) {
+    border-bottom: 1px solid #343a45;
   }
 }
