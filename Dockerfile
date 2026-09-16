@@ -7,13 +7,14 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
     STUDYTUBE_RENDERER_ENTRY=/app/apps/renderer/src/index.ts
 
 # System packages mirror Remotion's documented Debian Chrome dependencies,
-# with ffmpeg/curl/fonts added for rendering and health checks.
+# with ffmpeg/curl/fonts and Intel VAAPI support added for rendering and health checks.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     ffmpeg \
     fonts-liberation \
     fonts-noto-core \
+    intel-media-va-driver \
     libasound2 \
     libatk-bridge2.0-0 \
     libatk1.0-0 \
