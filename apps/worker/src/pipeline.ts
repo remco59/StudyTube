@@ -206,7 +206,7 @@ const renderIncremental=async(args:{
       const frameCount=run.endFrameExclusive-run.startFrame;
       const segmentPath=join(args.segmentsDir,`segment-${index}.mp4`);
       if(run.kind==="reuse"){
-        await args.extractSegment(args.baseOutputPath,run.baseStartFrame??run.startFrame,frameCount,args.fps,segmentPath);
+        await args.extractSegment(args.baseOutputPath,run.baseStartFrame??run.startFrame,frameCount,args.fps,segmentPath,args.signal);
         completedWork+=frameCount*extractWeight;
         args.reportProgress(completedWork/totalWork,"reusing",run.endFrameExclusive);
       }else{
@@ -225,7 +225,7 @@ const renderIncremental=async(args:{
       segmentPaths.push(segmentPath);
     }
 
-    await args.concatenateSegments(segmentPaths,args.outputPath);
+    await args.concatenateSegments(segmentPaths,args.outputPath,args.signal);
   }finally{
     await rm(args.segmentsDir,{recursive:true,force:true}).catch((error)=>{console.error(`StudyTube render: failed to remove segment directory ${args.segmentsDir}`,error);});
   }
