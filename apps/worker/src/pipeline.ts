@@ -4,6 +4,7 @@ import {dirname,join,resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import {buildGlobalCaptionCues,captionCuesToSrt,captionCuesToVtt,type NarrationManifest,type NormalizedScene,type NormalizedStudyTubeProject} from "@studytube/core";
 import {parseStudyTubeProject} from "@studytube/schema";
+import {validateProjectAssets} from "./assetValidation";
 import {buildSceneManifest,hashJson,planSceneRuns,type SceneManifest,type SceneRun} from "./incrementalRender";
 import {
   AzureSpeechHttpProvider,
@@ -80,12 +81,15 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
     const sourceProjectPath=resolve(options.projectPath);const raw=await readFile(sourceProjectPath,"utf8");checkCancelled();const project=parseStudyTubeProject(JSON.parse(raw));
     await writeFile(paths.projectFile,`${JSON.stringify(project,null,2)}\n`,`utf8`);await update("validating",.08,{projectTitle:project.metadata.title});await log("project.validated","Project JSON validated",{title:project.metadata.title,chapters:project.chapters.length,scenes:project.chapters.reduce((count,chapter)=>count+chapter.scenes.length,0)});
 
+    const sourceRoot=dirname(sourceProjectPath);
+    checkCancelled();await validateProjectAssets(project,sourceRoot);await log("assets.validated","Referenced assets exist and match their declared type",{assets:Object.keys(project.assets??{}).length});
+
     checkCancelled();await update("synthesizing",.1);await log("narration.started","Generating narration audio",{provider:providerKind});
     const provider=deps.provider??createProvider(providerKind,options.ttsSettings);const cache=new NarrationAudioCache(join(dataDir,"cache","tts"),provider);const narrationOverrides=providerKind==="piper"?getPiperNarrationOverrides(options.ttsSettings?.piper):{};
     const prepared=await prepareProjectNarration(project,cache,{fps:options.fps,scenePaddingSeconds:options.scenePaddingSeconds,language:project.metadata.language,...narrationOverrides});
     checkCancelled();await update("staging",.35);await log("narration.ready","Narration synthesized and measured",{scenes:Object.keys(prepared.tracks).length,provider:provider.id,ttsProvider:providerKind});
 
-    await log("assets.staging","Preparing project assets and narration for the renderer",{assets:Object.keys(project.assets??{}).length});const sourceRoot=dirname(sourceProjectPath);await stageProjectAssets(project.assets??{},sourceRoot,paths.publicDir);checkCancelled();const narration=await stageNarration(prepared.tracks,paths.publicDir);checkCancelled();
+    await log("assets.staging","Preparing project assets and narration for the renderer",{assets:Object.keys(project.assets??{}).length});await stageProjectAssets(project.assets??{},sourceRoot,paths.publicDir);checkCancelled();const narration=await stageNarration(prepared.tracks,paths.publicDir);checkCancelled();
     const props:StudyTubeRenderProps={project:prepared.normalizedProject,narration,showCaptions:options.showCaptions??true};await writeFile(paths.renderPropsFile,`${JSON.stringify(props,null,2)}\n`,`utf8`);
     const outputBaseName=`${slugify(project.metadata.title)||"studytube"}-${jobId}`;const outputName=`${outputBaseName}.mp4`;const outputPath=join(paths.outputDir,outputName);
     const globalCaptionCues=buildGlobalCaptionCues(prepared.normalizedProject,narration);const srtPath=join(paths.outputDir,`${outputBaseName}.srt`);const vttPath=join(paths.outputDir,`${outputBaseName}.vtt`);

@@ -149,6 +149,26 @@ describe("runStudyTubeJob",()=>{
     expect(logs).toContain("job.failed");
   });
 
+  it("fails fast on a wrong-type asset before any narration is synthesized",async()=>{
+    const root=await makeRoot();
+    const sourceDir=join(root,"source");
+    await mkdir(join(sourceDir,"assets"),{recursive:true});
+    await writeFile(join(sourceDir,"assets","diagram.svg"),"not actually svg content, but wrong extension below");
+    await writeFile(join(sourceDir,"assets","diagram.txt"),"this is not an image");
+    const project={version:"1.0",metadata:{title:"Wrong Type Test",language:"nl-NL",targetDuration:30,style:"educational-explainer"},assets:{diagram:{type:"image",path:"assets/diagram.txt"}},chapters:[{id:"intro",title:"Intro",scenes:[{id:"one",type:"image",narration:"Een test scene.",visual:{assetId:"diagram",fit:"contain"}}]}]};
+    const projectPath=join(sourceDir,"wrong-type.studytube.json");
+    await writeFile(projectPath,JSON.stringify(project));
+
+    const provider=new SyntheticWavProvider();
+    const synthesizeSpy=vi.spyOn(provider,"synthesize");
+    const render=vi.fn(async()=>undefined);
+    await expect(runStudyTubeJob({projectPath,dataDir:join(root,"data"),jobId:"job-wrong-type",ttsProvider:"synthetic"},{provider,render})).rejects.toBeInstanceOf(StudyTubeJobError);
+    expect(synthesizeSpy).not.toHaveBeenCalled();
+    expect(render).not.toHaveBeenCalled();
+    const logs=await readFile(join(root,"data","jobs","job-wrong-type","logs.ndjson"),"utf8");
+    expect(logs).toContain("expected an image file");
+  });
+
   it("reuses an unchanged scene from a base job and only re-renders the scene that changed",async()=>{
     const root=await makeRoot();
     const dataDir=join(root,"data");
