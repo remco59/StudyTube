@@ -1,0 +1,427 @@
+/* Mobile-first overrides layered after the existing StudyTube stylesheets. */
+
+html,
+body,
+.appShell {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+pre {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.globalError,
+.errorBox,
+.settingsWarning,
+.settingsNotice,
+.settingsLoading,
+.managerError,
+.jobDetails,
+.renderProjectSummary,
+.previewChapter,
+.diffEntry {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .topbar {
+    align-items: flex-start;
+  }
+
+  .appTabs {
+    min-width: 0;
+  }
+
+  .appTabs > * {
+    min-width: 0;
+  }
+
+  .jobsWorkspace,
+  .wizardPrompt,
+  .wizardRender {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .topbar,
+  .workspace {
+    width: calc(100% - 24px);
+  }
+
+  .topbar {
+    gap: 10px;
+    padding-top: max(14px, env(safe-area-inset-top));
+    padding-bottom: 12px;
+  }
+
+  .brand {
+    min-height: 44px;
+  }
+
+  .appTabs {
+    display: flex;
+    width: 100%;
+    gap: 4px;
+    overflow-x: auto;
+    border-radius: 14px;
+    padding: 3px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .appTabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .appTabs button,
+  .appTabs a {
+    flex: 1 1 0;
+    min-width: max-content;
+    min-height: 44px;
+    justify-content: center;
+    padding: 0 11px;
+    font-size: 0.79rem;
+  }
+
+  .workspace {
+    padding-top: 22px;
+    padding-bottom: calc(34px + env(safe-area-inset-bottom));
+  }
+
+  .compactIntro {
+    margin-bottom: 22px;
+  }
+
+  .compactIntro h1,
+  h1 {
+    font-size: clamp(2.4rem, 13vw, 4rem);
+    line-height: 0.98;
+  }
+
+  .workflowHeader {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 18px 16px 16px;
+  }
+
+  .workflowCounter {
+    align-self: flex-start;
+  }
+
+  .workflowSteps button {
+    min-height: 64px;
+  }
+
+  .workflowSteps strong {
+    font-size: 0.78rem;
+  }
+
+  .wizardPrompt,
+  .wizardUpload,
+  .wizardRender,
+  .jobManager,
+  .jobsPanel,
+  .settingsCard {
+    padding: 16px;
+  }
+
+  .wizardRender {
+    min-height: 0;
+  }
+
+  .promptPanel,
+  .promptBuilder {
+    min-width: 0;
+  }
+
+  .promptPanel {
+    padding: 16px;
+  }
+
+  .promptBuilder {
+    padding: 14px;
+  }
+
+  .promptFields,
+  .settingsFields,
+  .settingsFields.threeColumns,
+  .ttsSettingsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .promptBuilder input,
+  .promptBuilder select,
+  .promptBuilder textarea,
+  .ttsSettingsGrid input,
+  .ttsSettingsGrid select,
+  .ttsSettingsGrid textarea,
+  .settingsFields input,
+  .settingsFields select,
+  .settingsFile input,
+  .baseJobSelect {
+    font-size: 16px;
+  }
+
+  .primaryButton,
+  .secondaryButton,
+  .cancelButton,
+  .promptButton,
+  .assetPicker,
+  .teachingStrategyButton,
+  .engineRefresh,
+  .renderEngineOption,
+  .ttsOptionSelect,
+  .settingsActions button,
+  .settingsActions a {
+    min-height: 44px;
+  }
+
+  .ttsSettingsButton {
+    width: 48px;
+    min-width: 48px;
+  }
+
+  .renderEngineHeading,
+  .ttsHeading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .engineRefresh {
+    width: 100%;
+  }
+
+  .renderEngineOption,
+  .ttsOptionSelect {
+    padding-top: 12px;
+    padding-bottom: 12px;
+  }
+
+  .workflowFooter {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .jobsHeading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .jobsHeadingActions {
+    width: 100%;
+  }
+
+  .jobsHeadingActions .secondaryButton {
+    flex: 1 1 auto;
+  }
+
+  .jobManagerThumbnail {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+
+  .jobActionBar > .primaryButton,
+  .jobActionBar > .secondaryButton,
+  .jobActionBar > .cancelButton {
+    flex: 1 1 100%;
+  }
+
+  .captionLinks {
+    flex-wrap: wrap;
+  }
+
+  .captionLinks a {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .renderHistoryList {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .renderHistoryItem {
+    flex: 0 0 104px;
+  }
+
+  .settingsCardHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .settingsActions > * {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  .settingsInputSuffix {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .settingsInputSuffix > span {
+    padding-left: 2px;
+  }
+
+  .assetRow {
+    min-width: 0;
+  }
+
+  .assetRow > div {
+    max-width: 100%;
+  }
+
+  .teachingStrategyModalBackdrop {
+    place-items: end center;
+    padding: max(10px, env(safe-area-inset-top)) 0 0;
+  }
+
+  .teachingStrategyModal {
+    width: 100%;
+    height: calc(100dvh - max(10px, env(safe-area-inset-top)));
+    max-height: none;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .teachingStrategyModalHeader {
+    padding-top: 16px;
+  }
+
+  .teachingStrategyModalClose {
+    width: 44px;
+    height: 44px;
+  }
+
+  .teachingStrategyModalBody {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .teachingStrategyModalFooter {
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .teachingStrategyDoneButton {
+    min-height: 48px;
+  }
+}
+
+@media (max-width: 420px) {
+  .topbar,
+  .workspace {
+    width: calc(100% - 16px);
+  }
+
+  .brandMark {
+    width: 32px;
+    height: 32px;
+  }
+
+  .appTabs button,
+  .appTabs a {
+    padding: 0 9px;
+    font-size: 0.75rem;
+  }
+
+  .workflowCard,
+  .jobsPanel,
+  .jobManager,
+  .settingsCard,
+  .panel,
+  .renderPanel {
+    border-radius: 16px;
+  }
+
+  .workflowSteps button {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    justify-items: center;
+    gap: 5px;
+    padding: 10px 5px;
+    text-align: center;
+  }
+
+  .workflowSteps button > span {
+    grid-row: auto;
+    width: 27px;
+    height: 27px;
+  }
+
+  .workflowSteps strong {
+    width: 100%;
+    font-size: 0.72rem;
+  }
+
+  .panelHeading,
+  .assetsBlockHeader,
+  .previewBlock summary,
+  .diffBlock summary,
+  .batchBlock summary,
+  .previewChapterHeader,
+  .previewSceneMeta,
+  .renderHistoryHeading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .assetRow {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .assetRow > * {
+    width: 100%;
+  }
+
+  .jobState {
+    gap: 8px;
+  }
+
+  .jobProgress {
+    width: auto;
+  }
+
+  .renderHistoryItem {
+    flex-basis: 96px;
+  }
+
+  .teachingStrategyModalHeader,
+  .teachingStrategyModalBody,
+  .teachingStrategyModalFooter {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .dropzone:hover,
+  .jobRow:hover,
+  .secondaryButton:hover:not(:disabled),
+  .iconButton:hover:not(:disabled),
+  .teachingStrategyButton:hover,
+  .renderHistoryItem:hover {
+    transform: none;
+  }
+}
