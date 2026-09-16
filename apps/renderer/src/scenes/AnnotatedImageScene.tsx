@@ -1,6 +1,6 @@
 import type {NormalizedScene,NormalizedStudyTubeProject} from "@studytube/core";
 import {colors,radii,spacing,typography} from "@studytube/design-system";
-import {type CSSProperties,type SyntheticEvent,useLayoutEffect,useRef,useState} from "react";
+import {type CSSProperties,type ReactNode,type SyntheticEvent,useLayoutEffect,useRef,useState} from "react";
 import {Img,interpolate,useCurrentFrame,useVideoConfig} from "remotion";
 import {resolveProjectAsset} from "../assets/assetResolver";
 import {fittedImageRect,percentPointInRect,percentPointInSize,type Size} from "./annotatedImageLayout";
@@ -64,7 +64,7 @@ export const AnnotatedImageScene=({scene,project}:{scene:AnnotatedImageSceneType
   </Stage>;
 };
 
-const Stage=({children}:{children:React.ReactNode})=><div style={{display:"flex",flex:1,flexDirection:"column",minHeight:0,width:"100%"}}>{children}</div>;
+const Stage=({children}:{children:ReactNode})=><div style={{display:"flex",flex:1,flexDirection:"column",minHeight:0,width:"100%"}}>{children}</div>;
 const SceneTitle=({title}:{title:string})=><div style={{...typography.heading,fontSize:48,lineHeight:1.05,marginBottom:spacing.lg,maxWidth:1450}}>{title}</div>;
 
 const revealOpacity=(frame:number,fps:number,startFrame:number)=>interpolate(frame,[startFrame,startFrame+Math.max(5,Math.round(fps*.22))],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
