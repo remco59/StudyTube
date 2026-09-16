@@ -10,9 +10,11 @@ This gives the renderer deterministic start/end frames derived from actual narra
 
 ## Captions
 
-Narration is split into short phrases (eight words by default). Phrase timing is distributed across the measured narration duration according to word count, producing scene-local frame cues. The last cue ends exactly at the narration boundary, before any visual scene padding.
+The default Edge TTS sidecar captures the `WordBoundary` events emitted while the narration is synthesized. Those word timestamps are embedded in a small custom `sttm` chunk inside the generated WAV file, so timing metadata travels with the cached audio without a separate sidecar file.
 
-The Remotion composition looks up the narration track for each scene and places both the audio and caption overlay inside that scene's `Sequence`. Because Remotion sequence time is local, caption cues start at frame zero for every scene and do not need global timeline offsets.
+StudyTube splits narration into short phrases (eight words by default) and maps those phrases onto the real word boundaries. A caption starts when its first word starts and changes when the next phrase starts. The final caption ends with its final spoken word rather than extending into visual scene padding.
+
+Providers that do not expose word timings, such as the Piper fallback, continue to use the measured narration duration and proportional phrase timing. This keeps captions available even when exact word alignment is unavailable.
 
 ## Renderer manifest
 
@@ -22,7 +24,7 @@ The shared `NarrationManifest` contains, per scene:
 - measured `durationSeconds`
 - phrase caption cues
 
-The TTS preparation step initially knows cache file paths. `toRendererNarrationManifest()` accepts a path mapper so PR 10 can copy/stage cached WAV files into a render job and convert them to safe renderer-local paths.
+The TTS preparation step initially knows cache file paths. `toRendererNarrationManifest()` accepts a path mapper so cached WAV files can be copied/staged into a render job and converted to safe renderer-local paths.
 
 ## Caption behavior
 
