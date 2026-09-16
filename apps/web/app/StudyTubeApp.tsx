@@ -34,6 +34,7 @@ export const StudyTubeApp=()=>{
   const [promptScope,setPromptScope]=useState("");
   const [promptCopied,setPromptCopied]=useState(false);
   const [cancellingJobId,setCancellingJobId]=useState<string|null>(null);
+  const [deletingJobId,setDeletingJobId]=useState<string|null>(null);
   const [renderEngine,setRenderEngine]=useState<RenderEngine>("cpu");
   const [renderCapabilities,setRenderCapabilities]=useState<RenderCapabilities|null>(null);
   const validationRequest=useRef(0);
@@ -59,6 +60,7 @@ export const StudyTubeApp=()=>{
         const cancelling=nextJobs.find((item)=>item.jobId===current);
         return !cancelling||isTerminal(cancelling.state)?null:current;
       });
+      setDeletingJobId((current)=>current&&!nextJobs.some((item)=>item.jobId===current)?null:current);
     }catch{
       // Keep the current UI usable if the persisted job list is temporarily unavailable.
     }
@@ -212,6 +214,29 @@ export const StudyTubeApp=()=>{
     }
   };
 
+  const deleteJob=async(target:JobStatus)=>{
+    if(target.jobId==="starting"||!isTerminal(target.state)||deletingJobId===target.jobId)return;
+    const title=target.projectTitle??"StudyTube render";
+    if(!window.confirm(`Delete “${title}”?\n\nThis permanently removes the job, its logs and any remaining rendered video from this server.`))return;
+    setError(null);
+    setDeletingJobId(target.jobId);
+    try{
+      const response=await fetch(`/api/jobs/${target.jobId}`,{method:"DELETE"});
+      const result=await response.json() as {error?:string};
+      if(!response.ok){setDeletingJobId(null);setError(result.error??"Could not delete job");return;}
+      setJobs((current)=>current.filter((item)=>item.jobId!==target.jobId));
+      setManagedJobId((current)=>current===target.jobId?null:current);
+      setJob((current)=>current?.jobId===target.jobId?null:current);
+      setLogs([]);
+      setDetailsOpen(false);
+      setDeletingJobId(null);
+      void refreshJobs();
+    }catch(cause){
+      setDeletingJobId(null);
+      setError(cause instanceof Error?cause.message:"Could not delete job");
+    }
+  };
+
   const selectManagedJob=(next:JobStatus)=>{
     setManagedJobId(next.jobId);
     setLogs([]);
@@ -327,7 +352,7 @@ export const StudyTubeApp=()=>{
           </div>
         </section>
       </>:<>
-        <div className="intro compactIntro"><p className="eyebrow">Jobs</p><h1>Manage your renders.</h1><p className="lede">Follow active renders, inspect logs, download finished videos, or cancel work you no longer need.</p></div>
+        <div className="intro compactIntro"><p className="eyebrow">Jobs</p><h1>Manage your renders.</h1><p className="lede">Follow active renders, inspect logs, download finished videos, cancel running work, or delete old jobs.</p></div>
 
         <div className="jobsWorkspace">
           <section className="jobsPanel">
@@ -345,6 +370,7 @@ export const StudyTubeApp=()=>{
             <div className="jobActionBar">
               {managedJob.state==="completed"?<a className="primaryButton compactButton" href={`/api/jobs/${managedJob.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(),1200)}>Download MP4</a>:null}
               {!isTerminal(managedJob.state)?<button className="cancelButton compactButton" disabled={cancellingJobId===managedJob.jobId} onClick={()=>void cancelJob(managedJob)}>{cancellingJobId===managedJob.jobId?"Cancelling…":"Cancel render"}</button>:null}
+              {isTerminal(managedJob.state)?<button type="button" className="cancelButton compactButton" disabled={deletingJobId===managedJob.jobId} onClick={()=>void deleteJob(managedJob)}>{deletingJobId===managedJob.jobId?"Deleting…":"Delete job"}</button>:null}
             </div>
             <details className="jobDetails managerDetails" open={detailsOpen} onToggle={(event)=>setDetailsOpen(event.currentTarget.open)}>
               <summary><span>{detailsOpen?"Hide logs":"Show logs"}</span><span className="detailMeta">{managedJob.updatedAt?`Updated ${formatJobDate(managedJob.updatedAt)}`:"Pipeline details"}</span></summary>
