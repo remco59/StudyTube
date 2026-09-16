@@ -2,6 +2,7 @@ import type {NormalizedScene} from "@studytube/core";
 import {colors,radii,shadows,spacing,typography} from "@studytube/design-system";
 import type {CSSProperties,ReactNode} from "react";
 import {interpolate,useCurrentFrame,useVideoConfig} from "remotion";
+import {IconGlyph} from "./IconGlyph";
 
 type ComparisonSceneType=Extract<NormalizedScene["scene"],{type:"comparison"}>;
 
@@ -64,7 +65,9 @@ const ComparisonCard=({sideData,side,style}:{sideData:ComparisonSide;side:"left"
   const padding=contentLength>170?spacing.lg:spacing.xl;
 
   return <div style={{...style,backgroundColor:colors.surface,border:`1px solid ${colors.line}`,borderRadius:radii.lg,boxShadow:shadows.soft,display:"flex",flexDirection:"column",minHeight:390,minWidth:0,padding}}>
-    <div style={{...typography.label,color:side==="left"?colors.textMuted:colors.accent,marginBottom:spacing.lg,textTransform:"uppercase"}}>{sideData.icon??(side==="left"?"A":"B")}</div>
+    <div style={{...typography.label,color:side==="left"?colors.textMuted:colors.accent,marginBottom:spacing.lg,textTransform:"uppercase"}}>
+      {sideData.icon?<IconGlyph icon={sideData.icon} size={36}/>:side==="left"?"A":"B"}
+    </div>
     <div style={{...typography.heading,fontSize:titleFontSize,lineHeight:1.02,minWidth:0,overflowWrap:"anywhere"}}>{sideData.title}</div>
     {sideData.body?<div style={{...typography.body,color:colors.textMuted,fontSize:bodyFontSize,lineHeight:1.22,marginTop:spacing.lg,minWidth:0,overflowWrap:"anywhere"}}>{sideData.body}</div>:null}
   </div>;
