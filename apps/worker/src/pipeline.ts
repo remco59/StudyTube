@@ -131,7 +131,7 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
 
     checkCancelled();
     const thumbnailPath=await generateThumbnail({entryPoint,publicDir:paths.publicDir,outputDir:paths.outputDir,outputBaseName,props,flatScenes,renderThumbnail:deps.renderThumbnail??renderStudyTubeThumbnail,signal:options.signal})
-      .catch((error)=>{logSwallowedError(jobId,"generate a video thumbnail")(error);return undefined;});
+      .catch(async(error)=>{const message=error instanceof Error?error.message:String(error);await log("thumbnail.failed",`Could not generate video thumbnail: ${message}`,{error:message}).catch(logSwallowedError(jobId,"log thumbnail.failed"));logSwallowedError(jobId,"generate a video thumbnail")(error);return undefined;});
 
     checkCancelled();await Promise.all([statusQueue,logQueue]);await log("render.completed","MP4 render completed",{outputPath,totalFrames:prepared.normalizedProject.totalFrames,renderEngine,ttsProvider:providerKind});await update("completed",1,{outputPath,captions:{srtPath,vttPath},...(thumbnailPath?{thumbnailPath}:{})});await Promise.all([statusQueue,logQueue]);return {jobId,paths,status,outputPath};
   }catch(error){
