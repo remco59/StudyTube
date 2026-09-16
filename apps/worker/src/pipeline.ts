@@ -8,7 +8,9 @@ import {
   EdgeTtsHttpProvider,
   getDutchPiperConfig,
   getEdgeTtsConfig,
+  getOmniVoiceConfig,
   NarrationAudioCache,
+  OmniVoiceHttpProvider,
   PiperHttpProvider,
   prepareProjectNarration,
   SyntheticWavProvider,
@@ -36,13 +38,26 @@ export type PipelineRenderFunction=(options:{
   onProgress?:(progress:RenderProgress)=>void|Promise<void>;
 })=>Promise<void>;
 
-export type TtsProviderKind="edge"|"piper"|"synthetic";
+export type TtsProviderKind="edge"|"piper"|"omnivoice"|"synthetic";
+export type TtsJobSettings={
+  edge?:{voice?:string;rate?:string};
+  piper?:{voice?:string;lengthScale?:number};
+  omnivoice?:{
+    speed?:number;
+    numSteps?:number;
+    instruction?:string;
+    normalizeText?:boolean;
+    referenceAudioPath?:string;
+    referenceText?:string;
+  };
+};
 
 export type RunStudyTubeJobOptions={
   projectPath:string;
   dataDir?:string;
   jobId?:string;
   ttsProvider?:TtsProviderKind;
+  ttsSettings?:TtsJobSettings;
   renderEngine?:RenderEngine;
   showCaptions?:boolean;
   fps?:number;
@@ -85,8 +100,8 @@ export const resolveRendererEntryPoint=(env:NodeJS.ProcessEnv=process.env,metaUr
 
 export const resolveTtsProviderKind=(value?:string):TtsProviderKind=>{
   const normalized=(value?.trim().toLowerCase()||"edge");
-  if(normalized==="edge"||normalized==="piper"||normalized==="synthetic")return normalized;
-  throw new Error(`Unsupported STUDYTUBE_TTS_PROVIDER "${value}". Use edge, piper or synthetic.`);
+  if(normalized==="edge"||normalized==="piper"||normalized==="omnivoice"||normalized==="synthetic")return normalized;
+  throw new Error(`Unsupported STUDYTUBE_TTS_PROVIDER "${value}". Use edge, piper, omnivoice or synthetic.`);
 };
 
 export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineDependencies={}):Promise<StudyTubeJobResult>=>{
@@ -94,9 +109,10 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
   const jobId=options.jobId??createJobId(now());
   const dataDir=resolve(options.dataDir??process.env.STUDYTUBE_DATA_DIR??"data");
   const renderEngine=parseRenderEngine(options.renderEngine);
+  const providerKind=resolveTtsProviderKind(options.ttsProvider??process.env.STUDYTUBE_TTS_PROVIDER);
   const paths=createJobPaths(dataDir,jobId);
   const createdAt=now().toISOString();
-  let status:StudyTubeJobStatus={jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt,renderEngine};
+  let status:StudyTubeJobStatus={jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt,renderEngine,ttsProvider:providerKind};
   let statusQueue=Promise.resolve();
   let logQueue=Promise.resolve();
 
@@ -116,7 +132,7 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
 
   await initializeJobPaths(paths);
   await writeJobStatus(paths,status);
-  await log("job.created","Render job created",{projectPath:options.projectPath,renderEngine});
+  await log("job.created","Render job created",{projectPath:options.projectPath,renderEngine,ttsProvider:providerKind});
 
   try{
     checkCancelled();
@@ -132,11 +148,10 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
 
     checkCancelled();
     await update("synthesizing",.1);
-    const providerKind=resolveTtsProviderKind(options.ttsProvider??process.env.STUDYTUBE_TTS_PROVIDER);
     await log("narration.started","Generating narration audio",{provider:providerKind});
-    const provider=deps.provider??createProvider(providerKind);
+    const provider=deps.provider??createProvider(providerKind,options.ttsSettings);
     const cache=new NarrationAudioCache(join(dataDir,"cache","tts"),provider);
-    const narrationOverrides=providerKind==="piper"?getPiperNarrationOverrides():{};
+    const narrationOverrides=providerKind==="piper"?getPiperNarrationOverrides(options.ttsSettings?.piper):{};
     const prepared=await prepareProjectNarration(project,cache,{
       fps:options.fps,
       scenePaddingSeconds:options.scenePaddingSeconds,
@@ -145,7 +160,7 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
     });
     checkCancelled();
     await update("staging",.35);
-    await log("narration.ready","Narration synthesized and measured",{scenes:Object.keys(prepared.tracks).length,provider:provider.id});
+    await log("narration.ready","Narration synthesized and measured",{scenes:Object.keys(prepared.tracks).length,provider:provider.id,ttsProvider:providerKind});
 
     await log("assets.staging","Preparing project assets and narration for the renderer",{assets:Object.keys(project.assets??{}).length});
     const sourceRoot=dirname(sourceProjectPath);
@@ -159,7 +174,7 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
     const outputName=`${slugify(project.metadata.title)||"studytube"}-${jobId}.mp4`;
     const outputPath=join(paths.outputDir,outputName);
     await update("bundling",.4);
-    await log("render.started","Building renderer and starting MP4 render",{frames:prepared.normalizedProject.totalFrames,renderEngine,label:renderEngineLabels[renderEngine]});
+    await log("render.started","Building renderer and starting MP4 render",{frames:prepared.normalizedProject.totalFrames,renderEngine,label:renderEngineLabels[renderEngine],ttsProvider:providerKind});
     checkCancelled();
     const entryPoint=resolveRendererEntryPoint();
     const render=deps.render??renderStudyTubeComposition;
@@ -190,7 +205,7 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
     checkCancelled();
     await Promise.all([statusQueue,logQueue]);
 
-    await log("render.completed","MP4 render completed",{outputPath,totalFrames:prepared.normalizedProject.totalFrames,renderEngine});
+    await log("render.completed","MP4 render completed",{outputPath,totalFrames:prepared.normalizedProject.totalFrames,renderEngine,ttsProvider:providerKind});
     await update("completed",1,{outputPath});
     await Promise.all([statusQueue,logQueue]);
     return {jobId,paths,status,outputPath};
@@ -209,19 +224,40 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
   }
 };
 
-const createProvider=(kind:TtsProviderKind):TtsProvider=>{
+const createProvider=(kind:TtsProviderKind,settings:TtsJobSettings={}):TtsProvider=>{
   if(kind==="synthetic")return new SyntheticWavProvider();
   if(kind==="edge"){
     const config=getEdgeTtsConfig();
-    return new EdgeTtsHttpProvider({baseUrl:config.baseUrl,defaultVoice:config.voice,defaultRate:config.rate});
+    return new EdgeTtsHttpProvider({
+      baseUrl:config.baseUrl,
+      defaultVoice:settings.edge?.voice?.trim()||config.voice,
+      defaultRate:settings.edge?.rate?.trim()||config.rate,
+    });
+  }
+  if(kind==="omnivoice"){
+    const config=getOmniVoiceConfig();
+    return new OmniVoiceHttpProvider({
+      baseUrl:config.baseUrl,
+      speed:settings.omnivoice?.speed??config.speed,
+      numSteps:settings.omnivoice?.numSteps??config.numSteps,
+      instruction:settings.omnivoice?.instruction??config.instruction,
+      normalizeText:settings.omnivoice?.normalizeText??config.normalizeText,
+      referenceAudioPath:settings.omnivoice?.referenceAudioPath,
+      referenceText:settings.omnivoice?.referenceText,
+    });
   }
   const config=getDutchPiperConfig();
-  return new PiperHttpProvider({baseUrl:config.baseUrl,defaultVoice:config.voice,defaultLanguage:config.language,defaultLengthScale:config.lengthScale});
+  return new PiperHttpProvider({
+    baseUrl:config.baseUrl,
+    defaultVoice:settings.piper?.voice?.trim()||config.voice,
+    defaultLanguage:config.language,
+    defaultLengthScale:settings.piper?.lengthScale??config.lengthScale,
+  });
 };
 
-const getPiperNarrationOverrides=()=>{
+const getPiperNarrationOverrides=(settings:TtsJobSettings["piper"]={})=>{
   const config=getDutchPiperConfig();
-  return {voice:config.voice,lengthScale:config.lengthScale};
+  return {voice:settings.voice?.trim()||config.voice,lengthScale:settings.lengthScale??config.lengthScale};
 };
 
 const stageProjectAssets=async(assets:Record<string,{path:string}>,sourceRoot:string,publicDir:string)=>{
