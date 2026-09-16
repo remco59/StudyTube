@@ -4,8 +4,10 @@ import {staticFile} from "remotion";
 type Project=NormalizedStudyTubeProject["project"];
 type ProjectAsset=NonNullable<Project["assets"]>[string];
 type ImageAsset=Extract<ProjectAsset,{type:"image"}>;
+type VideoAsset=Extract<ProjectAsset,{type:"video"}>;
 type DocumentAsset=Extract<ProjectAsset,{type:"document"}>;
-export type ResolvedProjectAsset<T extends ProjectAsset=ProjectAsset>=T&{id:string;path:string;src:string};
+type LocalProjectAsset=ImageAsset|VideoAsset|DocumentAsset;
+export type ResolvedProjectAsset<T extends LocalProjectAsset=LocalProjectAsset>=T&{id:string;path:string;src:string};
 
 export class StudyTubeAssetError extends Error{constructor(message:string){super(message);this.name="StudyTubeAssetError";}}
 
@@ -21,12 +23,14 @@ export const normalizeProjectAssetPath=(input:string):string=>{
 };
 
 export function resolveProjectAsset(project:Project,assetId:string,expectedType:"image"):ResolvedProjectAsset<ImageAsset>;
+export function resolveProjectAsset(project:Project,assetId:string,expectedType:"video"):ResolvedProjectAsset<VideoAsset>;
 export function resolveProjectAsset(project:Project,assetId:string,expectedType:"document"):ResolvedProjectAsset<DocumentAsset>;
 export function resolveProjectAsset(project:Project,assetId:string):ResolvedProjectAsset;
-export function resolveProjectAsset(project:Project,assetId:string,expectedType?:ProjectAsset["type"]):ResolvedProjectAsset{
+export function resolveProjectAsset(project:Project,assetId:string,expectedType?:LocalProjectAsset["type"]):ResolvedProjectAsset{
   const asset=project.assets?.[assetId];
   if(!asset) throw new StudyTubeAssetError(`Unknown project asset: ${assetId}`);
+  if(asset.type==="stockImage"||asset.type==="stockVideo")throw new StudyTubeAssetError(`Asset ${assetId} was not resolved before rendering`);
   if(expectedType&&asset.type!==expectedType) throw new StudyTubeAssetError(`Asset ${assetId} is ${asset.type}, expected ${expectedType}`);
   const path=normalizeProjectAssetPath(asset.path);
-  return {...asset,id:assetId,path,src:staticFile(path)};
+  return {...asset,id:assetId,path,src:staticFile(path)} as ResolvedProjectAsset;
 }
