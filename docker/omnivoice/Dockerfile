@@ -10,7 +10,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python -m pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.8.0 torchaudio==2.8.0 \
-    && python -m pip install --no-cache-dir omnivoice fastapi "uvicorn[standard]" soundfile
+    && python -m pip install --no-cache-dir omnivoice==0.2.1 fastapi "uvicorn[standard]" soundfile
 
 WORKDIR /app
 COPY server.py /app/server.py
