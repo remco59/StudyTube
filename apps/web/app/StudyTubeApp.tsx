@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import {useCallback,useEffect,useMemo,useRef,useState} from "react";
-import {buildChatGptPrompt} from "../lib/chatgptPrompt";
+import {buildChatGptPrompt,type PromptAssetAmount,type PromptAssetType} from "../lib/chatgptPrompt";
+import {PromptAssetSettings} from "./PromptAssetSettings";
 import {applyProjectLanguage,defaultTtsSelection,serializeTtsSettings,TtsSelector,type TtsProviderChoice,type TtsSelection} from "./TtsSelector";
 
 type RequiredAsset={id:string;type:"image"|"document";path:string;fileName:string};
@@ -51,6 +52,9 @@ export const StudyTubeApp=()=>{
   const [promptDuration,setPromptDuration]=useState(8);
   const [promptLanguage,setPromptLanguage]=useState<PromptLanguage>("nl-NL");
   const [promptScope,setPromptScope]=useState("");
+  const [promptUseAssets,setPromptUseAssets]=useState(false);
+  const [promptAssetTypes,setPromptAssetTypes]=useState<PromptAssetType[]>(["web-images","generated-images"]);
+  const [promptAssetAmount,setPromptAssetAmount]=useState<PromptAssetAmount>("some");
   const [promptCopied,setPromptCopied]=useState(false);
   const [cancellingJobId,setCancellingJobId]=useState<string|null>(null);
   const [deletingJobId,setDeletingJobId]=useState<string|null>(null);
@@ -199,7 +203,14 @@ export const StudyTubeApp=()=>{
   const baseJobCandidates=useMemo(()=>validation?.valid?jobs.filter((item)=>item.state==="completed"&&item.projectTitle===validation.summary.title):[],[jobs,validation]);
 
   const copyPrompt=async()=>{
-    const prompt=buildChatGptPrompt({targetDurationMinutes:promptDuration,language:promptLanguage,scope:promptScope});
+    const prompt=buildChatGptPrompt({
+      targetDurationMinutes:promptDuration,
+      language:promptLanguage,
+      scope:promptScope,
+      useAssets:promptUseAssets,
+      assetTypes:promptAssetTypes,
+      assetAmount:promptAssetAmount,
+    });
     try{
       await copyText(prompt);
       setPromptCopied(true);
@@ -319,8 +330,8 @@ export const StudyTubeApp=()=>{
                 <div className="promptCopy">
                   <p className="eyebrow">ChatGPT prompt</p>
                   <h2>Generate a StudyTube project.</h2>
-                  <p>Ask ChatGPT for a text-only <code>.studytube.json</code>, or a <code>.studytube.zip</code> when the video uses images or documents.</p>
-                  <div className="promptSteps"><span>1 · Add study material</span><span>2 · Paste prompt</span><span>3 · Download JSON or ZIP</span></div>
+                  <p>Choose whether ChatGPT should create a text-only <code>.studytube.json</code> or package visual assets in a <code>.studytube.zip</code>.</p>
+                  <div className="promptSteps"><span>1 · Add study material</span><span>2 · Choose prompt settings</span><span>3 · Download JSON or ZIP</span></div>
                 </div>
                 <div className="promptBuilder">
                   <div className="promptFields">
@@ -328,8 +339,9 @@ export const StudyTubeApp=()=>{
                     <label><span>Language</span><select value={promptLanguage} onChange={(event)=>setPromptLanguage(event.target.value as PromptLanguage)}><option value="nl-NL">Dutch (nl-NL)</option><option value="en-US">English (en-US)</option></select></label>
                   </div>
                   <label className="scopeField"><span>Chapters or scope <em>optional</em></span><textarea rows={3} placeholder="e.g. Chapters 2–4, focus on Design Science and artefacts" value={promptScope} onChange={(event)=>setPromptScope(event.target.value)}/></label>
+                  <PromptAssetSettings enabled={promptUseAssets} assetTypes={promptAssetTypes} amount={promptAssetAmount} onEnabledChange={setPromptUseAssets} onAssetTypesChange={setPromptAssetTypes} onAmountChange={setPromptAssetAmount}/>
                   <button className="promptButton" onClick={()=>void copyPrompt()}>{promptCopied?"✓ Prompt copied":"Copy ChatGPT prompt"}</button>
-                  <p className="promptHint">Targets schema v1.0 · {formatDuration(Math.round(promptDuration*60))} video</p>
+                  <p className="promptHint">Targets schema v1.0 · {formatDuration(Math.round(promptDuration*60))} video · {promptUseAssets?".studytube.zip with assets":"text-only .studytube.json"}</p>
                 </div>
               </div>
               <div className="workflowFooter"><span>You can skip this step if you already have a StudyTube project.</span><button type="button" className="primaryButton compactButton" onClick={()=>setCreateStep(1)}>Continue to upload</button></div>
