@@ -1,7 +1,7 @@
 import type {NormalizedScene,NormalizedStudyTubeProject} from "@studytube/core";
 import {colors,radii,shadows,spacing,typography} from "@studytube/design-system";
 import type {ReactNode} from "react";
-import {Img,interpolate,useCurrentFrame,useVideoConfig} from "remotion";
+import {Img,OffthreadVideo,interpolate,useCurrentFrame,useVideoConfig} from "remotion";
 import {resolveProjectAsset} from "../assets/assetResolver";
 
 type Scene=NormalizedScene["scene"];
@@ -13,6 +13,7 @@ export const MediaSceneRenderer=({normalizedScene,project}:{normalizedScene:Norm
   const {scene}=normalizedScene;
   switch(scene.type){
     case "image":return <ImageScene project={project} scene={scene}/>;
+    case "video":return <VideoScene project={project} scene={scene}/>;
     case "document":return <DocumentScene project={project} scene={scene}/>;
     case "documentHighlight":return <DocumentHighlightScene project={project} scene={scene}/>;
     case "visualGag":return <VisualGagScene scene={scene}/>;
@@ -45,6 +46,11 @@ const ImageScene=({project,scene}:{project:Project;scene:SceneOf<"image">})=>{
   }
 
   return <Stage><div style={{display:"flex",flexDirection:"column",gap:spacing.md,height:"100%",width:"100%"}}><div style={{borderRadius:radii.md,flex:1,minHeight:0,overflow:"hidden",position:"relative"}}><Img src={asset.src} alt={asset.alt??visual.caption??asset.id} style={{height:"100%",objectFit:visual.fit??"cover",transform:`scale(${fullZoom})`,width:"100%"}}/><div style={{background:"linear-gradient(transparent, rgba(8,19,31,.54))",bottom:0,height:150,left:0,position:"absolute",right:0}}/></div>{visual.caption?<div style={{...typography.body,color:colors.textMuted,fontSize:28,lineHeight:1.3,maxWidth:1200}}>{visual.caption}</div>:null}</div></Stage>;
+};
+
+const VideoScene=({project,scene}:{project:Project;scene:SceneOf<"video">})=>{
+  const asset=resolveProjectAsset(project,scene.visual.assetId,"video");
+  return <Stage><div style={{display:"flex",flexDirection:"column",gap:spacing.md,height:"100%",width:"100%"}}><div style={{borderRadius:radii.md,flex:1,minHeight:0,overflow:"hidden",position:"relative"}}><OffthreadVideo src={asset.src} muted style={{height:"100%",objectFit:scene.visual.fit??"cover",width:"100%"}}/><div style={{background:"linear-gradient(transparent, rgba(8,19,31,.48))",bottom:0,height:140,left:0,pointerEvents:"none",position:"absolute",right:0}}/></div>{scene.visual.caption?<div style={{...typography.body,color:colors.textMuted,fontSize:28,lineHeight:1.3,maxWidth:1200}}>{scene.visual.caption}</div>:null}</div></Stage>;
 };
 
 const SplitLayout=({children,ratio="50/50"}:{children:ReactNode;ratio?:ImageVisual["splitRatio"]})=>{

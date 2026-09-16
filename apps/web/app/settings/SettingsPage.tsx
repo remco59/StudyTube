@@ -6,6 +6,7 @@ import {defaultTtsSelection,serializeTtsSettings,TtsSelector,type TtsProviderCho
 
 type PromptLanguage="nl-NL"|"en-US";
 type RenderEngine="cpu"|"intel"|"nvidia";
+type StockProvider="pixabay"|"pexels"|"unsplash";
 type StoredTtsSettings={
   provider:TtsProviderChoice;
   language:string;
@@ -17,12 +18,13 @@ type StoredTtsSettings={
   googleChirp:TtsSelection["googleChirp"];
   azure:TtsSelection["azure"];
 };
-type AppSettings={promptDurationMinutes:number;promptLanguage:PromptLanguage;renderEngine:RenderEngine;tts:StoredTtsSettings};
+type AppSettings={promptDurationMinutes:number;promptLanguage:PromptLanguage;renderEngine:RenderEngine;tts:StoredTtsSettings;assets:{providers:{pixabay:boolean;pexels:boolean;unsplash:boolean}}};
 type SettingsResponse={
   settings:AppSettings;
   providers:{
     google:{configured:boolean};
     azure:{configured:boolean;region:string;endpoint:string};
+    stock:{pixabay:{configured:boolean};pexels:{configured:boolean};unsplash:{configured:boolean}};
     cloudService:{available:boolean;error?:string};
   };
   error?:string;
@@ -45,6 +47,15 @@ export const SettingsPage=()=>{
   const [azureEndpoint,setAzureEndpoint]=useState("");
   const [cloudAvailable,setCloudAvailable]=useState(true);
   const [cloudError,setCloudError]=useState<string|null>(null);
+  const [pixabayConfigured,setPixabayConfigured]=useState(false);
+  const [pexelsConfigured,setPexelsConfigured]=useState(false);
+  const [unsplashConfigured,setUnsplashConfigured]=useState(false);
+  const [pixabayEnabled,setPixabayEnabled]=useState(true);
+  const [pexelsEnabled,setPexelsEnabled]=useState(true);
+  const [unsplashEnabled,setUnsplashEnabled]=useState(true);
+  const [pixabayKey,setPixabayKey]=useState("");
+  const [pexelsKey,setPexelsKey]=useState("");
+  const [unsplashKey,setUnsplashKey]=useState("");
 
   const loadSettings=useCallback(async()=>{
     const response=await fetch("/api/settings",{cache:"no-store"});
@@ -60,6 +71,12 @@ export const SettingsPage=()=>{
     setAzureEndpoint(result.providers.azure.endpoint);
     setCloudAvailable(result.providers.cloudService.available);
     setCloudError(result.providers.cloudService.error??null);
+    setPixabayConfigured(result.providers.stock.pixabay.configured);
+    setPexelsConfigured(result.providers.stock.pexels.configured);
+    setUnsplashConfigured(result.providers.stock.unsplash.configured);
+    setPixabayEnabled(result.settings.assets.providers.pixabay);
+    setPexelsEnabled(result.settings.assets.providers.pexels);
+    setUnsplashEnabled(result.settings.assets.providers.unsplash);
   },[]);
 
   useEffect(()=>{
@@ -70,15 +87,48 @@ export const SettingsPage=()=>{
     return()=>{cancelled=true;window.clearTimeout(timer);};
   },[loadSettings]);
 
+  const settingsPayload=()=>{
+    const serialized=JSON.parse(serializeTtsSettings(ttsSelection)) as Omit<StoredTtsSettings,"provider"|"language">;
+    return {promptDurationMinutes:promptDuration,promptLanguage,renderEngine,tts:{provider:ttsSelection.provider,language:ttsSelection.language,...serialized},assets:{providers:{pixabay:pixabayEnabled,pexels:pexelsEnabled,unsplash:unsplashEnabled}}};
+  };
+
+  const persistSettings=async()=>{
+    const response=await fetch("/api/settings",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({settings:settingsPayload()})});
+    const result=await response.json() as {settings?:AppSettings;error?:string};
+    if(!response.ok||!result.settings)throw new Error(result.error??"Could not save defaults");
+    return result.settings;
+  };
+
   const saveDefaults=async()=>{
     setSaving(true);setError(null);setNotice(null);
+    try{await persistSettings();setNotice("Defaults saved. New Create sessions will start with these values.");}
+    catch(cause){setError(cause instanceof Error?cause.message:"Could not save defaults");}
+    finally{setSaving(false);}
+  };
+
+  const saveStock=async()=>{
+    setSaving(true);setError(null);setNotice(null);
     try{
-      const serialized=JSON.parse(serializeTtsSettings(ttsSelection)) as Omit<StoredTtsSettings,"provider"|"language">;
-      const response=await fetch("/api/settings",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({settings:{promptDurationMinutes:promptDuration,promptLanguage,renderEngine,tts:{provider:ttsSelection.provider,language:ttsSelection.language,...serialized}}})});
-      const result=await response.json() as {settings?:AppSettings;error?:string};
-      if(!response.ok||!result.settings)throw new Error(result.error??"Could not save defaults");
-      setNotice("Defaults saved. New Create sessions will start with these values.");
-    }catch(cause){setError(cause instanceof Error?cause.message:"Could not save defaults");}
+      const response=await fetch("/api/settings/stock",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({pixabayApiKey:pixabayKey,pexelsApiKey:pexelsKey,unsplashAccessKey:unsplashKey})});
+      const result=await response.json() as {error?:string};
+      if(!response.ok)throw new Error(result.error??"Could not save stock provider credentials");
+      await persistSettings();
+      setPixabayKey("");setPexelsKey("");setUnsplashKey("");
+      await loadSettings();
+      setNotice("Stock media providers saved. New stock assets can be resolved without restarting StudyTube.");
+    }catch(cause){setError(cause instanceof Error?cause.message:"Could not save stock provider credentials");}
+    finally{setSaving(false);}
+  };
+
+  const removeStock=async(provider:StockProvider)=>{
+    if(!window.confirm(`Remove the stored ${providerLabel(provider)} API credential from StudyTube?`))return;
+    setSaving(true);setError(null);setNotice(null);
+    try{
+      const response=await fetch(`/api/settings/stock?provider=${provider}`,{method:"DELETE"});
+      const result=await response.json() as {error?:string};
+      if(!response.ok)throw new Error(result.error??"Could not remove stock provider credential");
+      await loadSettings();setNotice(`${providerLabel(provider)} credential removed.`);
+    }catch(cause){setError(cause instanceof Error?cause.message:"Could not remove stock provider credential");}
     finally{setSaving(false);}
   };
 
@@ -140,7 +190,7 @@ export const SettingsPage=()=>{
     </header>
 
     <section className="workspace settingsWorkspace">
-      <div className="intro compactIntro"><p className="eyebrow">Settings</p><h1>Defaults and provider configuration.</h1><p className="lede">Set the values StudyTube should start with, and configure cloud TTS credentials in one place. You can still override render settings for an individual video.</p></div>
+      <div className="intro compactIntro"><p className="eyebrow">Settings</p><h1>Defaults and provider configuration.</h1><p className="lede">Set StudyTube defaults and configure TTS and stock-media providers in one place. Provider secrets stay in the credentials volume.</p></div>
 
       {!cloudAvailable?<div className="settingsWarning"><strong>Cloud TTS service is unavailable.</strong><span>{cloudError??"Check the cloud-tts container."}</span></div>:null}
       {error?<div className="globalError settingsMessage">{error}</div>:null}
@@ -156,6 +206,16 @@ export const SettingsPage=()=>{
           </div>
           <div className="settingsTts"><TtsSelector value={ttsSelection} showReferenceAudio={false} disabled={saving} onChange={setTtsSelection}/></div>
           <div className="settingsActions"><button type="button" className="primaryButton compactButton" disabled={saving} onClick={()=>void saveDefaults()}>{saving?"Saving…":"Save defaults"}</button></div>
+        </section>
+
+        <section className="settingsCard settingsCardWide">
+          <div className="settingsCardHeader"><div><p className="eyebrow">Visual assets</p><h2>Stock media</h2><p>Pixabay and Pexels provide images and video. Unsplash provides images. StudyTube downloads selected media into the staged project so rendering never depends on a remote URL.</p></div></div>
+          <div className="settingsFields threeColumns">
+            <label><span>Pixabay API key · <StatusPill configured={pixabayConfigured}/></span><input type="password" autoComplete="new-password" value={pixabayKey} onChange={(event)=>setPixabayKey(event.target.value)} placeholder={pixabayConfigured?"Stored — enter only to replace":"Paste Pixabay API key"}/><small><input type="checkbox" checked={pixabayEnabled} onChange={(event)=>setPixabayEnabled(event.target.checked)}/> Use Pixabay for images and video</small></label>
+            <label><span>Pexels API key · <StatusPill configured={pexelsConfigured}/></span><input type="password" autoComplete="new-password" value={pexelsKey} onChange={(event)=>setPexelsKey(event.target.value)} placeholder={pexelsConfigured?"Stored — enter only to replace":"Paste Pexels API key"}/><small><input type="checkbox" checked={pexelsEnabled} onChange={(event)=>setPexelsEnabled(event.target.checked)}/> Use Pexels for images and video</small></label>
+            <label><span>Unsplash access key · <StatusPill configured={unsplashConfigured}/></span><input type="password" autoComplete="new-password" value={unsplashKey} onChange={(event)=>setUnsplashKey(event.target.value)} placeholder={unsplashConfigured?"Stored — enter only to replace":"Paste Unsplash access key"}/><small><input type="checkbox" checked={unsplashEnabled} onChange={(event)=>setUnsplashEnabled(event.target.checked)}/> Use Unsplash for images</small></label>
+          </div>
+          <div className="settingsActions"><button type="button" className="primaryButton compactButton" disabled={saving} onClick={()=>void saveStock()}>Save stock providers</button>{pixabayConfigured?<button type="button" className="secondaryButton compactButton" disabled={saving} onClick={()=>void removeStock("pixabay")}>Remove Pixabay</button>:null}{pexelsConfigured?<button type="button" className="secondaryButton compactButton" disabled={saving} onClick={()=>void removeStock("pexels")}>Remove Pexels</button>:null}{unsplashConfigured?<button type="button" className="secondaryButton compactButton" disabled={saving} onClick={()=>void removeStock("unsplash")}>Remove Unsplash</button>:null}</div>
         </section>
 
         <section className="settingsCard">
@@ -179,6 +239,7 @@ export const SettingsPage=()=>{
 };
 
 const StatusPill=({configured}:{configured:boolean})=><span className={`providerStatus ${configured?"configured":"missing"}`}>{configured?"Configured":"Not configured"}</span>;
+const providerLabel=(provider:StockProvider)=>provider==="pixabay"?"Pixabay":provider==="pexels"?"Pexels":"Unsplash";
 const clamp=(value:number,min:number,max:number,fallback:number)=>Number.isFinite(value)?Math.max(min,Math.min(max,value)):fallback;
 const toTtsSelection=(value:StoredTtsSettings):TtsSelection=>({
   provider:value.provider,

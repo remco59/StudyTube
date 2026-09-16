@@ -12,7 +12,8 @@ type Props={
 };
 
 const assetTypeChoices:{id:PromptAssetType;label:string;detail:string}[]=[
-  {id:"web-images",label:"Web images",detail:"Find reusable images online"},
+  {id:"web-images",label:"Stock images",detail:"Pixabay, Pexels and Unsplash"},
+  {id:"stock-video",label:"Stock video",detail:"Pixabay and Pexels B-roll"},
   {id:"generated-images",label:"Generated images",detail:"Create purpose-built visuals"},
   {id:"source-documents",label:"Source documents",detail:"Use pages from supplied files"},
 ];
@@ -37,7 +38,7 @@ export const PromptAssetSettings=({enabled,assetTypes,amount,onEnabledChange,onA
   return <div className={`assetPromptBlock${enabled?" enabled":""}`}>
     <button type="button" className="assetToggleButton" aria-pressed={enabled} onClick={()=>onEnabledChange(!enabled)}>
       <span className="assetToggleIndicator" aria-hidden="true"><span/></span>
-      <span className="assetToggleCopy"><strong>Use assets</strong><small>Package images or documents in a .studytube.zip project.</small></span>
+      <span className="assetToggleCopy"><strong>Use assets</strong><small>Use stock media, generated images or source documents in the project.</small></span>
     </button>
 
     {enabled?<div className="assetPromptControls">

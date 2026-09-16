@@ -9,7 +9,7 @@ const roots:string[]=[];
 afterEach(async()=>{await Promise.all(roots.splice(0).map((root)=>rm(root,{recursive:true,force:true})));});
 const makeRoot=async()=>{const root=await mkdtemp(join(tmpdir(),"studytube-web-package-"));roots.push(root);return root;};
 
-const project=(assets:Record<string,{type:string;path:string;alt?:string}> ={})=>({
+const project=(assets:Record<string,Record<string,unknown>> ={})=>({
   version:"1.0",
   metadata:{title:"Package Test",language:"nl-NL",targetDuration:30,style:"educational-explainer"},
   assets,
@@ -39,9 +39,19 @@ describe("parseProjectPackage",()=>{
     expect(parsed.project.metadata.title).toBe("Package Test");
   });
 
-  it("rejects a JSON upload that references assets",async()=>{
+  it("allows JSON projects whose assets are stock resolver requests",async()=>{
+    const stockProject={
+      ...project({clip:{type:"stockVideo",query:"aerial wind turbines",provider:"auto"}}),
+      chapters:[{id:"intro",title:"Intro",scenes:[{id:"clip-01",type:"video",narration:"Windenergie in beeld.",visual:{assetId:"clip"}}]}],
+    };
+    const parsed=await parseProjectPackage(jsonFile("stock.studytube.json",stockProject));
+    expect(parsed.packageType).toBe("json");
+    expect(parsed.project.assets?.clip.type).toBe("stockVideo");
+  });
+
+  it("rejects a JSON upload that references packaged assets",async()=>{
     const withAsset=project({diagram:{type:"image",path:"assets/diagram.svg",alt:"Diagram"}});
-    await expect(parseProjectPackage(jsonFile("with-assets.studytube.json",withAsset))).rejects.toThrow(/must be packaged as \.studytube\.zip/);
+    await expect(parseProjectPackage(jsonFile("with-assets.studytube.json",withAsset))).rejects.toThrow(/must use \.studytube\.zip/);
   });
 
   it("rejects uploads with an unsupported extension",async()=>{
@@ -63,6 +73,17 @@ describe("parseProjectPackage",()=>{
     expect(summary.preview.chapters).toHaveLength(1);
     expect(summary.preview.chapters[0]?.scenes).toHaveLength(1);
     expect(summary.preview.chapters[0]?.scenes[0]?.id).toBe("one");
+  });
+
+  it("accepts a ZIP containing only stock resolver requests plus project JSON",async()=>{
+    const stockProject={
+      ...project({photo:{type:"stockImage",query:"students studying",provider:"auto"}}),
+      chapters:[{id:"intro",title:"Intro",scenes:[{id:"photo-01",type:"image",narration:"Studenten werken samen.",visual:{assetId:"photo"}}]}],
+    };
+    const zip=zipFile("stock.studytube.zip",{[STUDYTUBE_PROJECT_JSON]:new TextEncoder().encode(JSON.stringify(stockProject))});
+    const parsed=await parseProjectPackage(zip);
+    expect(parsed.packageType).toBe("zip");
+    expect(parsed.assetEntries.size).toBe(0);
   });
 
   it("rejects a ZIP that is missing the project.studytube.json entry",async()=>{

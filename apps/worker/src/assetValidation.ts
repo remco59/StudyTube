@@ -13,10 +13,15 @@ export class StudyTubeAssetValidationError extends Error{
 }
 
 const imageExtensions=new Set([".png",".jpg",".jpeg",".gif",".webp",".bmp",".avif",".svg"]);
+const videoExtensions=new Set([".mp4",".webm",".mov",".m4v"]);
 
 export const validateProjectAssets=async(project:StudyTubeProject,sourceRoot:string):Promise<void>=>{
   const issues:string[]=[];
   for(const [assetId,asset] of Object.entries(project.assets??{})){
+    if(asset.type==="stockImage"||asset.type==="stockVideo"){
+      issues.push(`${assetId}: unresolved ${asset.type} request reached the render worker`);
+      continue;
+    }
     let resolvedPath:string;
     try{
       resolvedPath=resolveInside(sourceRoot,asset.path);
@@ -36,6 +41,9 @@ export const validateProjectAssets=async(project:StudyTubeProject,sourceRoot:str
     }
     if(asset.type==="image"&&!imageExtensions.has(extname(asset.path).toLowerCase())){
       issues.push(`${assetId} (${asset.path}): expected an image file (${[...imageExtensions].join(", ")})`);
+    }
+    if(asset.type==="video"&&!videoExtensions.has(extname(asset.path).toLowerCase())){
+      issues.push(`${assetId} (${asset.path}): expected a video file (${[...videoExtensions].join(", ")})`);
     }
   }
   if(issues.length>0)throw new StudyTubeAssetValidationError(issues);

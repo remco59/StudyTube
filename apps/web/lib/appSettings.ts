@@ -5,6 +5,7 @@ import {getDataDir} from "@/lib/jobs";
 export type PromptLanguage="nl-NL"|"en-US";
 export type RenderEngine="cpu"|"intel"|"nvidia";
 export type TtsProviderChoice="edge"|"piper"|"omnivoice"|"chatterbox"|"xtts"|"google-chirp"|"azure";
+export type StockProviderName="pixabay"|"pexels"|"unsplash";
 
 export type StoredTtsSettings={
   provider:TtsProviderChoice;
@@ -18,11 +19,16 @@ export type StoredTtsSettings={
   azure:{voice:string};
 };
 
+export type StoredAssetSettings={
+  providers:{pixabay:boolean;pexels:boolean;unsplash:boolean};
+};
+
 export type AppSettings={
   promptDurationMinutes:number;
   promptLanguage:PromptLanguage;
   renderEngine:RenderEngine;
   tts:StoredTtsSettings;
+  assets:StoredAssetSettings;
 };
 
 export type CloudProviderStatus={
@@ -31,6 +37,14 @@ export type CloudProviderStatus={
   serviceAvailable:boolean;
   error?:string;
 };
+
+export type StockProviderStatus={
+  pixabayConfigured:boolean;
+  pexelsConfigured:boolean;
+  unsplashConfigured:boolean;
+};
+
+export type StockCredentials={pixabayApiKey?:string;pexelsApiKey?:string;unsplashAccessKey?:string};
 
 const ttsProviders:TtsProviderChoice[]=["edge","piper","omnivoice","chatterbox","xtts","google-chirp","azure"];
 const renderEngines:RenderEngine[]=["cpu","intel","nvidia"];
@@ -51,6 +65,7 @@ export const defaultAppSettings=():AppSettings=>({
     googleChirp:{voice:process.env.GOOGLE_CHIRP_VOICE?.trim()||"nl-NL-Chirp3-HD-Charon"},
     azure:{voice:process.env.AZURE_TTS_VOICE?.trim()||"nl-NL-MaartenNeural"},
   },
+  assets:{providers:{pixabay:true,pexels:true,unsplash:true}},
 });
 
 export const readAppSettings=async():Promise<AppSettings>=>{
@@ -127,6 +142,42 @@ export const removeAzureCredentials=async()=>{
   await writeCloudCredentials(current);
 };
 
+export const getStockCredentials=async():Promise<StockCredentials>=>{
+  const stored=await readStockCredentials();
+  return {
+    pixabayApiKey:stored.pixabayApiKey??process.env.PIXABAY_API_KEY?.trim()??undefined,
+    pexelsApiKey:stored.pexelsApiKey??process.env.PEXELS_API_KEY?.trim()??undefined,
+    unsplashAccessKey:stored.unsplashAccessKey??process.env.UNSPLASH_ACCESS_KEY?.trim()??undefined,
+  };
+};
+
+export const getStockProviderStatus=async():Promise<StockProviderStatus>=>{
+  const credentials=await getStockCredentials();
+  return {
+    pixabayConfigured:Boolean(credentials.pixabayApiKey),
+    pexelsConfigured:Boolean(credentials.pexelsApiKey),
+    unsplashConfigured:Boolean(credentials.unsplashAccessKey),
+  };
+};
+
+export const writeStockCredentials=async(input:{pixabayApiKey?:string;pexelsApiKey?:string;unsplashAccessKey?:string})=>{
+  const current=await readStockCredentials();
+  const next:StockCredentials={...current};
+  if(input.pixabayApiKey?.trim())next.pixabayApiKey=input.pixabayApiKey.trim();
+  if(input.pexelsApiKey?.trim())next.pexelsApiKey=input.pexelsApiKey.trim();
+  if(input.unsplashAccessKey?.trim())next.unsplashAccessKey=input.unsplashAccessKey.trim();
+  await writeStockCredentialsFile(next);
+};
+
+export const removeStockCredential=async(provider:StockProviderName)=>{
+  const current=await readStockCredentials();
+  if(provider==="pixabay")delete current.pixabayApiKey;
+  if(provider==="pexels")delete current.pexelsApiKey;
+  if(provider==="unsplash")delete current.unsplashAccessKey;
+  if(Object.keys(current).length===0){await rm(stockCredentialsPath(),{force:true});return;}
+  await writeStockCredentialsFile(current);
+};
+
 export const normalizeAppSettings=(input:unknown,fallback=defaultAppSettings()):AppSettings=>{
   const root=record(input);
   const tts=record(root?.tts);
@@ -137,6 +188,8 @@ export const normalizeAppSettings=(input:unknown,fallback=defaultAppSettings()):
   const xtts=record(tts?.xtts);
   const googleChirp=record(tts?.googleChirp);
   const azure=record(tts?.azure);
+  const assets=record(root?.assets);
+  const providers=record(assets?.providers);
   return {
     promptDurationMinutes:numberValue(root?.promptDurationMinutes,fallback.promptDurationMinutes,.5,120),
     promptLanguage:enumValue(root?.promptLanguage,promptLanguages,fallback.promptLanguage),
@@ -152,6 +205,11 @@ export const normalizeAppSettings=(input:unknown,fallback=defaultAppSettings()):
       googleChirp:{voice:textValue(googleChirp?.voice,fallback.tts.googleChirp.voice,200)},
       azure:{voice:textValue(azure?.voice,fallback.tts.azure.voice,200)},
     },
+    assets:{providers:{
+      pixabay:booleanValue(providers?.pixabay,fallback.assets.providers.pixabay),
+      pexels:booleanValue(providers?.pexels,fallback.assets.providers.pexels),
+      unsplash:booleanValue(providers?.unsplash,fallback.assets.providers.unsplash),
+    }},
   };
 };
 
@@ -159,6 +217,7 @@ type CloudCredentials={azureSpeechKey?:string;azureSpeechRegion?:string;azureSpe
 const settingsPath=()=>join(getDataDir(),"settings.json");
 const credentialsDir=()=>resolve(process.env.STUDYTUBE_CREDENTIALS_DIR??"credentials");
 const cloudCredentialsPath=()=>join(credentialsDir(),"cloud.json");
+const stockCredentialsPath=()=>join(credentialsDir(),"stock.json");
 const ensureCredentialsDir=()=>mkdir(credentialsDir(),{recursive:true});
 
 const readCloudCredentials=async():Promise<CloudCredentials>=>{
@@ -177,6 +236,27 @@ const readCloudCredentials=async():Promise<CloudCredentials>=>{
 const writeCloudCredentials=async(value:CloudCredentials)=>{
   await ensureCredentialsDir();
   const path=cloudCredentialsPath();
+  const temporary=`${path}.tmp`;
+  await writeFile(temporary,`${JSON.stringify(value,null,2)}\n`,{encoding:"utf8",mode:0o600});
+  await rename(temporary,path);
+};
+
+const readStockCredentials=async():Promise<StockCredentials>=>{
+  try{
+    const parsed=JSON.parse(await readFile(stockCredentialsPath(),"utf8")) as unknown;
+    const value=record(parsed);
+    if(!value)return {};
+    return {
+      pixabayApiKey:optionalText(value.pixabayApiKey,1000),
+      pexelsApiKey:optionalText(value.pexelsApiKey,1000),
+      unsplashAccessKey:optionalText(value.unsplashAccessKey,1000),
+    };
+  }catch(error){if(isMissing(error)||error instanceof SyntaxError)return {};throw error;}
+};
+
+const writeStockCredentialsFile=async(value:StockCredentials)=>{
+  await ensureCredentialsDir();
+  const path=stockCredentialsPath();
   const temporary=`${path}.tmp`;
   await writeFile(temporary,`${JSON.stringify(value,null,2)}\n`,{encoding:"utf8",mode:0o600});
   await rename(temporary,path);
