@@ -134,19 +134,27 @@
   color: #d6a86d;
 }
 
-.ttsBadge.edge {
+.ttsBadge.edge,
+.ttsBadge.google-chirp {
   background: rgba(92, 221, 161, 0.08);
   color: #7de1b1;
 }
 
-.ttsBadge.piper {
+.ttsBadge.piper,
+.ttsBadge.azure {
   background: rgba(102, 173, 255, 0.09);
   color: #8cc4ff;
 }
 
-.ttsBadge.omnivoice {
+.ttsBadge.omnivoice,
+.ttsBadge.xtts {
   background: rgba(255, 181, 94, 0.08);
   color: #e0b06f;
+}
+
+.ttsBadge.chatterbox {
+  background: rgba(185, 130, 255, 0.1);
+  color: #c7a5ff;
 }
 
 .ttsOption {
