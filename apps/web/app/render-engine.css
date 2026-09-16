@@ -1,0 +1,156 @@
+.renderEngineBlock {
+  margin-top: 18px;
+  border: 1px solid #2d323c;
+  border-radius: 14px;
+  background: rgba(13, 15, 18, 0.56);
+  padding: 14px;
+}
+
+.renderEngineHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.renderEngineHeading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.renderEngineHeading > div > span {
+  color: #777d88;
+  font-size: 0.76rem;
+}
+
+.engineRefresh {
+  flex: 0 0 auto;
+  border: 1px solid #343945;
+  border-radius: 10px;
+  background: #171a20;
+  padding: 7px 10px;
+  color: #aaaeb8;
+  font-size: 0.72rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.engineRefresh:hover:not(:disabled) {
+  border-color: #635b92;
+  color: #e7e1ff;
+}
+
+.engineRefresh:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.renderEngineOptions {
+  display: grid;
+  gap: 7px;
+}
+
+.renderEngineOption {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  border: 1px solid #2d323c;
+  border-radius: 11px;
+  background: #14171c;
+  padding: 10px 11px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.renderEngineOption:hover:not(:disabled) {
+  border-color: #534b78;
+  background: #181a21;
+}
+
+.renderEngineOption.selected {
+  border-color: rgba(123, 97, 255, 0.52);
+  background: rgba(123, 97, 255, 0.08);
+}
+
+.renderEngineOption:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.engineRadio {
+  color: #a99cff;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.engineCopy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.engineCopy strong,
+.engineCopy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.engineCopy strong {
+  font-size: 0.82rem;
+}
+
+.engineCopy small {
+  color: #777d88;
+  font-size: 0.69rem;
+  line-height: 1.35;
+}
+
+.engineAvailability {
+  border-radius: 999px;
+  padding: 4px 7px;
+  font-size: 0.63rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.engineAvailability.available {
+  background: rgba(92, 221, 161, 0.08);
+  color: #7de1b1;
+}
+
+.engineAvailability.unavailable {
+  background: rgba(255, 181, 94, 0.08);
+  color: #d6a86d;
+}
+
+.jobEngineText {
+  display: inline-flex;
+  margin-top: 8px;
+  border: 1px solid #303540;
+  border-radius: 999px;
+  background: #15181d;
+  padding: 4px 8px;
+  color: #969ca7;
+  font-size: 0.68rem;
+  font-weight: 760;
+}
+
+@media (max-width: 620px) {
+  .renderEngineHeading {
+    align-items: flex-start;
+  }
+
+  .renderEngineOption {
+    grid-template-columns: 20px minmax(0, 1fr);
+  }
+
+  .engineAvailability {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
