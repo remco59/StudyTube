@@ -12,11 +12,11 @@ type ImageVisual=SceneOf<"image">["visual"];
 export const MediaSceneRenderer=({normalizedScene,project}:{normalizedScene:NormalizedScene;project:Project})=>{
   const {scene}=normalizedScene;
   switch(scene.type){
-    case "image": return <ImageScene project={project} scene={scene}/>;
-    case "document": return <DocumentScene project={project} scene={scene}/>;
-    case "documentHighlight": return <DocumentHighlightScene project={project} scene={scene}/>;
-    case "visualGag": return <VisualGagScene scene={scene}/>;
-    default: throw new Error(`Media renderer received unsupported scene type "${scene.type}".`);
+    case "image":return <ImageScene project={project} scene={scene}/>;
+    case "document":return <DocumentScene project={project} scene={scene}/>;
+    case "documentHighlight":return <DocumentHighlightScene project={project} scene={scene}/>;
+    case "visualGag":return <VisualGagScene scene={scene}/>;
+    default:throw new Error(`Media renderer received unsupported scene type "${scene.type}".`);
   }
 };
 
@@ -44,17 +44,17 @@ const ImageScene=({project,scene}:{project:Project;scene:SceneOf<"image">})=>{
     </SplitLayout></Stage>;
   }
 
-  return <Stage><div style={{display:"flex",flexDirection:"column",gap:spacing.md,height:"100%",width:"100%"}}><div style={{border:`1px solid ${colors.line}`,borderRadius:radii.lg,boxShadow:shadows.raised,flex:1,minHeight:0,overflow:"hidden",position:"relative"}}><Img src={asset.src} alt={asset.alt??visual.caption??asset.id} style={{height:"100%",objectFit:visual.fit??"cover",transform:`scale(${fullZoom})`,width:"100%"}}/><div style={{background:"linear-gradient(transparent, rgba(16,18,22,.7))",bottom:0,height:180,left:0,position:"absolute",right:0}}/></div>{visual.caption?<div style={{...typography.body,color:colors.textMuted,fontSize:30}}>{visual.caption}</div>:null}</div></Stage>;
+  return <Stage><div style={{display:"flex",flexDirection:"column",gap:spacing.md,height:"100%",width:"100%"}}><div style={{borderRadius:radii.md,flex:1,minHeight:0,overflow:"hidden",position:"relative"}}><Img src={asset.src} alt={asset.alt??visual.caption??asset.id} style={{height:"100%",objectFit:visual.fit??"cover",transform:`scale(${fullZoom})`,width:"100%"}}/><div style={{background:"linear-gradient(transparent, rgba(8,19,31,.54))",bottom:0,height:150,left:0,position:"absolute",right:0}}/></div>{visual.caption?<div style={{...typography.body,color:colors.textMuted,fontSize:28,lineHeight:1.3,maxWidth:1200}}>{visual.caption}</div>:null}</div></Stage>;
 };
 
 const SplitLayout=({children,ratio="50/50"}:{children:ReactNode;ratio?:ImageVisual["splitRatio"]})=>{
   const columns=ratio==="60/40"?"3fr 2fr":ratio==="40/60"?"2fr 3fr":"1fr 1fr";
-  return <div style={{display:"grid",gap:spacing.xl,gridTemplateColumns:columns,height:"100%",minHeight:0,width:"100%"}}>{children}</div>;
+  return <div style={{alignItems:"stretch",display:"grid",gap:spacing.xxl,gridTemplateColumns:columns,height:"100%",minHeight:0,width:"100%"}}>{children}</div>;
 };
 
-const ImagePane=({src,alt,fit,zoom,caption}:{src:string;alt:string;fit:"contain"|"cover";zoom:number;caption?:string})=><div style={{display:"flex",flexDirection:"column",gap:spacing.sm,height:"100%",minHeight:0,minWidth:0}}><div style={{backgroundColor:colors.surfaceRaised,border:`1px solid ${colors.line}`,borderRadius:radii.lg,boxShadow:shadows.raised,flex:1,minHeight:0,overflow:"hidden",position:"relative"}}><Img src={src} alt={alt} style={{height:"100%",objectFit:fit,transform:`scale(${zoom})`,width:"100%"}}/></div>{caption?<div style={{...typography.body,color:colors.textMuted,fontSize:24,lineHeight:1.25}}>{caption}</div>:null}</div>;
+const ImagePane=({src,alt,fit,zoom,caption}:{src:string;alt:string;fit:"contain"|"cover";zoom:number;caption?:string})=><div style={{display:"flex",flexDirection:"column",gap:spacing.sm,height:"100%",minHeight:0,minWidth:0}}><div style={{borderRadius:radii.md,flex:1,minHeight:0,overflow:"hidden",position:"relative"}}><Img src={src} alt={alt} style={{height:"100%",objectFit:fit,transform:`scale(${zoom})`,width:"100%"}}/></div>{caption?<div style={{...typography.body,color:colors.textMuted,fontSize:23,lineHeight:1.3}}>{caption}</div>:null}</div>;
 
-const ImageTextPane=({title,text}:{title?:string;text?:string})=><div style={{alignItems:"flex-start",display:"flex",flexDirection:"column",justifyContent:"center",minHeight:0,minWidth:0,padding:`${spacing.lg}px ${spacing.md}px`}}>{title?<div style={{...typography.heading,fontSize:58,lineHeight:1.05,maxWidth:660}}>{title}</div>:null}{text?<div style={{...typography.body,color:colors.textMuted,fontSize:34,lineHeight:1.38,marginTop:title?spacing.lg:0,maxWidth:660}}>{text}</div>:null}</div>;
+const ImageTextPane=({title,text}:{title?:string;text?:string})=><div style={{alignItems:"flex-start",display:"flex",flexDirection:"column",justifyContent:"center",minHeight:0,minWidth:0,padding:`${spacing.lg}px ${spacing.sm}px`}}>{title?<div style={{...typography.heading,fontSize:58,lineHeight:1.05,maxWidth:660}}>{title}</div>:null}{text?<div style={{...typography.body,borderLeft:`3px solid ${colors.line}`,color:colors.textMuted,fontSize:33,lineHeight:1.42,marginTop:title?spacing.lg:0,maxWidth:680,paddingLeft:spacing.md}}>{text}</div>:null}</div>;
 
 const DocumentScene=({project,scene}:{project:Project;scene:SceneOf<"document">})=>{const asset=resolveProjectAsset(project,scene.visual.assetId,"document");return <Stage centered><Paper><DocumentHeader title={asset.title??filename(asset.path)} page={scene.visual.page}/><DocumentLines/><DocumentLines short/><DocumentLines/><div style={{...typography.body,color:colors.paperText,fontSize:31,marginTop:spacing.lg}}>{scene.visual.caption??"Bronmateriaal wordt als document-context in de video gebruikt."}</div></Paper></Stage>;};
 
@@ -62,11 +62,11 @@ const DocumentHighlightScene=({project,scene}:{project:Project;scene:SceneOf<"do
 
 const VisualGagScene=({scene}:{scene:SceneOf<"visualGag">})=>{
   const frame=useCurrentFrame();const {fps}=useVideoConfig();const progress=interpolate(frame,[0,fps*2],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});const label=scene.visual.label??defaultGagLabel(scene.visual.preset);
-  if(scene.visual.preset==="giantReport") return <Stage centered><div style={{position:"relative",textAlign:"center"}}><div style={{backgroundColor:colors.paper,borderRadius:radii.md,boxShadow:shadows.raised,color:colors.paperText,fontSize:80,fontWeight:900,height:520,padding:spacing.xl,transform:`rotate(${-3+progress*3}deg) scale(${.86+progress*.14})`,width:760}}>200<br/><span style={{fontSize:42}}>PAGINA'S</span></div><Punchline text={scene.visual.punchline??label}/></div></Stage>;
-  if(scene.visual.preset==="absurdScale") return <Stage centered><div style={{fontSize:Math.round(70+progress*180),fontWeight:900,letterSpacing:-8,textAlign:"center"}}>{label}</div></Stage>;
-  if(scene.visual.preset==="redArrow") return <Stage centered><div style={{position:"relative",textAlign:"center"}}><div style={{...typography.heading,fontSize:82}}>{label}</div><div style={{color:"#ff5b5b",fontSize:190,fontWeight:900,position:"absolute",right:-210,top:-120,transform:`rotate(-25deg) translateX(${(1-progress)*80}px)`}}>↙</div><Punchline text={scene.visual.punchline}/></div></Stage>;
-  if(scene.visual.preset==="fakeLoading") return <Stage centered><div style={{maxWidth:980,textAlign:"center",width:"100%"}}><div style={{...typography.heading,fontSize:72,marginBottom:spacing.xl}}>{label}</div><div style={{backgroundColor:colors.surfaceRaised,borderRadius:radii.pill,height:42,overflow:"hidden"}}><div style={{backgroundColor:colors.accent,height:"100%",width:`${Math.min(99,progress*115)}%`}}/></div><div style={{...typography.label,color:colors.textMuted,marginTop:spacing.md}}>{Math.round(Math.min(99,progress*115))}%</div></div></Stage>;
-  return <Stage centered><div style={{alignItems:"center",display:"flex",height:620,justifyContent:"center",position:"relative",width:1100}}><div style={{background:"radial-gradient(circle, rgba(179,164,255,.4) 0%, rgba(179,164,255,.08) 42%, transparent 70%)",inset:0,position:"absolute",transform:`scale(${.85+progress*.15})`}}/><div style={{...typography.display,fontSize:104,position:"relative",textAlign:"center"}}>{label}</div><Punchline text={scene.visual.punchline}/></div></Stage>;
+  if(scene.visual.preset==="giantReport")return <Stage centered><div style={{position:"relative",textAlign:"center"}}><div style={{backgroundColor:colors.paper,borderRadius:radii.md,boxShadow:shadows.raised,color:colors.paperText,fontSize:80,fontWeight:900,height:520,padding:spacing.xl,transform:`rotate(${-3+progress*3}deg) scale(${.86+progress*.14})`,width:760}}>200<br/><span style={{fontSize:42}}>PAGINA'S</span></div><Punchline text={scene.visual.punchline??label}/></div></Stage>;
+  if(scene.visual.preset==="absurdScale")return <Stage centered><div style={{fontSize:Math.round(70+progress*180),fontWeight:900,letterSpacing:-8,textAlign:"center"}}>{label}</div></Stage>;
+  if(scene.visual.preset==="redArrow")return <Stage centered><div style={{position:"relative",textAlign:"center"}}><div style={{...typography.heading,fontSize:82}}>{label}</div><div style={{color:"#ff5b5b",fontSize:190,fontWeight:900,position:"absolute",right:-210,top:-120,transform:`rotate(-25deg) translateX(${(1-progress)*80}px)`}}>↙</div><Punchline text={scene.visual.punchline}/></div></Stage>;
+  if(scene.visual.preset==="fakeLoading")return <Stage centered><div style={{maxWidth:980,textAlign:"center",width:"100%"}}><div style={{...typography.heading,fontSize:72,marginBottom:spacing.xl}}>{label}</div><div style={{backgroundColor:colors.line,borderRadius:radii.pill,height:20,overflow:"hidden"}}><div style={{backgroundColor:colors.accent,height:"100%",width:`${Math.min(99,progress*115)}%`}}/></div><div style={{...typography.label,color:colors.textMuted,marginTop:spacing.md}}>{Math.round(Math.min(99,progress*115))}%</div></div></Stage>;
+  return <Stage centered><div style={{alignItems:"center",display:"flex",height:620,justifyContent:"center",position:"relative",width:1100}}><div style={{border:`2px solid ${colors.line}`,borderRadius:"50%",height:420,position:"absolute",transform:`scale(${.85+progress*.15})`,width:420}}/><div style={{...typography.display,fontSize:104,position:"relative",textAlign:"center"}}>{label}</div><Punchline text={scene.visual.punchline}/></div></Stage>;
 };
 
 const Stage=({children,centered=false}:{children:ReactNode;centered?:boolean})=><div style={{alignItems:centered?"center":"stretch",display:"flex",flex:1,justifyContent:"center",minHeight:0,width:"100%"}}>{children}</div>;
