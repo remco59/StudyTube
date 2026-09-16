@@ -12,6 +12,7 @@ export const createJobPaths=(dataDir:string,jobId:string):JobPaths=>{
     statusFile:join(root,"status.json"),
     logFile:join(root,"logs.ndjson"),
     renderPropsFile:join(root,"render-props.json"),
+    sceneManifestFile:join(root,"scene-manifest.json"),
   };
 };
 

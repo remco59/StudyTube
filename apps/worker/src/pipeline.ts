@@ -1,9 +1,10 @@
 import {randomUUID} from "node:crypto";
-import {copyFile,mkdir,readFile,writeFile} from "node:fs/promises";
+import {access,copyFile,mkdir,readFile,rm,writeFile} from "node:fs/promises";
 import {dirname,join,resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import type {NarrationManifest,NormalizedScene,NormalizedStudyTubeProject} from "@studytube/core";
 import {parseStudyTubeProject} from "@studytube/schema";
+import {buildSceneManifest,hashJson,planSceneRuns,type SceneManifest,type SceneRun} from "./incrementalRender";
 import {
   AzureSpeechHttpProvider,
   ChatterboxHttpProvider,
@@ -24,10 +25,11 @@ import {appendJobLog,createJobPaths,initializeJobPaths,writeJobStatus} from "./j
 import {normalizeRelativeProjectPath,resolveInside} from "./pathSafety";
 import {parseRenderEngine,renderEngineLabels} from "./renderEngine";
 import {renderStudyTubeComposition} from "./remotionRender";
+import {concatenateSegments,extractSegment} from "./segmentEncoder";
 import type {JobPaths,JobState,RenderEngine,RenderProgress,SceneProgress,StudyTubeJobStatus} from "./types";
 
 export type StudyTubeRenderProps={project:NormalizedStudyTubeProject;narration?:NarrationManifest;showCaptions?:boolean};
-export type PipelineRenderFunction=(options:{entryPoint:string;publicDir:string;outputPath:string;props:StudyTubeRenderProps;renderEngine?:RenderEngine;signal?:AbortSignal;onProgress?:(progress:RenderProgress)=>void|Promise<void>})=>Promise<void>;
+export type PipelineRenderFunction=(options:{entryPoint:string;publicDir:string;outputPath:string;props:StudyTubeRenderProps;renderEngine?:RenderEngine;frameRange?:[number,number];signal?:AbortSignal;onProgress?:(progress:RenderProgress)=>void|Promise<void>})=>Promise<void>;
 
 export type TtsProviderKind="edge"|"piper"|"omnivoice"|"chatterbox"|"xtts"|"google-chirp"|"azure"|"synthetic";
 export type TtsJobSettings={
@@ -40,8 +42,14 @@ export type TtsJobSettings={
   azure?:{voice?:string};
 };
 
-export type RunStudyTubeJobOptions={projectPath:string;dataDir?:string;jobId?:string;ttsProvider?:TtsProviderKind;ttsSettings?:TtsJobSettings;renderEngine?:RenderEngine;showCaptions?:boolean;fps?:number;scenePaddingSeconds?:number;signal?:AbortSignal};
-export type PipelineDependencies={provider?:TtsProvider;render?:PipelineRenderFunction;now?:()=>Date};
+export type RunStudyTubeJobOptions={projectPath:string;dataDir?:string;jobId?:string;ttsProvider?:TtsProviderKind;ttsSettings?:TtsJobSettings;renderEngine?:RenderEngine;showCaptions?:boolean;fps?:number;scenePaddingSeconds?:number;signal?:AbortSignal;baseJobId?:string};
+export type PipelineDependencies={
+  provider?:TtsProvider;
+  render?:PipelineRenderFunction;
+  now?:()=>Date;
+  extractSegment?:typeof extractSegment;
+  concatenateSegments?:typeof concatenateSegments;
+};
 export type StudyTubeJobResult={jobId:string;paths:JobPaths;status:StudyTubeJobStatus;outputPath:string};
 
 export class StudyTubeJobError extends Error{readonly jobId:string;readonly jobDir:string;constructor(jobId:string,jobDir:string,cause:unknown){super(`StudyTube job ${jobId} failed: ${cause instanceof Error?cause.message:String(cause)}`,{cause});this.name="StudyTubeJobError";this.jobId=jobId;this.jobDir=jobDir;}}
@@ -58,7 +66,7 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
   const providerKind=resolveTtsProviderKind(options.ttsProvider??process.env.STUDYTUBE_TTS_PROVIDER);
   const paths=createJobPaths(dataDir,jobId);
   const createdAt=now().toISOString();
-  let status:StudyTubeJobStatus={jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt,renderEngine,ttsProvider:providerKind};
+  let status:StudyTubeJobStatus={jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt,renderEngine,ttsProvider:providerKind,...(options.baseJobId?{baseJobId:options.baseJobId}:{})};
   let statusQueue=Promise.resolve();let logQueue=Promise.resolve();
   const update=(state:JobState,progress:number,extra:Partial<StudyTubeJobStatus>={})=>{status={...status,...extra,state,progress:clamp(progress),updatedAt:now().toISOString()};const snapshot={...status};statusQueue=statusQueue.then(()=>writeJobStatus(paths,snapshot));return statusQueue;};
   const log=(event:string,message:string,data?:unknown)=>{logQueue=logQueue.then(()=>appendJobLog(paths,event,message,data));return logQueue;};
@@ -78,9 +86,40 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
     await log("assets.staging","Preparing project assets and narration for the renderer",{assets:Object.keys(project.assets??{}).length});const sourceRoot=dirname(sourceProjectPath);await stageProjectAssets(project.assets??{},sourceRoot,paths.publicDir);checkCancelled();const narration=await stageNarration(prepared.tracks,paths.publicDir);checkCancelled();
     const props:StudyTubeRenderProps={project:prepared.normalizedProject,narration,showCaptions:options.showCaptions??true};await writeFile(paths.renderPropsFile,`${JSON.stringify(props,null,2)}\n`,`utf8`);
     const outputName=`${slugify(project.metadata.title)||"studytube"}-${jobId}.mp4`;const outputPath=join(paths.outputDir,outputName);await update("bundling",.4);await log("render.started","Building renderer and starting MP4 render",{frames:prepared.normalizedProject.totalFrames,renderEngine,label:renderEngineLabels[renderEngine],ttsProvider:providerKind});checkCancelled();
-    const entryPoint=resolveRendererEntryPoint();const render=deps.render??renderStudyTubeComposition;let lastRenderBucket=-1;let lastRenderStage="";
+    const entryPoint=resolveRendererEntryPoint();const render=deps.render??renderStudyTubeComposition;const doExtractSegment=deps.extractSegment??extractSegment;const doConcatenateSegments=deps.concatenateSegments??concatenateSegments;
     const flatScenes=prepared.normalizedProject.chapters.flatMap((chapter)=>chapter.scenes);const totalFrames=prepared.normalizedProject.totalFrames;const renderStartedAt=now().getTime();
-    await render({entryPoint,publicDir:paths.publicDir,outputPath,props,renderEngine,signal:options.signal,onProgress:({progress,stage,renderedFrames})=>{if(options.signal?.aborted)return;const safeProgress=clamp(progress);const state=stage==="bundling"?"bundling":"rendering";const mapped=.4+safeProgress*.58;const elapsedSeconds=(now().getTime()-renderStartedAt)/1000;const etaSeconds=safeProgress>.02?Math.max(0,elapsedSeconds*(1-safeProgress)/safeProgress):undefined;const sceneProgress=locateSceneProgress(flatScenes,totalFrames,renderedFrames,etaSeconds);void update(state,mapped,{sceneProgress});const bucket=Math.floor(safeProgress*10)*10;const stageName=stage??state;if(bucket>lastRenderBucket||stageName!==lastRenderStage){lastRenderBucket=bucket;lastRenderStage=stageName;void log("render.progress",`${stageName==="bundling"?"Bundling":"Rendering"} video: ${Math.min(100,bucket)}%`,{stage:stageName,progress:safeProgress,renderEngine,sceneProgress});}}});
+    const ttsSettingsSignature=hashJson(options.ttsSettings??{});
+    const currentManifest=buildSceneManifest(prepared.normalizedProject,{ttsProvider:providerKind,ttsSettingsSignature,renderEngine});
+    await writeFile(paths.sceneManifestFile,`${JSON.stringify(currentManifest,null,2)}\n`,`utf8`);
+
+    let lastRenderBucket=-1;let lastRenderStage="";
+    const reportProgress=(fractionComplete:number,rawStage:string|undefined,absoluteFrame:number|undefined)=>{
+      if(options.signal?.aborted)return;
+      const safeProgress=clamp(fractionComplete);const state=rawStage==="bundling"?"bundling":"rendering";const mapped=.4+safeProgress*.58;
+      const elapsedSeconds=(now().getTime()-renderStartedAt)/1000;const etaSeconds=safeProgress>.02?Math.max(0,elapsedSeconds*(1-safeProgress)/safeProgress):undefined;
+      const sceneProgress=locateSceneProgress(flatScenes,totalFrames,absoluteFrame,etaSeconds);
+      void update(state,mapped,{sceneProgress});
+      const bucket=Math.floor(safeProgress*10)*10;const stageName=rawStage??state;
+      if(bucket>lastRenderBucket||stageName!==lastRenderStage){lastRenderBucket=bucket;lastRenderStage=stageName;void log("render.progress",`${stageName==="bundling"?"Bundling":stageName==="reusing"?"Reusing":"Rendering"} video: ${Math.min(100,bucket)}%`,{stage:stageName,progress:safeProgress,renderEngine,sceneProgress});}
+    };
+
+    const basePlan=options.baseJobId?await loadIncrementalPlan(dataDir,options.baseJobId,currentManifest).catch((error)=>{void log("render.base-unavailable",`Could not reuse render ${options.baseJobId}: ${error instanceof Error?error.message:String(error)}`).catch(logSwallowedError(jobId,"log render.base-unavailable"));return null;}):null;
+
+    if(basePlan){
+      const reusedScenes=basePlan.runs.filter((run)=>run.kind==="reuse").flatMap((run)=>run.sceneIds).length;
+      await log("render.incremental","Reusing unchanged scenes from a previous render",{baseJobId:options.baseJobId,reusedScenes,totalScenes:flatScenes.length});
+      try{
+        await renderIncremental({runs:basePlan.runs,baseOutputPath:basePlan.baseOutputPath,fps:prepared.normalizedProject.fps,entryPoint,publicDir:paths.publicDir,outputPath,props,renderEngine,render,extractSegment:doExtractSegment,concatenateSegments:doConcatenateSegments,segmentsDir:join(paths.root,"segments"),signal:options.signal,reportProgress});
+      }catch(error){
+        checkCancelled();
+        await log("render.incremental-failed",`Falling back to a full render: ${error instanceof Error?error.message:String(error)}`).catch(logSwallowedError(jobId,"log render.incremental-failed"));
+        lastRenderBucket=-1;lastRenderStage="";
+        await renderFull({entryPoint,publicDir:paths.publicDir,outputPath,props,renderEngine,render,signal:options.signal,reportProgress});
+      }
+    }else{
+      await renderFull({entryPoint,publicDir:paths.publicDir,outputPath,props,renderEngine,render,signal:options.signal,reportProgress});
+    }
+
     checkCancelled();await Promise.all([statusQueue,logQueue]);await log("render.completed","MP4 render completed",{outputPath,totalFrames:prepared.normalizedProject.totalFrames,renderEngine,ttsProvider:providerKind});await update("completed",1,{outputPath});await Promise.all([statusQueue,logQueue]);return {jobId,paths,status,outputPath};
   }catch(error){
     if(options.signal?.aborted){await log("job.cancelled","Render cancelled by user").catch(logSwallowedError(jobId,"log job.cancelled"));await update("cancelled",status.progress,{error:undefined}).catch(logSwallowedError(jobId,"update status to cancelled"));await Promise.all([statusQueue.catch(logSwallowedError(jobId,"flush status queue")),logQueue.catch(logSwallowedError(jobId,"flush log queue"))]);throw new StudyTubeJobCancelledError(jobId,paths.root,error);}
@@ -103,6 +142,73 @@ const getPiperNarrationOverrides=(settings:TtsJobSettings["piper"]={})=>{const c
 const stageProjectAssets=async(assets:Record<string,{path:string}>,sourceRoot:string,publicDir:string)=>{for(const [assetId,asset] of Object.entries(assets)){const relative=normalizeRelativeProjectPath(asset.path);const source=resolveInside(sourceRoot,relative);const destination=resolveInside(publicDir,relative);await mkdir(dirname(destination),{recursive:true});try{await copyFile(source,destination);}catch(error){throw new Error(`Could not stage asset ${assetId} (${relative}): ${error instanceof Error?error.message:String(error)}`);}}};
 const stageNarration=async(tracks:Record<string,{cachePath:string;durationSeconds:number;captions:NarrationManifest[string]["captions"]}>,publicDir:string):Promise<NarrationManifest>=>{const manifest:NarrationManifest={};for(const [sceneId,track] of Object.entries(tracks)){const safeName=`${sceneId}.wav`;const relative=join("audio",safeName).replaceAll("\\","/");const destination=resolveInside(publicDir,relative);await mkdir(dirname(destination),{recursive:true});await copyFile(track.cachePath,destination);manifest[sceneId]={sourcePath:relative,durationSeconds:track.durationSeconds,captions:track.captions};}return manifest;};
 const logSwallowedError=(jobId:string,action:string)=>(error:unknown)=>{console.error(`StudyTube job ${jobId}: failed to ${action}`,error);};
+
+type IncrementalPlan={runs:SceneRun[];baseOutputPath:string};
+
+const loadIncrementalPlan=async(dataDir:string,baseJobId:string,currentManifest:SceneManifest):Promise<IncrementalPlan|null>=>{
+  if(![...baseJobId].every((char)=>/[a-zA-Z0-9_-]/u.test(char))||baseJobId.length>120){
+    throw new Error(`Invalid base job id: ${baseJobId}`);
+  }
+  const baseRoot=join(dataDir,"jobs",baseJobId);
+  const baseStatus=JSON.parse(await readFile(join(baseRoot,"status.json"),"utf8")) as StudyTubeJobStatus;
+  if(baseStatus.state!=="completed"||!baseStatus.outputPath){
+    throw new Error(`Base job ${baseJobId} has no completed output to reuse`);
+  }
+  await access(baseStatus.outputPath);
+  const baseManifest=JSON.parse(await readFile(join(baseRoot,"scene-manifest.json"),"utf8")) as SceneManifest;
+  const runs=planSceneRuns(currentManifest,baseManifest);
+  if(!runs)return null;
+  return {runs,baseOutputPath:baseStatus.outputPath};
+};
+
+const renderFull=async(args:{entryPoint:string;publicDir:string;outputPath:string;props:StudyTubeRenderProps;renderEngine:RenderEngine;render:PipelineRenderFunction;signal?:AbortSignal;reportProgress:(fraction:number,stage:string|undefined,absoluteFrame:number|undefined)=>void})=>{
+  await args.render({
+    entryPoint:args.entryPoint,publicDir:args.publicDir,outputPath:args.outputPath,props:args.props,renderEngine:args.renderEngine,signal:args.signal,
+    onProgress:({progress,stage,renderedFrames})=>{args.reportProgress(progress,stage,renderedFrames);},
+  });
+};
+
+const renderIncremental=async(args:{
+  runs:SceneRun[];baseOutputPath:string;fps:number;entryPoint:string;publicDir:string;outputPath:string;props:StudyTubeRenderProps;renderEngine:RenderEngine;
+  render:PipelineRenderFunction;extractSegment:typeof extractSegment;concatenateSegments:typeof concatenateSegments;segmentsDir:string;signal?:AbortSignal;
+  reportProgress:(fraction:number,stage:string|undefined,absoluteFrame:number|undefined)=>void;
+})=>{
+  const extractWeight=.2;
+  const totalWork=args.runs.reduce((sum,run)=>sum+(run.endFrameExclusive-run.startFrame)*(run.kind==="reuse"?extractWeight:1),0);
+  let completedWork=0;
+  const segmentPaths:string[]=[];
+  await mkdir(args.segmentsDir,{recursive:true});
+
+  try{
+    for(const [index,run] of args.runs.entries()){
+      if(args.signal?.aborted)throw new Error("Render cancelled");
+      const frameCount=run.endFrameExclusive-run.startFrame;
+      const segmentPath=join(args.segmentsDir,`segment-${index}.mp4`);
+      if(run.kind==="reuse"){
+        await args.extractSegment(args.baseOutputPath,run.baseStartFrame??run.startFrame,frameCount,args.fps,segmentPath);
+        completedWork+=frameCount*extractWeight;
+        args.reportProgress(completedWork/totalWork,"reusing",run.endFrameExclusive);
+      }else{
+        await args.render({
+          entryPoint:args.entryPoint,publicDir:args.publicDir,outputPath:segmentPath,props:args.props,renderEngine:args.renderEngine,
+          frameRange:[run.startFrame,run.endFrameExclusive-1],signal:args.signal,
+          onProgress:({progress,stage,renderedFrames})=>{
+            const runFraction=clamp(progress);
+            const absoluteFrame=Math.min(run.endFrameExclusive,run.startFrame+Math.round(runFraction*frameCount));
+            args.reportProgress((completedWork+runFraction*frameCount)/totalWork,stage,absoluteFrame);
+          },
+        });
+        completedWork+=frameCount;
+        args.reportProgress(completedWork/totalWork,"rendering",run.endFrameExclusive);
+      }
+      segmentPaths.push(segmentPath);
+    }
+
+    await args.concatenateSegments(segmentPaths,args.outputPath);
+  }finally{
+    await rm(args.segmentsDir,{recursive:true,force:true}).catch((error)=>{console.error(`StudyTube render: failed to remove segment directory ${args.segmentsDir}`,error);});
+  }
+};
 const createJobId=(date:Date)=>`${date.toISOString().replaceAll(":","").replaceAll(".","-")}-${randomUUID().slice(0,8)}`;
 const slugify=(value:string)=>value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/gu,"-").replace(/^-+|-+$/gu,"").slice(0,70);
 const clamp=(value:number)=>Math.min(1,Math.max(0,value));

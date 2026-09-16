@@ -41,6 +41,7 @@ export const StudyTubeApp=()=>{
   const [deletingJobId,setDeletingJobId]=useState<string|null>(null);
   const [renderEngine,setRenderEngine]=useState<RenderEngine>("cpu");
   const [renderCapabilities,setRenderCapabilities]=useState<RenderCapabilities|null>(null);
+  const [baseJobId,setBaseJobId]=useState<string|null>(null);
   const [ttsSelection,setTtsSelection]=useState<TtsSelection>(defaultTtsSelection);
   const validationRequest=useRef(0);
 
@@ -100,6 +101,7 @@ export const StudyTubeApp=()=>{
     setValidation(null);
     setJob(null);
     setError(null);
+    setBaseJobId(null);
     if(!file){setValidating(false);return;}
 
     setValidating(true);
@@ -159,6 +161,7 @@ export const StudyTubeApp=()=>{
   const canOpenRender=Boolean(job)||renderReady;
   const selectedRenderCapability=renderCapabilities?.engines.find((item)=>item.id===renderEngine);
   const renderEngineAvailable=renderEngine==="cpu"||(selectedRenderCapability?.available??false);
+  const baseJobCandidates=useMemo(()=>validation?.valid?jobs.filter((item)=>item.state==="completed"&&item.projectTitle===validation.summary.title):[],[jobs,validation]);
 
   const copyPrompt=async()=>{
     const prompt=buildChatGptPrompt({targetDurationMinutes:promptDuration,language:promptLanguage,scope:promptScope});
@@ -185,6 +188,7 @@ export const StudyTubeApp=()=>{
       const reference=ttsSelection[ttsSelection.provider].referenceFile;
       if(reference)form.append("ttsReference",reference,reference.name);
     }
+    if(baseJobId)form.append("baseJobId",baseJobId);
     const response=await fetch("/api/jobs",{method:"POST",body:form});
     const result=await response.json() as {jobId?:string;renderEngine?:RenderEngine;ttsProvider?:TtsProviderChoice;error?:string};
     if(!response.ok||!result.jobId){
@@ -349,6 +353,13 @@ export const StudyTubeApp=()=>{
                       </button>;
                     })}</div>
                   </div>
+                  {baseJobCandidates.length>0?<div className="baseJobBlock">
+                    <div className="baseJobHeading"><strong>Reuse a previous render</strong><span>Skip re-rendering scenes that haven&apos;t changed since a past render of this project.</span></div>
+                    <select className="baseJobSelect" value={baseJobId??""} disabled={busy} onChange={(event)=>setBaseJobId(event.target.value||null)}>
+                      <option value="">Full render (no reuse)</option>
+                      {baseJobCandidates.map((candidate)=><option key={candidate.jobId} value={candidate.jobId}>{candidate.createdAt?formatJobDate(candidate.createdAt):candidate.jobId}</option>)}
+                    </select>
+                  </div>:null}
                   <TtsSelector value={ttsSelection} disabled={busy} onChange={setTtsSelection}/>
                 </div>
                 <div className="renderAction wizardRenderAction">

@@ -10,6 +10,7 @@ export type RenderStudyTubeOptions={
   outputPath:string;
   props:{project:NormalizedStudyTubeProject;narration?:NarrationManifest;showCaptions?:boolean};
   renderEngine?:RenderEngine;
+  frameRange?:[number,number];
   signal?:AbortSignal;
   onProgress?:(progress:RenderProgress)=>void|Promise<void>;
 };
@@ -66,6 +67,7 @@ export const renderStudyTubeComposition=async(options:RenderStudyTubeOptions):Pr
     outputLocation:options.outputPath,
     inputProps,
     overwrite:true,
+    frameRange:options.frameRange,
     concurrency:renderSettings.concurrency,
     timeoutInMilliseconds:renderSettings.timeoutInMilliseconds,
     hardwareAcceleration:renderEngine==="nvidia"?"required":"disable",
