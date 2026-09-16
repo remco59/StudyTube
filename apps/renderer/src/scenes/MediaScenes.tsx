@@ -50,7 +50,7 @@ const ImageScene=({project,scene}:{project:Project;scene:SceneOf<"image">})=>{
 
 const VideoScene=({project,scene}:{project:Project;scene:SceneOf<"video">})=>{
   const asset=resolveProjectAsset(project,scene.visual.assetId,"video");
-  return <Stage><div style={{display:"flex",flexDirection:"column",gap:spacing.md,height:"100%",width:"100%"}}><div style={{borderRadius:radii.md,flex:1,minHeight:0,overflow:"hidden",position:"relative"}}><OffthreadVideo src={asset.src} muted style={{height:"100%",objectFit:scene.visual.fit??"cover",width:"100%"}}/><div style={{background:"linear-gradient(transparent, rgba(8,19,31,.48))",bottom:0,height:140,left:0,pointerEvents:"none",position:"absolute",right:0}}/></div>{scene.visual.caption?<div style={{...typography.body,color:colors.textMuted,fontSize:28,lineHeight:1.3,maxWidth:1200}}>{scene.visual.caption}</div>:null}</div></Stage>;
+  return <Stage><div style={{height:"100%",overflow:"hidden",position:"relative",width:"100%"}}><OffthreadVideo src={asset.src} muted style={{height:"100%",objectFit:scene.visual.fit??"cover",width:"100%"}}/><div style={{background:"linear-gradient(transparent, rgba(8,19,31,.48))",bottom:0,height:180,left:0,pointerEvents:"none",position:"absolute",right:0}}/>{scene.visual.caption?<div style={{...typography.body,backgroundColor:"rgba(8,19,31,.72)",borderRadius:radii.sm,bottom:42,color:colors.text,fontSize:26,left:52,lineHeight:1.3,maxWidth:980,padding:`${spacing.sm}px ${spacing.md}px`,position:"absolute"}}>{scene.visual.caption}</div>:null}</div></Stage>;
 };
 
 const SplitLayout=({children,ratio="50/50"}:{children:ReactNode;ratio?:ImageVisual["splitRatio"]})=>{
