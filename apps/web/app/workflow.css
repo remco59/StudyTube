@@ -237,6 +237,92 @@
   font-size: 0.84rem;
 }
 
+.previewBlock {
+  margin-top: 22px;
+  border-top: 1px solid #292d35;
+  padding-top: 20px;
+}
+
+.previewBlock summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.previewBlock summary::-webkit-details-marker {
+  display: none;
+}
+
+.previewBlock summary span {
+  color: #858a95;
+  font-size: 0.8rem;
+}
+
+.previewChapters {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.previewChapter {
+  border: 1px solid #2d323c;
+  border-radius: 14px;
+  background: #14171c;
+  padding: 14px 16px;
+}
+
+.previewChapterHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.previewChapterHeader span {
+  color: #7f8590;
+  font-size: 0.8rem;
+}
+
+.previewSceneList {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.previewScene {
+  border-top: 1px solid #21252c;
+  padding-top: 10px;
+}
+
+.previewScene:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.previewSceneMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.78rem;
+  color: #7f8590;
+}
+
+.previewSceneType {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.previewScene p {
+  margin: 6px 0 0;
+  color: #c4c8d1;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
 .wizardRender {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);

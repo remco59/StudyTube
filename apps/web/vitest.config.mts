@@ -5,4 +5,7 @@ export default defineConfig({
   resolve:{
     alias:{"@":fileURLToPath(new URL(".",import.meta.url))},
   },
+  test:{
+    exclude:["**/node_modules/**","**/.next/**"],
+  },
 });

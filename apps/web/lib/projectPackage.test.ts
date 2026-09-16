@@ -57,8 +57,12 @@ describe("parseProjectPackage",()=>{
     const parsed=await parseProjectPackage(zip);
     expect(parsed.packageType).toBe("zip");
     expect(parsed.assetEntries.has("assets/diagram.svg")).toBe(true);
-    const summary=summarizeProjectPackage(parsed);
+    const summary=await summarizeProjectPackage(parsed);
     expect(summary.summary.assets).toBe(1);
+    expect(summary.summary.estimatedDurationSeconds).toBeGreaterThan(0);
+    expect(summary.preview.chapters).toHaveLength(1);
+    expect(summary.preview.chapters[0]?.scenes).toHaveLength(1);
+    expect(summary.preview.chapters[0]?.scenes[0]?.id).toBe("one");
   });
 
   it("rejects a ZIP that is missing the project.studytube.json entry",async()=>{
