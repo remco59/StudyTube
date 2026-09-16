@@ -91,6 +91,95 @@ describe("studyTubeProjectSchema", () => {
     }
   });
 
+  it("keeps legacy image scenes valid without an explicit variant", () => {
+    const project = structuredClone(validProject) as any;
+    project.assets = {hero: {type: "image", path: "assets/hero.png", alt: "Hero image"}};
+    project.chapters[0].scenes = [
+      {
+        id: "image-legacy",
+        type: "image",
+        narration: "Een bestaande image scene blijft werken.",
+        visual: {assetId: "hero", fit: "cover", caption: "Legacy layout"},
+      },
+    ];
+
+    expect(safeParseStudyTubeProject(project).success).toBe(true);
+  });
+
+  it("accepts split-text image scenes", () => {
+    const project = structuredClone(validProject) as any;
+    project.assets = {hero: {type: "image", path: "assets/hero.png", alt: "Hero image"}};
+    project.chapters[0].scenes = [
+      {
+        id: "image-split-text",
+        type: "image",
+        narration: "De afbeelding en uitleg staan naast elkaar.",
+        visual: {
+          assetId: "hero",
+          variant: "split-text",
+          layout: "image-left",
+          splitRatio: "60/40",
+          fit: "contain",
+          title: "Design science",
+          text: "Een visuele uitleg naast de bronafbeelding.",
+        },
+      },
+    ];
+
+    expect(safeParseStudyTubeProject(project).success).toBe(true);
+  });
+
+  it("requires text content for split-text image scenes", () => {
+    const project = structuredClone(validProject) as any;
+    project.assets = {hero: {type: "image", path: "assets/hero.png"}};
+    project.chapters[0].scenes = [
+      {
+        id: "image-split-text-empty",
+        type: "image",
+        narration: "Deze split scene mist tekst.",
+        visual: {assetId: "hero", variant: "split-text"},
+      },
+    ];
+
+    const result = safeParseStudyTubeProject(project);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((issue) => issue.message.includes("split-text image scenes require"))).toBe(true);
+    }
+  });
+
+  it("accepts split-image scenes and validates the second asset", () => {
+    const project = structuredClone(validProject) as any;
+    project.assets = {
+      left: {type: "image", path: "assets/left.png"},
+      right: {type: "image", path: "assets/right.png"},
+    };
+    project.chapters[0].scenes = [
+      {
+        id: "image-split-image",
+        type: "image",
+        narration: "Twee beelden worden naast elkaar vergeleken.",
+        visual: {
+          assetId: "left",
+          variant: "split-image",
+          secondaryAssetId: "right",
+          splitRatio: "50/50",
+          fit: "contain",
+          secondaryFit: "contain",
+        },
+      },
+    ];
+
+    expect(safeParseStudyTubeProject(project).success).toBe(true);
+
+    project.chapters[0].scenes[0].visual.secondaryAssetId = "missing-right";
+    const missingResult = safeParseStudyTubeProject(project);
+    expect(missingResult.success).toBe(false);
+    if (!missingResult.success) {
+      expect(missingResult.error.issues.some((issue) => issue.message === "Unknown asset: missing-right")).toBe(true);
+    }
+  });
+
   it("accepts stock image and video resolver requests", () => {
     const project:any=structuredClone(validProject);
     project.assets={
@@ -107,6 +196,21 @@ describe("studyTubeProjectSchema", () => {
       expect(result.data.assets?.campus.path).toBe("");
       expect(result.data.assets?.turbines.path).toBe("");
     }
+  });
+
+  it("allows stock images in split-image scenes", () => {
+    const project:any=structuredClone(validProject);
+    project.assets={
+      left:{type:"stockImage",query:"wind turbine close up",provider:"auto"},
+      right:{type:"stockImage",query:"solar panels aerial",provider:"auto"},
+    };
+    project.chapters[0].scenes=[{
+      id:"stock-split",
+      type:"image",
+      narration:"Twee vormen van duurzame energie naast elkaar.",
+      visual:{assetId:"left",variant:"split-image",secondaryAssetId:"right",fit:"contain",secondaryFit:"contain"},
+    }];
+    expect(safeParseStudyTubeProject(project).success).toBe(true);
   });
 
   it("does not allow Unsplash for stock video requests", () => {
