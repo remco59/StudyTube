@@ -211,6 +211,16 @@ const imageSceneSchema = z.object({
   }).strict(),
 }).strict();
 
+const videoSceneSchema = z.object({
+  ...sceneBaseShape,
+  type: z.literal("video"),
+  visual: z.object({
+    assetId: idSchema,
+    fit: z.enum(["contain", "cover"]).optional(),
+    caption: z.string().max(180).optional(),
+  }).strict(),
+}).strict();
+
 const questionSceneSchema = z.object({
   ...sceneBaseShape,
   type: z.literal("question"),
@@ -405,6 +415,7 @@ export const studyTubeSceneSchema = z.discriminatedUnion("type", [
   documentSceneSchema,
   documentHighlightSceneSchema,
   imageSceneSchema,
+  videoSceneSchema,
   questionSceneSchema,
   visualGagSceneSchema,
   recapSceneSchema,
@@ -419,10 +430,33 @@ export const studyTubeSceneSchema = z.discriminatedUnion("type", [
   quoteSceneSchema,
 ]);
 
+export const stockProviderSchema=z.enum(["pixabay","pexels","unsplash"]);
+const stockImageProviderPreferenceSchema=z.enum(["auto","pixabay","pexels","unsplash"]);
+const stockVideoProviderPreferenceSchema=z.enum(["auto","pixabay","pexels"]);
+
+const stockSourceSchema=z.object({
+  provider:stockProviderSchema,
+  providerId:z.string().min(1).max(160),
+  query:z.string().min(1).max(240).optional(),
+  creator:z.string().max(160).optional(),
+  creatorUrl:z.string().url().optional(),
+  sourceUrl:z.string().url().optional(),
+  attributionText:z.string().max(300).optional(),
+  licenseLabel:z.string().max(120).optional(),
+}).strict();
+
 const imageAssetSchema = z.object({
   type: z.literal("image"),
   path: z.string().min(1).max(500),
   alt: z.string().max(300).optional(),
+  source: stockSourceSchema.optional(),
+}).strict();
+
+const videoAssetSchema = z.object({
+  type: z.literal("video"),
+  path: z.string().min(1).max(500),
+  alt: z.string().max(300).optional(),
+  source: stockSourceSchema.optional(),
 }).strict();
 
 const documentAssetSchema = z.object({
@@ -431,9 +465,26 @@ const documentAssetSchema = z.object({
   title: z.string().max(200).optional(),
 }).strict();
 
+const stockImageAssetSchema=z.object({
+  type:z.literal("stockImage"),
+  query:z.string().min(1).max(240),
+  provider:stockImageProviderPreferenceSchema.optional(),
+  alt:z.string().max(300).optional(),
+}).strict();
+
+const stockVideoAssetSchema=z.object({
+  type:z.literal("stockVideo"),
+  query:z.string().min(1).max(240),
+  provider:stockVideoProviderPreferenceSchema.optional(),
+  alt:z.string().max(300).optional(),
+}).strict();
+
 export const studyTubeAssetSchema = z.discriminatedUnion("type", [
   imageAssetSchema,
+  videoAssetSchema,
   documentAssetSchema,
+  stockImageAssetSchema,
+  stockVideoAssetSchema,
 ]);
 
 const chapterSchema = z.object({
@@ -488,22 +539,28 @@ export const studyTubeProjectSchema = z.object({
         context.addIssue({code: "custom", path: ["chapters", chapterIndex, "scenes", sceneIndex, "visual", "correctIndex"], message: "correctIndex must reference an existing option"});
       }
 
-      if (scene.type === "image" || scene.type === "annotatedImage" || scene.type === "document" || scene.type === "documentHighlight") {
+      if (scene.type === "image" || scene.type === "annotatedImage" || scene.type === "video" || scene.type === "document" || scene.type === "documentHighlight") {
         const asset = assets[scene.visual.assetId];
         if (!asset) {
           context.addIssue({code: "custom", path: ["chapters", chapterIndex, "scenes", sceneIndex, "visual", "assetId"], message: `Unknown asset: ${scene.visual.assetId}`});
           return;
         }
-        const expectedType = scene.type === "image" || scene.type === "annotatedImage" ? "image" : "document";
-        if (asset.type !== expectedType) {
-          context.addIssue({code: "custom", path: ["chapters", chapterIndex, "scenes", sceneIndex, "visual", "assetId"], message: `Scene ${scene.type} requires a ${expectedType} asset`});
+        if(scene.type==="image"||scene.type==="annotatedImage"){
+          if(asset.type!=="image"&&asset.type!=="stockImage")context.addIssue({code:"custom",path:["chapters",chapterIndex,"scenes",sceneIndex,"visual","assetId"],message:`Scene ${scene.type} requires an image or stockImage asset`});
+          return;
         }
+        if(scene.type==="video"){
+          if(asset.type!=="video"&&asset.type!=="stockVideo")context.addIssue({code:"custom",path:["chapters",chapterIndex,"scenes",sceneIndex,"visual","assetId"],message:"Scene video requires a video or stockVideo asset"});
+          return;
+        }
+        if(asset.type!=="document")context.addIssue({code:"custom",path:["chapters",chapterIndex,"scenes",sceneIndex,"visual","assetId"],message:`Scene ${scene.type} requires a document asset`});
       }
     });
   });
 });
 
 export type MotionIntent = z.infer<typeof motionIntentSchema>;
+export type StockProvider = z.infer<typeof stockProviderSchema>;
 export type StudyTubeAsset = z.infer<typeof studyTubeAssetSchema>;
 export type StudyTubeScene = z.infer<typeof studyTubeSceneSchema>;
 export type StudyTubeProject = z.infer<typeof studyTubeProjectSchema>;
