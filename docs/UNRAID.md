@@ -77,6 +77,19 @@ If `STUDYTUBE_AUTH_PASSWORD` is missing or empty, StudyTube returns `503` for pr
 
 Basic authentication must be transported over a trusted network or HTTPS. If you expose StudyTube outside your LAN, terminate HTTPS in a reverse proxy or tunnel; do not port-forward the plain HTTP service directly to the public internet.
 
+## Credential storage security
+
+Credentials entered through StudyTube's settings UI are persisted on disk under the configured credentials directory (by default `credentials/`) as JSON files. The files are created with owner-only mode `0600`, but their contents are **not encrypted at rest**.
+
+Treat the credentials directory as secret data:
+
+- do not put it in a publicly readable share or repository;
+- restrict filesystem and backup access to trusted administrators;
+- remember that snapshots and backups can contain historical copies of API keys or service-account credentials;
+- rotate the affected provider credential if a credentials file, backup, or host account is exposed.
+
+For deployments with stricter secret-management requirements, prefer injecting credentials through protected environment/secrets mechanisms where supported, and avoid sharing the StudyTube data/credentials volumes between untrusted users or tenants.
+
 ## Narration provider
 
 The recommended default is:
