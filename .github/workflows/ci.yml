@@ -54,3 +54,6 @@ jobs:
 
       - name: Build containers
         run: docker compose build
+
+      - name: Test Google Chirp token refresh recovery
+        run: docker compose run --rm --no-deps cloud-tts python -m unittest -v test_server
