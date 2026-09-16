@@ -1,5 +1,6 @@
 import {describe,expect,it} from "vitest";
 import {buildChatGptPrompt} from "./chatgptPrompt";
+import {applyTeachingPreset,defaultPromptTeachingConfig} from "./promptConfig";
 
 describe("buildChatGptPrompt asset options",()=>{
   it("forces a text-only JSON project when assets are disabled",()=>{
@@ -27,5 +28,44 @@ describe("buildChatGptPrompt asset options",()=>{
     expect(prompt).not.toContain('"assets": {},\\n');
     expect(prompt).toContain("annotatedImage");
     expect(prompt).toContain("workedExample");
+    expect(prompt).toContain("quote");
+  });
+});
+
+describe("buildChatGptPrompt teaching strategy",()=>{
+  it("uses the adaptive balanced teaching defaults",()=>{
+    const prompt=buildChatGptPrompt({targetDurationMinutes:8,language:"nl-NL",scope:""});
+    expect(prompt).toContain("TEACHING STRATEGY");
+    expect(prompt).toContain("Primary explanation method: auto");
+    expect(prompt).toContain("Explanation depth: balanced");
+    expect(prompt).toContain("Use active-recall questions regularly");
+    expect(prompt).toContain("Surface likely misconceptions");
+  });
+
+  it("honors a preset and explicit personal-example context",()=>{
+    const preset=applyTeachingPreset("deep-understanding");
+    const teaching={
+      ...preset,
+      techniques:{...preset.techniques,personalExamples:true,activeRecall:"off" as const,sectionRecaps:false},
+      personalExampleMode:"provided-context" as const,
+      personalContext:"I race bicycles and create media productions",
+    };
+    const prompt=buildChatGptPrompt({targetDurationMinutes:10,language:"en-US",scope:"Chapter 2",teaching});
+    expect(prompt).toContain("Primary explanation method: conceptual");
+    expect(prompt).toContain("Explanation depth: deep");
+    expect(prompt).toContain("I race bicycles and create media productions");
+    expect(prompt).toContain("Do not invent any personal details beyond this context");
+    expect(prompt).not.toContain("Use active-recall questions regularly");
+    expect(prompt).not.toContain("End substantial sections with a short synthesis");
+  });
+
+  it("does not invent personal details when known-context personalization is enabled",()=>{
+    const teaching={
+      ...defaultPromptTeachingConfig,
+      techniques:{...defaultPromptTeachingConfig.techniques,personalExamples:true},
+    };
+    const prompt=buildChatGptPrompt({targetDurationMinutes:6,language:"nl-NL",scope:"",teaching});
+    expect(prompt).toContain("only from context the learner has actually shared");
+    expect(prompt).toContain("Never invent personal details");
   });
 });
