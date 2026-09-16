@@ -1,14 +1,22 @@
 import {bundle} from "@remotion/bundler";
 import {renderMedia,renderStill,selectComposition} from "@remotion/renderer";
 import type {NarrationManifest,NormalizedStudyTubeProject} from "@studytube/core";
+import {prepareDocumentPages,type DocumentPageManifest} from "./documentPages";
 import {createIntelVaapiFfmpegOverride,requireRenderEngine} from "./renderEngine";
 import type {RenderEngine,RenderProgress} from "./types";
+
+type RenderProps={
+  project:NormalizedStudyTubeProject;
+  narration?:NarrationManifest;
+  showCaptions?:boolean;
+  documentPages?:DocumentPageManifest;
+};
 
 export type RenderStudyTubeOptions={
   entryPoint:string;
   publicDir:string;
   outputPath:string;
-  props:{project:NormalizedStudyTubeProject;narration?:NarrationManifest;showCaptions?:boolean};
+  props:RenderProps;
   renderEngine?:RenderEngine;
   frameRange?:[number,number];
   signal?:AbortSignal;
@@ -19,7 +27,7 @@ export type RenderStudyTubeThumbnailOptions={
   entryPoint:string;
   publicDir:string;
   outputPath:string;
-  props:{project:NormalizedStudyTubeProject;narration?:NarrationManifest;showCaptions?:boolean};
+  props:RenderProps;
   frame:number;
   signal?:AbortSignal;
 };
@@ -52,9 +60,16 @@ const makeRemotionCancelSignal=(signal:AbortSignal):NonNullable<Parameters<typeo
     signal.addEventListener("abort",cancel,{once:true});
   };
 
+const withDocumentPages=async(props:RenderProps,publicDir:string):Promise<RenderProps>=>({
+  ...props,
+  documentPages:{...props.documentPages,...await prepareDocumentPages(props.project,publicDir)},
+});
+
 export const renderStudyTubeComposition=async(options:RenderStudyTubeOptions):Promise<void>=>{
   const renderEngine=options.renderEngine??"cpu";
   const capabilities=await requireRenderEngine(renderEngine);
+  throwIfCancelled(options.signal);
+  const props=await withDocumentPages(options.props,options.publicDir);
   throwIfCancelled(options.signal);
   await options.onProgress?.({progress:0,stage:"bundling"});
   const serveUrl=await bundle({
@@ -63,7 +78,7 @@ export const renderStudyTubeComposition=async(options:RenderStudyTubeOptions):Pr
     onProgress:(progress)=>{void options.onProgress?.({progress:progress*.12,stage:"bundling"});},
   });
   throwIfCancelled(options.signal);
-  const inputProps=options.props as unknown as Record<string,unknown>;
+  const inputProps=props as unknown as Record<string,unknown>;
   const composition=await selectComposition({serveUrl,id:"StudyTube",inputProps});
   throwIfCancelled(options.signal);
   const renderSettings=resolveRemotionRenderSettings();
@@ -91,9 +106,11 @@ export const renderStudyTubeComposition=async(options:RenderStudyTubeOptions):Pr
 
 export const renderStudyTubeThumbnail=async(options:RenderStudyTubeThumbnailOptions):Promise<void>=>{
   throwIfCancelled(options.signal);
+  const props=await withDocumentPages(options.props,options.publicDir);
+  throwIfCancelled(options.signal);
   const serveUrl=await bundle({entryPoint:options.entryPoint,publicDir:options.publicDir});
   throwIfCancelled(options.signal);
-  const inputProps=options.props as unknown as Record<string,unknown>;
+  const inputProps=props as unknown as Record<string,unknown>;
   const composition=await selectComposition({serveUrl,id:"StudyTube",inputProps});
   throwIfCancelled(options.signal);
   const frame=Math.min(Math.max(0,options.frame),composition.durationInFrames-1);
