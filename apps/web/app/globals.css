@@ -442,6 +442,12 @@ h2 {
   text-align: right;
 }
 
+.sceneProgress {
+  margin-top: 6px;
+  color: #858a95;
+  font-size: 0.78rem;
+}
+
 @media (max-width: 860px) {
   .workspace {
     padding-top: 28px;

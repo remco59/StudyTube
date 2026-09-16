@@ -12,7 +12,8 @@ type ValidationResult={valid:true;packageType:"json"|"zip";summary:{title:string
 type RenderEngine="cpu"|"intel"|"nvidia";
 type RenderCapability={id:RenderEngine;label:string;available:boolean;detail:string};
 type RenderCapabilities={engines:RenderCapability[]};
-type JobStatus={jobId:string;state:string;progress:number;createdAt?:string;updatedAt?:string;projectTitle?:string;renderEngine?:RenderEngine;ttsProvider?:TtsProviderChoice|"synthetic";outputPath?:string;error?:string;downloadedAt?:string;expiresAt?:string};
+type SceneProgress={currentSceneId?:string;currentSceneIndex:number;completedScenes:number;totalScenes:number;etaSeconds?:number};
+type JobStatus={jobId:string;state:string;progress:number;createdAt?:string;updatedAt?:string;projectTitle?:string;renderEngine?:RenderEngine;ttsProvider?:TtsProviderChoice|"synthetic";outputPath?:string;error?:string;downloadedAt?:string;expiresAt?:string;sceneProgress?:SceneProgress};
 type JobLogEntry={timestamp:string;event:string;message:string;data?:unknown};
 type PromptLanguage="nl-NL"|"en-US";
 type AppTab="create"|"jobs";
@@ -352,6 +353,7 @@ export const StudyTubeApp=()=>{
                 </div>
                 <div className="renderAction wizardRenderAction">
                   {busy?<div className="progress"><div className="progressTrack"><span style={{width:`${Math.round((job?.progress??0)*100)}%`}}/></div><strong>{Math.round((job?.progress??0)*100)}%</strong></div>:null}
+                  {busy&&job?.sceneProgress?<div className="sceneProgress">{formatSceneProgress(job.sceneProgress)}</div>:null}
                   {job?.state==="completed"?<a className="primaryButton" href={`/api/jobs/${job.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(),1200)}>Download MP4</a>:job&&busy&&job.jobId!=="starting"?<button className="cancelButton" disabled={cancellingJobId===job.jobId} onClick={()=>void cancelJob(job)}>{cancellingJobId===job.jobId?"Cancelling…":"Cancel render"}</button>:busy?<button className="primaryButton" disabled>Starting…</button>:hasActiveJob?<button type="button" className="primaryButton" onClick={openJobs}>View running job</button>:<button className="primaryButton" disabled={!renderReady||!renderEngineAvailable} onClick={()=>void startRender()}>Generate video</button>}
                   {job&&job.jobId!=="starting"?<button type="button" className="secondaryButton" onClick={()=>{setManagedJobId(job.jobId);openJobs();}}>Open in Jobs</button>:null}
                 </div>
@@ -370,7 +372,7 @@ export const StudyTubeApp=()=>{
 
           {managedJob?<section className="jobManager">
             <div className="jobManagerHeader"><div><p className="eyebrow">Selected job</p><h2>{managedJob.projectTitle??"StudyTube render"}</h2><span className="jobIdText">{managedJob.jobId}</span><span className="jobEngineText">{renderEngineLabel(managedJob.renderEngine??"cpu")}</span>{managedJob.ttsProvider?<span className="jobEngineText">{ttsProviderLabel(managedJob.ttsProvider)}</span>:null}</div><span className={`jobStatePill ${stateClass(managedJob.state)}`}>{jobStatusLabel(managedJob)}</span></div>
-            {!isTerminal(managedJob.state)?<div className="managerProgress"><div className="progress"><div className="progressTrack"><span style={{width:`${Math.round(managedJob.progress*100)}%`}}/></div><strong>{Math.round(managedJob.progress*100)}%</strong></div><span>{humanState(managedJob.state)}</span></div>:null}
+            {!isTerminal(managedJob.state)?<div className="managerProgress"><div className="progress"><div className="progressTrack"><span style={{width:`${Math.round(managedJob.progress*100)}%`}}/></div><strong>{Math.round(managedJob.progress*100)}%</strong></div><span>{humanState(managedJob.state)}</span>{managedJob.sceneProgress?<span className="sceneProgress">{formatSceneProgress(managedJob.sceneProgress)}</span>:null}</div>:null}
             {managedJob.error?<div className="errorBox managerError"><strong>Render stopped</strong><p>{managedJob.error}</p></div>:null}
             <div className="jobActionBar">
               {managedJob.state==="completed"?<a className="primaryButton compactButton" href={`/api/jobs/${managedJob.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(),1200)}>Download MP4</a>:null}
@@ -414,6 +416,18 @@ const jobStatusLabel=(job:JobStatus)=>{
   return humanState(job.state).replace("…","");
 };
 const stateClass=(state:string)=>state==="completed"?"complete":state==="failed"?"failed":state==="cancelled"?"cancelled":"active";
+const formatSceneProgress=(sceneProgress:SceneProgress)=>{
+  const sceneLabel=`Scene ${Math.min(sceneProgress.currentSceneIndex+1,sceneProgress.totalScenes)} of ${sceneProgress.totalScenes}`;
+  const eta=sceneProgress.etaSeconds!==undefined?` · ETA ${formatEta(sceneProgress.etaSeconds)}`:"";
+  return `${sceneLabel}${eta}`;
+};
+const formatEta=(seconds:number)=>{
+  const total=Math.max(0,Math.round(seconds));
+  const minutes=Math.floor(total/60);
+  const remainingSeconds=total%60;
+  if(minutes<1)return `${remainingSeconds}s`;
+  return `${minutes}m ${String(remainingSeconds).padStart(2,"0")}s`;
+};
 const formatLogTime=(value:string)=>new Date(value).toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"});
 const formatJobDate=(value:string)=>new Date(value).toLocaleString([],{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"});
 const copyText=async(text:string)=>{

@@ -2,6 +2,14 @@ export type JobState="queued"|"validating"|"synthesizing"|"staging"|"bundling"|"
 export type RenderEngine="cpu"|"intel"|"nvidia";
 export type JobTtsProvider="edge"|"piper"|"omnivoice"|"chatterbox"|"xtts"|"google-chirp"|"azure"|"synthetic";
 
+export type SceneProgress={
+  currentSceneId?:string;
+  currentSceneIndex:number;
+  completedScenes:number;
+  totalScenes:number;
+  etaSeconds?:number;
+};
+
 export type StudyTubeJobStatus={
   jobId:string;
   state:JobState;
@@ -15,6 +23,7 @@ export type StudyTubeJobStatus={
   error?:string;
   downloadedAt?:string;
   expiresAt?:string;
+  sceneProgress?:SceneProgress;
 };
 
 export type JobLogEntry={
@@ -34,4 +43,4 @@ export type JobPaths={
   renderPropsFile:string;
 };
 
-export type RenderProgress={progress:number;stage?:string};
+export type RenderProgress={progress:number;stage?:string;renderedFrames?:number};
