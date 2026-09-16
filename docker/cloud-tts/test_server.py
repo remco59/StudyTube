@@ -24,6 +24,8 @@ class GoogleChirpTokenRefreshTests(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.credentials_path = Path(self.temp_dir.name) / "google.json"
         self.credentials_path.write_text("{}", encoding="utf-8")
+        self.usage_path_patcher = patch.object(server, "GOOGLE_CHIRP_USAGE_PATH", Path(self.temp_dir.name) / "usage.json")
+        self.usage_path_patcher.start()
         self.request = server.CloudSynthesisRequest(
             text="Test narration",
             language="nl-NL",
@@ -31,6 +33,7 @@ class GoogleChirpTokenRefreshTests(unittest.TestCase):
         )
 
     def tearDown(self):
+        self.usage_path_patcher.stop()
         server.reset_google_client()
         self.temp_dir.cleanup()
 
@@ -88,6 +91,81 @@ class GoogleChirpTokenRefreshTests(unittest.TestCase):
         self.assertIn("quota exhausted", raised.exception.detail)
         self.assertEqual(credentials.refresh_calls, 0)
         self.assertEqual(client_factory.call_count, 1)
+        self.assertEqual(server.google_usage_snapshot()["usedCharacters"], 0)
+
+
+class GoogleChirpUsageTests(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.usage_path_patcher = patch.object(server, "GOOGLE_CHIRP_USAGE_PATH", Path(self.temp_dir.name) / "usage.json")
+        self.usage_path_patcher.start()
+        self.limit_patcher = patch.object(server, "GOOGLE_CHIRP_MONTHLY_FREE_CHARACTERS", 20)
+        self.limit_patcher.start()
+
+    def tearDown(self):
+        self.limit_patcher.stop()
+        self.usage_path_patcher.stop()
+        self.temp_dir.cleanup()
+
+    def _request(self, text):
+        return server.CloudSynthesisRequest(
+            text=text,
+            language="nl-NL",
+            voice="nl-NL-Chirp3-HD-Charon",
+        )
+
+    def test_successful_synthesis_counts_characters(self):
+        client = MagicMock()
+        client.synthesize_speech.return_value = SimpleNamespace(audio_content=b"audio")
+
+        with patch.object(server, "get_google_client", return_value=client):
+            response = server.google_synthesize(self._request("12345678"))
+
+        usage = server.google_usage_snapshot()
+        self.assertEqual(response.body, b"audio")
+        self.assertEqual(usage["usedCharacters"], 8)
+        self.assertEqual(usage["remainingCharacters"], 12)
+        self.assertFalse(usage["exhausted"])
+
+    def test_failed_synthesis_rolls_back_reserved_characters(self):
+        client = MagicMock()
+        client.synthesize_speech.side_effect = RuntimeError("provider failure")
+
+        with patch.object(server, "get_google_client", return_value=client):
+            with self.assertRaises(HTTPException):
+                server.google_synthesize(self._request("12345678"))
+
+        usage = server.google_usage_snapshot()
+        self.assertEqual(usage["usedCharacters"], 0)
+        self.assertEqual(usage["remainingCharacters"], 20)
+
+    def test_blocks_request_that_would_cross_free_limit(self):
+        client = MagicMock()
+        client.synthesize_speech.return_value = SimpleNamespace(audio_content=b"audio")
+
+        with patch.object(server, "get_google_client", return_value=client):
+            server.google_synthesize(self._request("123456789012345678"))
+            with self.assertRaises(HTTPException) as raised:
+                server.google_synthesize(self._request("abc"))
+
+        usage = server.google_usage_snapshot()
+        self.assertEqual(raised.exception.status_code, 429)
+        self.assertIn("only 2", raised.exception.detail)
+        self.assertEqual(usage["usedCharacters"], 18)
+        self.assertEqual(usage["remainingCharacters"], 2)
+        self.assertEqual(client.synthesize_speech.call_count, 1)
+
+    def test_marks_month_as_exhausted_at_exact_limit(self):
+        client = MagicMock()
+        client.synthesize_speech.return_value = SimpleNamespace(audio_content=b"audio")
+
+        with patch.object(server, "get_google_client", return_value=client):
+            server.google_synthesize(self._request("12345678901234567890"))
+
+        usage = server.google_usage_snapshot()
+        self.assertEqual(usage["usedCharacters"], 20)
+        self.assertEqual(usage["remainingCharacters"], 0)
+        self.assertTrue(usage["exhausted"])
 
 
 if __name__ == "__main__":
