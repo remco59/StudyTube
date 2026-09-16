@@ -1,4 +1,5 @@
 export type JobState="queued"|"validating"|"synthesizing"|"staging"|"bundling"|"rendering"|"completed"|"failed"|"cancelled";
+export type RenderEngine="cpu"|"intel"|"nvidia";
 
 export type StudyTubeJobStatus={
   jobId:string;
@@ -7,6 +8,7 @@ export type StudyTubeJobStatus={
   createdAt:string;
   updatedAt:string;
   projectTitle?:string;
+  renderEngine?:RenderEngine;
   outputPath?:string;
   error?:string;
   downloadedAt?:string;
