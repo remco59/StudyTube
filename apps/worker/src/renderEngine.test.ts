@@ -15,10 +15,21 @@ describe("parseRenderEngine",()=>{
 });
 
 describe("createIntelVaapiFfmpegOverride",()=>{
-  it("leaves pre-stitcher commands unchanged",()=>{
+  it("leaves unrelated pre-stitcher commands unchanged",()=>{
     const override=createIntelVaapiFfmpegOverride("/dev/dri/renderD128");
     const args=["-i","frames-%d.jpeg","-c:v","libx264","out.mp4"];
     expect(override({type:"pre-stitcher",args})).toEqual(args);
+  });
+
+  it("uses Debian FFmpeg's native AAC encoder for audio preprocessing",()=>{
+    const override=createIntelVaapiFfmpegOverride("/dev/dri/renderD128");
+    const result=override({type:"pre-stitcher",args:[
+      "-i","merged.wav","-c:a","libfdk_aac","-f","adts","-b:a","320k","audio.aac",
+    ]});
+
+    expect(result).toContain("aac");
+    expect(result).not.toContain("libfdk_aac");
+    expect(result[result.indexOf("-c:a")+1]).toBe("aac");
   });
 
   it("switches the final encoder to VAAPI and uploads NV12 frames",()=>{

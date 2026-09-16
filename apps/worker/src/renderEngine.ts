@@ -99,6 +99,9 @@ const replaceOptionValue=(args:string[],option:string,value:string):string[]=>{
   return next;
 };
 
+const replaceSystemFfmpegAudioEncoder=(args:string[]):string[]=>
+  args.map((arg)=>arg==="libfdk_aac"?"aac":arg);
+
 const addVaapiFilter=(args:string[]):string[]=>{
   const next=[...args];
   const filterIndex=next.lastIndexOf("-vf");
@@ -113,8 +116,9 @@ const addVaapiFilter=(args:string[]):string[]=>{
 };
 
 export const createIntelVaapiFfmpegOverride=(device:string):FfmpegOverrideFn=>({type,args})=>{
-  if(type!=="stitcher")return args;
-  let next=removeOption(args,"-pix_fmt");
+  let next=replaceSystemFfmpegAudioEncoder(args);
+  if(type!=="stitcher")return next;
+  next=removeOption(next,"-pix_fmt");
   next=replaceOptionValue(next,"-c:v","h264_vaapi");
   next=addVaapiFilter(next);
   if(!next.includes("-vaapi_device"))next=["-vaapi_device",device,...next];
