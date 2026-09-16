@@ -8,6 +8,7 @@ export type TtsProviderChoice="edge"|"piper"|"omnivoice"|"chatterbox"|"xtts"|"go
 
 export type StoredTtsSettings={
   provider:TtsProviderChoice;
+  language:string;
   edge:{voice:string;rate:string};
   piper:{voice:string;lengthScale:number};
   omnivoice:{speed:number;numSteps:number;instruction:string;normalizeText:boolean;referenceText:string};
@@ -41,6 +42,7 @@ export const defaultAppSettings=():AppSettings=>({
   renderEngine:"cpu",
   tts:{
     provider:ttsProviders.includes(process.env.STUDYTUBE_TTS_PROVIDER as TtsProviderChoice)?process.env.STUDYTUBE_TTS_PROVIDER as TtsProviderChoice:"edge",
+    language:"nl-NL",
     edge:{voice:process.env.EDGE_TTS_VOICE?.trim()||"nl-NL-MaartenNeural",rate:process.env.EDGE_TTS_RATE?.trim()||"+0%"},
     piper:{voice:process.env.PIPER_VOICE?.trim()||"nl_NL-mls-medium",lengthScale:numberEnv("PIPER_LENGTH_SCALE",1,.4,3)},
     omnivoice:{speed:numberEnv("OMNIVOICE_SPEED",1,.4,3),numSteps:integerEnv("OMNIVOICE_NUM_STEPS",16,8,64),instruction:"male, young adult, medium pitch",normalizeText:booleanEnv("OMNIVOICE_NORMALIZE_TEXT",true),referenceText:""},
@@ -141,6 +143,7 @@ export const normalizeAppSettings=(input:unknown,fallback=defaultAppSettings()):
     renderEngine:enumValue(root?.renderEngine,renderEngines,fallback.renderEngine),
     tts:{
       provider:enumValue(tts?.provider,ttsProviders,fallback.tts.provider),
+      language:textValue(tts?.language,fallback.tts.language,24),
       edge:{voice:textValue(edge?.voice,fallback.tts.edge.voice,160),rate:rateValue(edge?.rate,fallback.tts.edge.rate)},
       piper:{voice:textValue(piper?.voice,fallback.tts.piper.voice,160),lengthScale:numberValue(piper?.lengthScale,fallback.tts.piper.lengthScale,.4,3)},
       omnivoice:{speed:numberValue(omnivoice?.speed,fallback.tts.omnivoice.speed,.4,3),numSteps:integerValue(omnivoice?.numSteps,fallback.tts.omnivoice.numSteps,8,64),instruction:textValue(omnivoice?.instruction,fallback.tts.omnivoice.instruction,300),normalizeText:booleanValue(omnivoice?.normalizeText,fallback.tts.omnivoice.normalizeText),referenceText:textValue(omnivoice?.referenceText,fallback.tts.omnivoice.referenceText,1200,true)},
