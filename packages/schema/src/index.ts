@@ -378,6 +378,18 @@ const hierarchySceneSchema = z.object({
   }).strict(),
 }).strict();
 
+const quoteSceneSchema = z.object({
+  ...sceneBaseShape,
+  type: z.literal("quote"),
+  visual: z.object({
+    quote: z.string().min(1).max(700),
+    author: z.string().max(120).optional(),
+    work: z.string().max(180).optional(),
+    locator: z.string().max(100).optional(),
+    context: z.string().max(220).optional(),
+  }).strict(),
+}).strict();
+
 export const studyTubeSceneSchema = z.discriminatedUnion("type", [
   titleSceneSchema,
   chapterIntroSceneSchema,
@@ -404,6 +416,7 @@ export const studyTubeSceneSchema = z.discriminatedUnion("type", [
   multipleChoiceSceneSchema,
   workedExampleSceneSchema,
   hierarchySceneSchema,
+  quoteSceneSchema,
 ]);
 
 const imageAssetSchema = z.object({
