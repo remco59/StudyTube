@@ -4,13 +4,15 @@ import {extname,join} from "node:path";
 import {StudyTubeValidationError} from "@studytube/schema";
 import {resolveTtsProviderKind,type TtsJobSettings} from "@studytube/worker";
 import {parseRenderEngine,requireRenderEngine} from "@studytube/worker/render-engine";
-import {registerActiveJob} from "@/lib/activeJobs";
+import {registerActiveJob,unregisterActiveJob} from "@/lib/activeJobs";
 import {assertJobId,getDataDir,listJobStatuses,pruneOldRenders} from "@/lib/jobs";
 import {parseProjectPackage,stageProjectPackage,StudyTubePackageError} from "@/lib/projectPackage";
-import {enqueueRenderJob,withQueuePosition} from "@/lib/renderQueue";
+import {enqueueRenderJob,getAvailableQueueSlots,RenderQueueFullError,withQueuePosition} from "@/lib/renderQueue";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
+
+const MAX_PROJECTS_PER_REQUEST=8;
 
 export async function GET(){
   try{
@@ -26,6 +28,12 @@ export async function POST(request:Request){
     const form=await request.formData();
     const projectParts=form.getAll("project").filter((part):part is File=>part instanceof File);
     if(projectParts.length===0)return Response.json({error:"Upload one or more .studytube.json or .studytube.zip projects"},{status:400});
+    if(projectParts.length>MAX_PROJECTS_PER_REQUEST)return Response.json({error:`Upload at most ${MAX_PROJECTS_PER_REQUEST} projects in one batch`},{status:413});
+
+    const availableQueueSlots=getAvailableQueueSlots();
+    if(projectParts.length>availableQueueSlots){
+      return Response.json({error:`Render queue does not have enough capacity for this batch (${availableQueueSlots} pending slot${availableQueueSlots===1?"":"s"} available)`},{status:429});
+    }
 
     const renderEngine=parseRenderEngine(form.get("renderEngine"));
     await requireRenderEngine(renderEngine);
@@ -50,6 +58,7 @@ export async function POST(request:Request){
 
     for(const projectPart of projectParts){
       let uploadRoot:string|undefined;
+      let jobRoot:string|undefined;
       try{
         const parsed=await parseProjectPackage(projectPart);
         const project=parsed.project;
@@ -69,15 +78,21 @@ export async function POST(request:Request){
         }
 
         const createdAt=new Date().toISOString();
-        const jobRoot=join(dataDir,"jobs",jobId);
+        jobRoot=join(dataDir,"jobs",jobId);
         await mkdir(jobRoot,{recursive:true});
         await writeFile(join(jobRoot,"status.json"),`${JSON.stringify({jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt,projectTitle:project.metadata.title,renderEngine,ttsProvider,...(baseJobIdInput?{baseJobId:baseJobIdInput}:{})},null,2)}\n`,`utf8`);
 
         const signal=registerActiveJob(jobId);
-        enqueueRenderJob({jobId,projectPath,dataDir,uploadRoot,renderEngine,ttsProvider,ttsSettings,baseJobId:baseJobIdInput,signal});
+        try{
+          enqueueRenderJob({jobId,projectPath,dataDir,uploadRoot,renderEngine,ttsProvider,ttsSettings,baseJobId:baseJobIdInput,signal});
+        }catch(error){
+          unregisterActiveJob(jobId);
+          throw error;
+        }
         created.push({jobId,projectTitle:project.metadata.title});
       }catch(error){
         if(uploadRoot)await rm(uploadRoot,{recursive:true,force:true}).catch((cleanupError)=>{console.error(`StudyTube upload ${uploadRoot}: failed to remove after rejected request`,cleanupError);});
+        if(jobRoot)await rm(jobRoot,{recursive:true,force:true}).catch((cleanupError)=>{console.error(`StudyTube job ${jobRoot}: failed to remove after rejected request`,cleanupError);});
         if(projectParts.length===1)throw error;
         const message=error instanceof StudyTubeValidationError?"Invalid StudyTube project":error instanceof StudyTubePackageError||error instanceof Error?error.message:"Could not start render";
         failed.push({fileName:projectPart.name,error:message});
@@ -91,6 +106,7 @@ export async function POST(request:Request){
     return Response.json({jobs:created,failed,renderEngine,ttsProvider},{status:202});
   }catch(error){
     await Promise.all(uploadRoots.map((uploadRoot)=>rm(uploadRoot,{recursive:true,force:true}).catch((cleanupError)=>{console.error(`StudyTube upload ${uploadRoot}: failed to remove after rejected request`,cleanupError);})));
+    if(error instanceof RenderQueueFullError)return Response.json({error:error.message},{status:429});
     if(error instanceof StudyTubeValidationError)return Response.json({error:"Invalid StudyTube project",issues:error.issues},{status:422});
     if(error instanceof StudyTubePackageError)return Response.json({error:error.message},{status:error.status});
     return Response.json({error:error instanceof Error?error.message:"Could not start render"},{status:400});
