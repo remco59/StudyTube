@@ -1,11 +1,13 @@
 # Running StudyTube on Unraid
 
-StudyTube normally runs as two containers:
+StudyTube normally runs as four containers:
 
 - `studytube`: Next.js UI, job worker and Remotion renderer
-- `studytube-neural-tts`: lightweight neural-TTS bridge used for the default Dutch voice
+- `studytube-neural-tts`: lightweight Edge TTS bridge used for the default Dutch neural voice
+- `studytube-piper`: local/offline Piper TTS provider, available as a standard fallback
+- `studytube-cloud-tts`: cloud TTS bridge used for providers such as Google Chirp and Azure Speech
 
-The default neural voice needs internet access while narration is synthesized. No speech API key is configured by StudyTube. The older local Piper service remains available through the optional `offline-tts` Compose profile.
+The default neural voice needs internet access while narration is synthesized. No speech API key is required for Edge TTS. Piper is part of the standard Compose stack so an offline fallback is available without enabling an extra profile. Additional heavier TTS providers such as OmniVoice, Chatterbox and XTTS remain optional Compose profiles.
 
 ## Recommended Unraid paths
 
@@ -17,7 +19,7 @@ Keep the repository and persistent data on cache-backed appdata storage where po
 /mnt/user/appdata/studytube/piper
 ```
 
-`data` contains jobs, cached narration, logs and finished renders. `piper` is only used when the offline fallback is enabled.
+`data` contains jobs, cached narration, logs and finished renders. `piper` stores the local Piper voice data and is reused across container recreates.
 
 ## First install
 
@@ -108,10 +110,10 @@ PIPER_VOICE=nl_NL-mls-medium
 PIPER_LENGTH_SCALE=1
 ```
 
-Then recreate the stack with the Piper profile enabled:
+Then recreate the normal stack; no additional Compose profile is required because Piper is part of the default services:
 
 ```bash
-docker compose --profile offline-tts up -d --build
+docker compose up -d --build
 ```
 
 The first Piper start downloads its configured voice into `/mnt/user/appdata/studytube/piper`; later starts reuse it.
@@ -173,6 +175,12 @@ Neural TTS:
 docker exec studytube-neural-tts curl --fail --silent http://127.0.0.1:5050/health
 ```
 
+Piper:
+
+```bash
+docker exec studytube-piper python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/info', timeout=4).read()"
+```
+
 Container state:
 
 ```bash
@@ -184,12 +192,7 @@ docker compose ps
 ```bash
 docker compose logs -f studytube
 docker compose logs -f neural-tts
-```
-
-For the optional offline service:
-
-```bash
-docker compose --profile offline-tts logs -f piper
+docker compose logs -f piper
 ```
 
 Every render also keeps job-specific diagnostics under:
