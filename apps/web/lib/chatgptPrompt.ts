@@ -1,3 +1,5 @@
+import {buildTeachingPromptSection,defaultPromptTeachingConfig,type PromptTeachingConfig} from "./promptConfig";
+
 export type PromptAssetType="web-images"|"generated-images"|"source-documents";
 export type PromptAssetAmount="few"|"some"|"many"|"lots";
 
@@ -8,6 +10,7 @@ type PromptOptions={
   useAssets?:boolean;
   assetTypes?:PromptAssetType[];
   assetAmount?:PromptAssetAmount;
+  teaching?:PromptTeachingConfig;
 };
 
 const languageNames:Record<PromptOptions["language"],string>={
@@ -41,11 +44,12 @@ const assetTypeInstructions:Record<PromptAssetType,string>={
   "source-documents":"Use supplied source documents or useful pages from them with document/documentHighlight scenes when that helps explain the material. Package the actual referenced document file in the ZIP.",
 };
 
-export const buildChatGptPrompt=({targetDurationMinutes,language,scope,useAssets=false,assetTypes=["web-images","generated-images"],assetAmount="some"}:PromptOptions)=>{
+export const buildChatGptPrompt=({targetDurationMinutes,language,scope,useAssets=false,assetTypes=["web-images","generated-images"],assetAmount="some",teaching=defaultPromptTeachingConfig}:PromptOptions)=>{
   const targetDuration=Math.max(30,Math.min(7200,Math.round(targetDurationMinutes*60)));
   const scopeInstruction=scope.trim()?`Focus specifically on this scope: ${scope.trim()}`:"Cover the important concepts in the supplied study material.";
   const selectedAssetTypes=assetTypes.length>0?assetTypes:["generated-images"] as PromptAssetType[];
   const assetTypeList=selectedAssetTypes.map((type)=>assetTypeLabels[type]).join(", ");
+  const teachingInstruction=buildTeachingPromptSection(teaching);
   const outputInstruction=useAssets
     ?`Return one finished downloadable .studytube.zip file containing project.studytube.json at the archive root plus every referenced asset at its exact project-relative path.\n- This project must use assets, so include at least one packaged image or document asset.\n- Never return a JSON project that references assets separately. Assets belong inside the ZIP.`
     :`Return one finished downloadable .studytube.json file.\n- This project must be text-only: do not declare external image or document assets.\n- Do not use image, annotatedImage, document or documentHighlight scenes.`;
@@ -88,14 +92,11 @@ CONTENT REQUIREMENTS
 - Explain concepts clearly at higher-education level.
 - Prioritize understanding over reproducing the wording of the source.
 - Preserve important terminology from the source.
-- Explain difficult concepts with examples, comparisons or visual structures where useful.
 - Do not invent facts that are not supported by the material.
 - Never invent or paraphrase a quotation and present it as a direct quote. Use a quote scene only for wording that appears in the supplied material, and preserve that wording accurately.
 - Structure the video into logical chapters.
 - Start with an engaging introduction.
-- End important sections with short recaps where useful.
 - End the complete video with a recap of the main learning points.
-- Use questions occasionally to encourage active recall.
 - Keep on-screen text concise. Narration may contain more explanation than the visual.
 - Treat every visual field as a strict screen-space budget: titles should usually stay below 9 words, kinetic text below 16 words, comparison side titles below 5 words, comparison bodies below 18 words, and recap points below 14 words.
 - For comparison scenes, versusLabel must be a very short connector of at most 3 short words such as "vs.", "of", or "tegenover". Never put a sentence or the full comparison message in versusLabel.
@@ -103,6 +104,8 @@ CONTENT REQUIREMENTS
 - Prefer a semantically specific scene such as cycle, matrix, workedExample, hierarchy, dataChart, annotatedImage or quote over forcing the content into a generic card layout.
 - Write narration as natural spoken ${languageNames[language]}, not academic written prose.
 - Aim for approximately 130-160 spoken words per minute.
+
+${teachingInstruction}
 
 ${visualAssetsInstruction}
 

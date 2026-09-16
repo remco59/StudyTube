@@ -323,6 +323,213 @@
   color: #d8d2ff;
 }
 
+.teachingPromptBlock {
+  display: grid;
+  gap: 16px;
+  border: 1px solid rgba(123, 97, 255, 0.36);
+  border-radius: 14px;
+  background: rgba(22, 21, 31, 0.72);
+  padding: 14px;
+}
+
+.teachingPromptHeader > div,
+.teachingPromptSummary {
+  display: grid;
+  gap: 3px;
+}
+
+.teachingPromptHeader strong,
+.teachingPromptSummary strong {
+  color: #ece9e0;
+  font-size: 0.86rem;
+}
+
+.teachingPromptHeader span,
+.teachingPromptSummary span {
+  color: #858b96;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.teachingPromptSection {
+  display: grid;
+  gap: 9px;
+  border-top: 1px solid rgba(76, 81, 93, 0.48);
+  padding-top: 13px;
+}
+
+.teachingPresetGrid,
+.teachingMethodGrid,
+.teachingGoalGrid,
+.teachingTechniqueGrid,
+.personalModeGrid {
+  display: grid;
+  gap: 8px;
+}
+
+.teachingPresetGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.teachingMethodGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.teachingGoalGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.teachingTechniqueGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.personalModeGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.teachingPresetOption,
+.teachingMethodOption,
+.teachingDepthOption,
+.personalModeOption {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  border: 1px solid #343a45;
+  border-radius: 10px;
+  background: #15181d;
+  padding: 9px 10px;
+  color: #a6abb5;
+  text-align: left;
+  cursor: pointer;
+}
+
+.teachingPresetOption:hover,
+.teachingMethodOption:hover,
+.teachingDepthOption:hover,
+.personalModeOption:hover,
+.teachingGoalOption:hover,
+.teachingTechniqueOption:hover {
+  border-color: #565d69;
+}
+
+.teachingMethodOption.selected,
+.teachingDepthOption.selected,
+.personalModeOption.selected {
+  border-color: #7769c8;
+  background: rgba(123, 97, 255, 0.14);
+}
+
+.teachingPresetOption strong,
+.teachingMethodOption strong,
+.teachingDepthOption strong,
+.personalModeOption strong {
+  color: #e7e3dc;
+  font-size: 0.73rem;
+}
+
+.teachingPresetOption small,
+.teachingMethodOption small,
+.teachingDepthOption small,
+.personalModeOption small {
+  color: #6f7581;
+  font-size: 0.65rem;
+  line-height: 1.35;
+}
+
+.teachingDepthOptions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.teachingGoalOption {
+  display: grid;
+  grid-template-columns: 17px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  border: 1px solid #343a45;
+  border-radius: 9px;
+  background: #15181d;
+  padding: 8px 9px;
+  color: #8f95a0;
+  font-size: 0.7rem;
+  font-weight: 720;
+  text-align: left;
+  cursor: pointer;
+}
+
+.teachingGoalOption > span {
+  display: inline-flex;
+  width: 17px;
+  height: 17px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #454b56;
+  border-radius: 5px;
+  color: #fff;
+  font-size: 0.68rem;
+}
+
+.teachingGoalOption.selected,
+.teachingTechniqueOption.selected {
+  border-color: #7769c8;
+  background: rgba(123, 97, 255, 0.12);
+}
+
+.teachingGoalOption.selected > span,
+.teachingTechniqueOption.selected .assetChoiceCheck {
+  border-color: #7b61ff;
+  background: #7b61ff;
+}
+
+.teachingTechniqueOption {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+  align-items: start;
+  border: 1px solid #343a45;
+  border-radius: 10px;
+  background: #15181d;
+  padding: 9px;
+  color: #a6abb5;
+  text-align: left;
+  cursor: pointer;
+}
+
+.teachingTechniqueOption > span:last-child {
+  display: grid;
+  gap: 2px;
+}
+
+.teachingTechniqueOption strong {
+  color: #e7e3dc;
+  font-size: 0.71rem;
+}
+
+.teachingTechniqueOption small {
+  color: #6f7581;
+  font-size: 0.64rem;
+  line-height: 1.32;
+}
+
+.personalExampleSettings {
+  border: 1px solid rgba(123, 97, 255, 0.24);
+  border-radius: 11px;
+  background: rgba(123, 97, 255, 0.06);
+  padding: 11px;
+}
+
+.personalContextField {
+  margin-top: 3px;
+}
+
+.teachingPromptSummary {
+  border-radius: 10px;
+  background: rgba(123, 97, 255, 0.09);
+  padding: 10px 11px;
+}
+
 .promptButton {
   display: inline-flex;
   min-height: 48px;
@@ -355,8 +562,22 @@
   }
 }
 
+@media (max-width: 720px) {
+  .teachingPresetGrid,
+  .teachingMethodGrid,
+  .personalModeGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 620px) {
-  .assetChoiceGrid {
+  .assetChoiceGrid,
+  .teachingPresetGrid,
+  .teachingMethodGrid,
+  .teachingGoalGrid,
+  .teachingTechniqueGrid,
+  .personalModeGrid,
+  .teachingDepthOptions {
     grid-template-columns: 1fr;
   }
 }
