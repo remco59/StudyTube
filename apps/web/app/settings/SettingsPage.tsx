@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {useCallback,useEffect,useState} from "react";
 import {defaultTtsSelection,serializeTtsSettings,TtsSelector,type TtsProviderChoice,type TtsSelection} from "../TtsSelector";
 
@@ -7,6 +8,7 @@ type PromptLanguage="nl-NL"|"en-US";
 type RenderEngine="cpu"|"intel"|"nvidia";
 type StoredTtsSettings={
   provider:TtsProviderChoice;
+  language:string;
   edge:TtsSelection["edge"];
   piper:TtsSelection["piper"];
   omnivoice:Omit<TtsSelection["omnivoice"],"referenceFile">;
@@ -69,8 +71,8 @@ export const SettingsPage=()=>{
   const saveDefaults=async()=>{
     setSaving(true);setError(null);setNotice(null);
     try{
-      const serialized=JSON.parse(serializeTtsSettings(ttsSelection)) as Omit<StoredTtsSettings,"provider">;
-      const response=await fetch("/api/settings",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({settings:{promptDurationMinutes:promptDuration,promptLanguage,renderEngine,tts:{provider:ttsSelection.provider,...serialized}}})});
+      const serialized=JSON.parse(serializeTtsSettings(ttsSelection)) as Omit<StoredTtsSettings,"provider"|"language">;
+      const response=await fetch("/api/settings",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({settings:{promptDurationMinutes:promptDuration,promptLanguage,renderEngine,tts:{provider:ttsSelection.provider,language:ttsSelection.language,...serialized}}})});
       const result=await response.json() as {settings?:AppSettings;error?:string};
       if(!response.ok||!result.settings)throw new Error(result.error??"Could not save defaults");
       setNotice("Defaults saved. New Create sessions will start with these values.");
@@ -130,8 +132,8 @@ export const SettingsPage=()=>{
 
   return <main className="appShell settingsPage">
     <header className="topbar">
-      <a className="brand settingsBrand" href="/"><span className="brandMark">S</span><span>StudyTube</span></a>
-      <nav className="settingsNav" aria-label="StudyTube sections"><a href="/">Create & Jobs</a><span className="active">Settings</span></nav>
+      <Link className="brand settingsBrand" href="/"><span className="brandMark">S</span><span>StudyTube</span></Link>
+      <nav className="settingsNav" aria-label="StudyTube sections"><Link href="/">Create & Jobs</Link><span className="active">Settings</span></nav>
       <span className="badge topbarBadge">Local render</span>
     </header>
 
@@ -178,6 +180,7 @@ const StatusPill=({configured}:{configured:boolean})=><span className={`provider
 const clamp=(value:number,min:number,max:number,fallback:number)=>Number.isFinite(value)?Math.max(min,Math.min(max,value)):fallback;
 const toTtsSelection=(value:StoredTtsSettings):TtsSelection=>({
   provider:value.provider,
+  language:value.language,
   edge:value.edge,
   piper:value.piper,
   omnivoice:{...value.omnivoice,referenceFile:null},
