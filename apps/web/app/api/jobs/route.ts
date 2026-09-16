@@ -60,13 +60,13 @@ export async function POST(request:Request){
       .catch(()=>undefined)
       .finally(async()=>{
         unregisterActiveJob(jobId);
-        await rm(uploadRoot!,{recursive:true,force:true}).catch(()=>undefined);
-        await cleanupCancelledJobWorkingData(jobId).catch(()=>undefined);
+        await rm(uploadRoot!,{recursive:true,force:true}).catch((error)=>{console.error(`StudyTube job ${jobId}: failed to remove upload directory`,error);});
+        await cleanupCancelledJobWorkingData(jobId).catch((error)=>{console.error(`StudyTube job ${jobId}: failed to clean up cancelled job data`,error);});
       });
 
     return Response.json({jobId,renderEngine,ttsProvider},{status:202});
   }catch(error){
-    if(uploadRoot)await rm(uploadRoot,{recursive:true,force:true}).catch(()=>undefined);
+    if(uploadRoot)await rm(uploadRoot,{recursive:true,force:true}).catch((cleanupError)=>{console.error(`StudyTube upload ${uploadRoot}: failed to remove after rejected request`,cleanupError);});
     if(error instanceof StudyTubeValidationError)return Response.json({error:"Invalid StudyTube project",issues:error.issues},{status:422});
     if(error instanceof StudyTubePackageError)return Response.json({error:error.message},{status:error.status});
     return Response.json({error:error instanceof Error?error.message:"Could not start render"},{status:400});
