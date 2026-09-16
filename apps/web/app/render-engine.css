@@ -1,4 +1,5 @@
-.renderEngineBlock {
+.renderEngineBlock,
+.ttsBlock {
   margin-top: 18px;
   border: 1px solid #2d323c;
   border-radius: 14px;
@@ -6,7 +7,8 @@
   padding: 14px;
 }
 
-.renderEngineHeading {
+.renderEngineHeading,
+.ttsHeading {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -14,12 +16,14 @@
   margin-bottom: 10px;
 }
 
-.renderEngineHeading > div {
+.renderEngineHeading > div,
+.ttsHeading > div {
   display: grid;
   gap: 3px;
 }
 
-.renderEngineHeading > div > span {
+.renderEngineHeading > div > span,
+.ttsHeading > div > span {
   color: #777d88;
   font-size: 0.76rem;
 }
@@ -46,7 +50,8 @@
   cursor: not-allowed;
 }
 
-.renderEngineOptions {
+.renderEngineOptions,
+.ttsOptions {
   display: grid;
   gap: 7px;
 }
@@ -110,7 +115,8 @@
   line-height: 1.35;
 }
 
-.engineAvailability {
+.engineAvailability,
+.ttsBadge {
   border-radius: 999px;
   padding: 4px 7px;
   font-size: 0.63rem;
@@ -128,6 +134,159 @@
   color: #d6a86d;
 }
 
+.ttsBadge.edge {
+  background: rgba(92, 221, 161, 0.08);
+  color: #7de1b1;
+}
+
+.ttsBadge.piper {
+  background: rgba(102, 173, 255, 0.09);
+  color: #8cc4ff;
+}
+
+.ttsBadge.omnivoice {
+  background: rgba(255, 181, 94, 0.08);
+  color: #e0b06f;
+}
+
+.ttsOption {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  border: 1px solid #2d323c;
+  border-radius: 11px;
+  background: #14171c;
+  overflow: hidden;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.ttsOption:hover {
+  border-color: #534b78;
+}
+
+.ttsOption.selected {
+  border-color: rgba(123, 97, 255, 0.52);
+  background: rgba(123, 97, 255, 0.08);
+}
+
+.ttsOptionSelect {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 10px 8px 10px 11px;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ttsOptionSelect:disabled,
+.ttsSettingsButton:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.ttsSettingsButton {
+  width: 42px;
+  border: 0;
+  border-left: 1px solid #2d323c;
+  background: rgba(255,255,255,0.012);
+  color: #858b96;
+  font-size: 0.92rem;
+  cursor: pointer;
+}
+
+.ttsSettingsButton:hover:not(:disabled),
+.ttsSettingsButton.active {
+  background: rgba(123,97,255,0.09);
+  color: #c4baff;
+}
+
+.ttsSettingsPanel {
+  grid-column: 1 / -1;
+  border-top: 1px solid #2d323c;
+  background: rgba(8,10,13,0.42);
+  padding: 12px;
+}
+
+.ttsSettingsGrid {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 10px;
+}
+
+.ttsSettingsGrid label {
+  display: grid;
+  gap: 5px;
+  color: #9ca1ac;
+  font-size: 0.7rem;
+  font-weight: 760;
+}
+
+.ttsSettingsGrid label > span em {
+  color: #676d77;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.ttsSettingsGrid input,
+.ttsSettingsGrid select,
+.ttsSettingsGrid textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #343945;
+  border-radius: 9px;
+  background: #101318;
+  padding: 8px 9px;
+  color: #e7e8ec;
+  font: inherit;
+  font-weight: 600;
+}
+
+.ttsSettingsGrid textarea {
+  resize: vertical;
+}
+
+.ttsSettingsGrid .wide,
+.ttsSettingsHint {
+  grid-column: 1 / -1;
+}
+
+.ttsSettingsHint {
+  margin: 0;
+  color: #717783;
+  font-size: 0.67rem;
+  line-height: 1.45;
+}
+
+.ttsSettingsHint code {
+  color: #aaa1dd;
+}
+
+.ttsSettingsGrid .fileInput {
+  padding: 6px;
+}
+
+.ttsSettingsGrid label > small {
+  color: #707681;
+  font-size: 0.64rem;
+  font-weight: 600;
+}
+
+.ttsSettingsGrid .ttsCheckbox {
+  display: flex;
+  grid-template-columns: none;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.ttsCheckbox input {
+  width: auto;
+}
+
 .jobEngineText {
   display: inline-flex;
   margin-top: 8px;
@@ -140,17 +299,32 @@
   font-weight: 760;
 }
 
+.jobEngineText + .jobEngineText {
+  margin-left: 6px;
+}
+
 @media (max-width: 620px) {
   .renderEngineHeading {
     align-items: flex-start;
   }
 
-  .renderEngineOption {
+  .renderEngineOption,
+  .ttsOptionSelect {
     grid-template-columns: 20px minmax(0, 1fr);
   }
 
-  .engineAvailability {
+  .engineAvailability,
+  .ttsBadge {
     grid-column: 2;
     justify-self: start;
+  }
+
+  .ttsSettingsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .ttsSettingsGrid .wide,
+  .ttsSettingsHint {
+    grid-column: auto;
   }
 }

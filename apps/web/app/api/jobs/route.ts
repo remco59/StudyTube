@@ -1,8 +1,8 @@
 import {randomUUID} from "node:crypto";
 import {mkdir,rm,writeFile} from "node:fs/promises";
-import {dirname,join} from "node:path";
+import {dirname,extname,join} from "node:path";
 import {parseStudyTubeProject,StudyTubeValidationError} from "@studytube/schema";
-import {runStudyTubeJob} from "@studytube/worker";
+import {resolveTtsProviderKind,runStudyTubeJob,type TtsJobSettings} from "@studytube/worker";
 import {parseRenderEngine,requireRenderEngine} from "@studytube/worker/render-engine";
 import {registerActiveJob,unregisterActiveJob} from "@/lib/activeJobs";
 import {cleanupCancelledJobWorkingData,cleanupExpiredJobs,getDataDir,listJobStatuses} from "@/lib/jobs";
@@ -28,6 +28,9 @@ export async function POST(request:Request){
 
     const renderEngine=parseRenderEngine(form.get("renderEngine"));
     await requireRenderEngine(renderEngine);
+    const ttsProvider=resolveTtsProviderKind(typeof form.get("ttsProvider")==="string"?String(form.get("ttsProvider")):undefined);
+    if(ttsProvider==="synthetic")throw new Error("Synthetic TTS is only available for development renders");
+    const ttsSettings=parseTtsSettings(form.get("ttsSettings"));
     const project=parseStudyTubeProject(JSON.parse(await projectPart.text()));
     const jobId=`web-${Date.now()}-${randomUUID().slice(0,8)}`;
     const dataDir=getDataDir();
@@ -52,13 +55,27 @@ export async function POST(request:Request){
       await writeFile(destination,new Uint8Array(await file.arrayBuffer()));
     }
 
+    if(ttsProvider==="omnivoice"){
+      const reference=form.get("ttsReference");
+      if(reference instanceof File&&reference.size>0){
+        if(reference.size>20_000_000){
+          await rm(uploadRoot,{recursive:true,force:true});
+          return Response.json({error:"OmniVoice reference audio is too large (max 20 MB)"},{status:413});
+        }
+        const extension=safeAudioExtension(reference.name);
+        const referencePath=join(uploadRoot,`tts-reference${extension}`);
+        await writeFile(referencePath,new Uint8Array(await reference.arrayBuffer()));
+        ttsSettings.omnivoice={...ttsSettings.omnivoice,referenceAudioPath:referencePath};
+      }
+    }
+
     const createdAt=new Date().toISOString();
     const jobRoot=join(dataDir,"jobs",jobId);
     await mkdir(jobRoot,{recursive:true});
-    await writeFile(join(jobRoot,"status.json"),`${JSON.stringify({jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt,projectTitle:project.metadata.title,renderEngine},null,2)}\n`,`utf8`);
+    await writeFile(join(jobRoot,"status.json"),`${JSON.stringify({jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt,projectTitle:project.metadata.title,renderEngine,ttsProvider},null,2)}\n`,`utf8`);
 
     const signal=registerActiveJob(jobId);
-    void runStudyTubeJob({projectPath,dataDir,jobId,signal,renderEngine})
+    void runStudyTubeJob({projectPath,dataDir,jobId,signal,renderEngine,ttsProvider,ttsSettings})
       .catch(()=>undefined)
       .finally(async()=>{
         unregisterActiveJob(jobId);
@@ -66,12 +83,69 @@ export async function POST(request:Request){
         await cleanupCancelledJobWorkingData(jobId).catch(()=>undefined);
       });
 
-    return Response.json({jobId,renderEngine},{status:202});
+    return Response.json({jobId,renderEngine,ttsProvider},{status:202});
   }catch(error){
     if(error instanceof StudyTubeValidationError) return Response.json({error:"Invalid StudyTube project",issues:error.issues},{status:422});
     return Response.json({error:error instanceof Error?error.message:"Could not start render"},{status:400});
   }
 }
+
+const parseTtsSettings=(value:FormDataEntryValue|null):TtsJobSettings=>{
+  if(typeof value!=="string"||!value.trim())return {};
+  const input=JSON.parse(value) as Record<string,unknown>;
+  if(!input||typeof input!=="object"||Array.isArray(input))throw new Error("TTS settings must be an object");
+  const result:TtsJobSettings={};
+
+  const edge=asRecord(input.edge);
+  if(edge){
+    const voice=optionalText(edge.voice,120,"Edge TTS voice");
+    const rate=optionalText(edge.rate,12,"Edge TTS rate");
+    if(rate&&!/^[+-]\d{1,3}%$/u.test(rate))throw new Error("Edge TTS rate must look like +0%, -5% or +10%");
+    result.edge={voice,rate};
+  }
+
+  const piper=asRecord(input.piper);
+  if(piper){
+    result.piper={
+      voice:optionalText(piper.voice,120,"Piper voice"),
+      lengthScale:optionalNumber(piper.lengthScale,.4,3,"Piper length scale"),
+    };
+  }
+
+  const omnivoice=asRecord(input.omnivoice);
+  if(omnivoice){
+    const steps=optionalNumber(omnivoice.numSteps,8,64,"OmniVoice steps");
+    if(steps!==undefined&&!Number.isInteger(steps))throw new Error("OmniVoice steps must be an integer");
+    result.omnivoice={
+      speed:optionalNumber(omnivoice.speed,.4,3,"OmniVoice speed"),
+      numSteps:steps,
+      instruction:optionalText(omnivoice.instruction,300,"OmniVoice voice instruction"),
+      normalizeText:typeof omnivoice.normalizeText==="boolean"?omnivoice.normalizeText:undefined,
+      referenceText:optionalText(omnivoice.referenceText,1200,"OmniVoice reference transcript"),
+    };
+  }
+  return result;
+};
+
+const asRecord=(value:unknown):Record<string,unknown>|undefined=>value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:undefined;
+const optionalText=(value:unknown,max:number,label:string)=>{
+  if(value===undefined||value===null||value==="")return undefined;
+  if(typeof value!=="string")throw new Error(`${label} must be text`);
+  const trimmed=value.trim();
+  if(trimmed.length>max)throw new Error(`${label} is too long`);
+  return trimmed||undefined;
+};
+const optionalNumber=(value:unknown,min:number,max:number,label:string)=>{
+  if(value===undefined||value===null||value==="")return undefined;
+  const parsed=typeof value==="number"?value:Number(value);
+  if(!Number.isFinite(parsed)||parsed<min||parsed>max)throw new Error(`${label} must be between ${min} and ${max}`);
+  return parsed;
+};
+
+const safeAudioExtension=(name:string)=>{
+  const extension=extname(name).toLowerCase();
+  return [".wav",".mp3",".m4a",".flac",".ogg",".webm"].includes(extension)?extension:".wav";
+};
 
 const safeRelativePath=(input:string)=>{
   const path=input.trim().replace(/^\.\//u,"");
