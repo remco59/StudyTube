@@ -40,6 +40,8 @@ CONTENT REQUIREMENTS
 - End the complete video with a recap of the main learning points.
 - Use questions occasionally to encourage active recall.
 - Keep on-screen text concise. Narration may contain more explanation than the visual.
+- Treat every visual field as a strict screen-space budget: titles should usually stay below 9 words, kinetic text below 16 words, comparison side titles below 5 words, comparison bodies below 18 words, and recap points below 14 words.
+- For comparison scenes, versusLabel must be a very short connector of at most 3 short words such as "vs.", "of", or "tegenover". Never put a sentence or the full comparison message in versusLabel.
 - Vary the visual presentation. Do not make every scene a title card or bullet list.
 - Write narration as natural spoken ${languageNames[language]}, not academic written prose.
 - Aim for approximately 130-160 spoken words per minute.
@@ -84,7 +86,7 @@ bigNumber
 {"value":"required","label":"required","context":"optional"}
 
 comparison
-{"left":{"title":"required","body":"optional","icon":"optional"},"right":{"title":"required","body":"optional","icon":"optional"},"versusLabel":"optional"}
+{"left":{"title":"required","body":"optional","icon":"optional"},"right":{"title":"required","body":"optional","icon":"optional"},"versusLabel":"optional, maximum 3 short words"}
 
 timeline
 {"title":"optional","items":[{"label":"required","title":"required","description":"optional"}]}

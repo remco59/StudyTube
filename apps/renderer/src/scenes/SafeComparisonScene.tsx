@@ -1,6 +1,6 @@
 import type {NormalizedScene} from "@studytube/core";
 import {colors,radii,shadows,spacing,typography} from "@studytube/design-system";
-import type {CSSProperties} from "react";
+import type {CSSProperties,ReactNode} from "react";
 import {interpolate,useCurrentFrame,useVideoConfig} from "remotion";
 
 type ComparisonSceneType=Extract<NormalizedScene["scene"],{type:"comparison"}>;
@@ -55,7 +55,7 @@ const ComparisonCard=({sideData,side,style}:{sideData:ComparisonSide;side:"left"
   </div>;
 };
 
-const FullStage=({children}:{children:React.ReactNode})=><div style={{alignItems:"center",display:"flex",flex:1,justifyContent:"center",minHeight:0,minWidth:0,width:"100%"}}>{children}</div>;
+const FullStage=({children}:{children:ReactNode})=><div style={{alignItems:"center",display:"flex",flex:1,justifyContent:"center",minHeight:0,minWidth:0,width:"100%"}}>{children}</div>;
 
 const revealStyle=(frame:number,fps:number,delayFrames:number,distance=34):CSSProperties=>{
   const duration=Math.max(8,Math.round(fps*.42));
