@@ -69,6 +69,16 @@ v1.0 reserves these scene types:
 - `document`
 - `documentHighlight`
 - `image`
+- `video`
+- `annotatedImage`
+- `bulletReveal`
+- `dataChart`
+- `matrix`
+- `cycle`
+- `multipleChoice`
+- `workedExample`
+- `hierarchy`
+- `quote`
 - `question`
 - `visualGag`
 - `recap`
