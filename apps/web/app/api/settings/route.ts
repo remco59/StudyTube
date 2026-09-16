@@ -1,20 +1,26 @@
-import {getAzurePublicConfiguration,getCloudProviderStatus,readAppSettings,writeAppSettings} from "@/lib/appSettings";
+import {getAzurePublicConfiguration,getCloudProviderStatus,getStockProviderStatus,readAppSettings,writeAppSettings} from "@/lib/appSettings";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 
 export async function GET(){
   try{
-    const [settings,status,azure]=await Promise.all([
+    const [settings,status,azure,stock]=await Promise.all([
       readAppSettings(),
       getCloudProviderStatus(),
       getAzurePublicConfiguration(),
+      getStockProviderStatus(),
     ]);
     return Response.json({
       settings,
       providers:{
         google:{configured:status.googleConfigured},
         azure:{configured:status.azureConfigured,region:azure.region,endpoint:azure.endpoint},
+        stock:{
+          pixabay:{configured:stock.pixabayConfigured},
+          pexels:{configured:stock.pexelsConfigured},
+          unsplash:{configured:stock.unsplashConfigured},
+        },
         cloudService:{available:status.serviceAvailable,error:status.error},
       },
     },{headers:{"cache-control":"no-store"}});
