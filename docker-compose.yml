@@ -127,6 +127,8 @@ services:
     ports:
       - "${STUDYTUBE_PORT:-3000}:3000"
     environment:
+      STUDYTUBE_AUTH_USER: ${STUDYTUBE_AUTH_USER:-admin}
+      STUDYTUBE_AUTH_PASSWORD: ${STUDYTUBE_AUTH_PASSWORD:-}
       STUDYTUBE_DATA_DIR: /data
       STUDYTUBE_CREDENTIALS_DIR: /credentials
       STUDYTUBE_RENDERER_ENTRY: /app/apps/renderer/src/index.ts
