@@ -3,6 +3,7 @@ import {mkdir,rm,writeFile} from "node:fs/promises";
 import {dirname,join} from "node:path";
 import {parseStudyTubeProject,StudyTubeValidationError} from "@studytube/schema";
 import {runStudyTubeJob} from "@studytube/worker";
+import {parseRenderEngine,requireRenderEngine} from "@studytube/worker/render-engine";
 import {registerActiveJob,unregisterActiveJob} from "@/lib/activeJobs";
 import {cleanupCancelledJobWorkingData,cleanupExpiredJobs,getDataDir,listJobStatuses} from "@/lib/jobs";
 
@@ -25,6 +26,8 @@ export async function POST(request:Request){
     if(!(projectPart instanceof File)) return Response.json({error:"Upload a .studytube.json project"},{status:400});
     if(projectPart.size>5_000_000) return Response.json({error:"Project JSON is too large"},{status:413});
 
+    const renderEngine=parseRenderEngine(form.get("renderEngine"));
+    await requireRenderEngine(renderEngine);
     const project=parseStudyTubeProject(JSON.parse(await projectPart.text()));
     const jobId=`web-${Date.now()}-${randomUUID().slice(0,8)}`;
     const dataDir=getDataDir();
@@ -52,10 +55,10 @@ export async function POST(request:Request){
     const createdAt=new Date().toISOString();
     const jobRoot=join(dataDir,"jobs",jobId);
     await mkdir(jobRoot,{recursive:true});
-    await writeFile(join(jobRoot,"status.json"),`${JSON.stringify({jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt,projectTitle:project.metadata.title},null,2)}\n`,`utf8`);
+    await writeFile(join(jobRoot,"status.json"),`${JSON.stringify({jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt,projectTitle:project.metadata.title,renderEngine},null,2)}\n`,`utf8`);
 
     const signal=registerActiveJob(jobId);
-    void runStudyTubeJob({projectPath,dataDir,jobId,signal})
+    void runStudyTubeJob({projectPath,dataDir,jobId,signal,renderEngine})
       .catch(()=>undefined)
       .finally(async()=>{
         unregisterActiveJob(jobId);
@@ -63,7 +66,7 @@ export async function POST(request:Request){
         await cleanupCancelledJobWorkingData(jobId).catch(()=>undefined);
       });
 
-    return Response.json({jobId},{status:202});
+    return Response.json({jobId,renderEngine},{status:202});
   }catch(error){
     if(error instanceof StudyTubeValidationError) return Response.json({error:"Invalid StudyTube project",issues:error.issues},{status:422});
     return Response.json({error:error instanceof Error?error.message:"Could not start render"},{status:400});
