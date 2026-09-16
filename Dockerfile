@@ -7,7 +7,7 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
     STUDYTUBE_RENDERER_ENTRY=/app/apps/renderer/src/index.ts
 
 # System packages mirror Remotion's documented Debian Chrome dependencies,
-# with ffmpeg/curl/fonts and Intel VAAPI support added for rendering and health checks.
+# with ffmpeg/curl/fonts, PDF rasterization and Intel VAAPI support added for rendering and health checks.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
@@ -29,6 +29,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxfixes3 \
     libxkbcommon-dev \
     libxrandr2 \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
