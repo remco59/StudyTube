@@ -201,14 +201,32 @@ const documentHighlightSceneSchema = z.object({
   }).strict(),
 }).strict();
 
+const imageSceneVisualSchema = z.object({
+  assetId: idSchema,
+  variant: z.enum(["full", "split-text", "split-image"]).optional(),
+  layout: z.enum(["image-left", "image-right"]).optional(),
+  splitRatio: z.enum(["40/60", "50/50", "60/40"]).optional(),
+  fit: z.enum(["contain", "cover"]).optional(),
+  title: z.string().max(140).optional(),
+  text: z.string().max(520).optional(),
+  caption: z.string().max(180).optional(),
+  secondaryAssetId: idSchema.optional(),
+  secondaryFit: z.enum(["contain", "cover"]).optional(),
+  secondaryCaption: z.string().max(180).optional(),
+}).strict().superRefine((visual, context) => {
+  const variant = visual.variant ?? "full";
+  if (variant === "split-text" && !visual.title?.trim() && !visual.text?.trim()) {
+    context.addIssue({code: "custom", path: ["text"], message: "split-text image scenes require title or text"});
+  }
+  if (variant === "split-image" && !visual.secondaryAssetId) {
+    context.addIssue({code: "custom", path: ["secondaryAssetId"], message: "split-image image scenes require secondaryAssetId"});
+  }
+});
+
 const imageSceneSchema = z.object({
   ...sceneBaseShape,
   type: z.literal("image"),
-  visual: z.object({
-    assetId: idSchema,
-    fit: z.enum(["contain", "cover"]).optional(),
-    caption: z.string().max(180).optional(),
-  }).strict(),
+  visual: imageSceneVisualSchema,
 }).strict();
 
 const questionSceneSchema = z.object({
@@ -497,6 +515,15 @@ export const studyTubeProjectSchema = z.object({
         const expectedType = scene.type === "image" || scene.type === "annotatedImage" ? "image" : "document";
         if (asset.type !== expectedType) {
           context.addIssue({code: "custom", path: ["chapters", chapterIndex, "scenes", sceneIndex, "visual", "assetId"], message: `Scene ${scene.type} requires a ${expectedType} asset`});
+        }
+      }
+
+      if (scene.type === "image" && (scene.visual.variant ?? "full") === "split-image" && scene.visual.secondaryAssetId) {
+        const secondaryAsset = assets[scene.visual.secondaryAssetId];
+        if (!secondaryAsset) {
+          context.addIssue({code: "custom", path: ["chapters", chapterIndex, "scenes", sceneIndex, "visual", "secondaryAssetId"], message: `Unknown asset: ${scene.visual.secondaryAssetId}`});
+        } else if (secondaryAsset.type !== "image") {
+          context.addIssue({code: "custom", path: ["chapters", chapterIndex, "scenes", sceneIndex, "visual", "secondaryAssetId"], message: "Scene image requires an image asset"});
         }
       }
     });
