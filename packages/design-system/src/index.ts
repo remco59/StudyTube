@@ -10,22 +10,81 @@ export const video = {
   },
 } as const;
 
-export const colors = {
-  canvas: "#101216",
-  canvasSoft: "#171a20",
-  surface: "#1d2129",
-  surfaceRaised: "#252a34",
-  text: "#f4f1e8",
-  textMuted: "#a9adb8",
-  accent: "#b3a4ff",
-  accentStrong: "#8f7cff",
-  accentSoft: "#302a52",
-  line: "#343946",
-  paper: "#f4f1e8",
-  paperText: "#17191d",
-  success: "#8ed9ad",
-  warning: "#f2cd73",
-} as const;
+const colorKeys = [
+  "canvas",
+  "canvasSoft",
+  "surface",
+  "surfaceRaised",
+  "text",
+  "textMuted",
+  "accent",
+  "accentStrong",
+  "accentSoft",
+  "line",
+  "paper",
+  "paperText",
+  "success",
+  "warning",
+] as const;
+
+type ColorKey = (typeof colorKeys)[number];
+type ColorPalette = Record<ColorKey, string>;
+type StylePresetId = "educational-explainer" | "midnight-focus";
+
+// Style presets swap only the color palette: typography, spacing and motion
+// stay identical so every preset shares StudyTube's one consistent layout.
+export const colorPresets: Record<StylePresetId, ColorPalette> = {
+  "educational-explainer": {
+    canvas: "#101216",
+    canvasSoft: "#171a20",
+    surface: "#1d2129",
+    surfaceRaised: "#252a34",
+    text: "#f4f1e8",
+    textMuted: "#a9adb8",
+    accent: "#b3a4ff",
+    accentStrong: "#8f7cff",
+    accentSoft: "#302a52",
+    line: "#343946",
+    paper: "#f4f1e8",
+    paperText: "#17191d",
+    success: "#8ed9ad",
+    warning: "#f2cd73",
+  },
+  "midnight-focus": {
+    canvas: "#0b1220",
+    canvasSoft: "#101a2c",
+    surface: "#152238",
+    surfaceRaised: "#1c2d47",
+    text: "#eef3ff",
+    textMuted: "#9fb0c9",
+    accent: "#5fd0ff",
+    accentStrong: "#33b8f2",
+    accentSoft: "#173247",
+    line: "#223350",
+    paper: "#eef3ff",
+    paperText: "#101a2c",
+    success: "#7be0b0",
+    warning: "#ffcd6b",
+  },
+};
+
+export const defaultStylePreset: StylePresetId = "educational-explainer";
+export type { StylePresetId };
+
+const cssVariableName = (key: ColorKey) => `--st-color-${key}`;
+
+// Every color token below resolves through a CSS custom property instead of a
+// literal value, so a single style-preset swap at the composition root
+// (see resolveStylePresetVariables) recolors every consumer with no changes
+// to the many files that already reference colors.<token>.
+export const colors: ColorPalette = Object.fromEntries(
+  colorKeys.map((key) => [key, `var(${cssVariableName(key)})`]),
+) as ColorPalette;
+
+export const resolveStylePresetVariables = (styleId?: string): Record<string, string> => {
+  const preset = colorPresets[styleId as StylePresetId] ?? colorPresets[defaultStylePreset];
+  return Object.fromEntries(colorKeys.map((key) => [cssVariableName(key), preset[key]]));
+};
 
 export const typography = {
   fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif",

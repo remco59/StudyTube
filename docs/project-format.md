@@ -26,7 +26,7 @@ Required fields:
 - `title`
 - `language`, for example `nl-NL`
 - `targetDuration` in seconds
-- `style`, currently `educational-explainer`
+- `style`, a design-system style preset: `educational-explainer` (default) or `midnight-focus`. Both presets share the same layout, typography and motion; only the color palette changes. See `packages/design-system`'s `colorPresets`.
 
 `targetDuration` is an authoring target. Final duration will later be calculated from generated narration audio.
 

@@ -36,6 +36,18 @@ describe("studyTubeProjectSchema", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts every design-system style preset", () => {
+    for (const style of ["educational-explainer", "midnight-focus"]) {
+      const result = safeParseStudyTubeProject({...validProject, metadata: {...validProject.metadata, style}});
+      expect(result.success).toBe(true);
+    }
+  });
+
+  it("rejects a style that isn't a defined design-system preset", () => {
+    const result = safeParseStudyTubeProject({...validProject, metadata: {...validProject.metadata, style: "cyberpunk"}});
+    expect(result.success).toBe(false);
+  });
+
   it("rejects unsupported schema versions", () => {
     const result = safeParseStudyTubeProject({...validProject, version: "2.0"});
     expect(result.success).toBe(false);

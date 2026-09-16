@@ -446,7 +446,7 @@ const metadataSchema = z.object({
   title: z.string().min(1).max(200),
   language: z.string().regex(/^[a-z]{2,3}(?:-[A-Z]{2})?$/, "Use a language tag such as nl-NL"),
   targetDuration: z.number().int().min(30).max(7200),
-  style: z.literal("educational-explainer"),
+  style: z.enum(["educational-explainer", "midnight-focus"]),
   description: z.string().max(600).optional(),
 }).strict();
 
