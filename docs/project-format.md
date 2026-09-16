@@ -32,7 +32,15 @@ Required fields:
 
 ### `assets`
 
-Optional dictionary keyed by stable asset ID. V1 defines `image` and `document` assets. The actual asset resolver is implemented in a later PR.
+Optional dictionary keyed by stable asset ID. V1 supports five asset types:
+
+- `image`: packaged image with required project-relative `path`; optional `alt` and stock-source metadata.
+- `video`: packaged video with required project-relative `path`; optional `alt` and stock-source metadata.
+- `document`: packaged document with required project-relative `path`; optional `title`.
+- `stockImage`: resolver request with required `query`, optional `provider` (`auto`, `pixabay`, `pexels`, `unsplash`) and optional `alt`. `path` is `""` until import resolves the request.
+- `stockVideo`: resolver request with required `query`, optional `provider` (`auto`, `pixabay`, `pexels`) and optional `alt`. `path` is `""` until import resolves the request.
+
+Packaged asset paths must never be remote URLs. A resolved packaged image/video may carry `source` metadata with provider, provider ID, source URL, creator and attribution fields, but those values describe provenance rather than replacing the local `path`.
 
 ### `chapters`
 
@@ -108,7 +116,8 @@ The schema also checks rules that cannot be expressed by field types alone:
 - chapter IDs are unique
 - scene IDs are unique globally
 - flowchart edges refer to existing nodes
-- image scenes refer to image assets
+- image/annotated-image scenes refer to image-compatible assets
+- video scenes refer to video-compatible assets
 - document scenes refer to document assets
 
 This makes validation useful before any expensive narration or render work starts.

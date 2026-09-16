@@ -23,8 +23,8 @@ A good project should:
 
 StudyTube uses one file per project:
 
-- **No assets:** return a `.studytube.json` file. It must not declare image or document assets.
-- **One or more assets:** return a `.studytube.zip` file. It must contain `project.studytube.json` at the archive root and every referenced asset at its exact project-relative path.
+- **No assets:** return a `.studytube.json` file and omit the `assets` object.
+- **One or more assets:** return a `.studytube.zip` file with `project.studytube.json` at the archive root. Include every local packaged asset at its exact project-relative path. `stockImage` and `stockVideo` declarations are resolver requests and intentionally do not have a local file yet; StudyTube resolves them during import.
 
 Example ZIP:
 
@@ -33,10 +33,11 @@ lesson.studytube.zip
 ├── project.studytube.json
 └── assets
     ├── cycle.png
+    ├── interview.mp4
     └── reader.pdf
 ```
 
-Do not use remote URLs as asset paths. Images found on the internet or generated with ChatGPT must be included as actual files in the ZIP.
+Do not use remote media URLs as asset paths. Images or videos downloaded from the internet, generated media and source documents must be included as actual files when declared as packaged `image`, `video` or `document` assets. Use `stockImage`/`stockVideo` resolver declarations instead of embedding a remote stock-media URL.
 
 ## Pacing
 
@@ -147,9 +148,17 @@ Never invent an author, URL, page number, quote, statistic or source. A source r
 
 ## Assets
 
-When an image genuinely improves understanding or visual variety, ChatGPT may use an image found online or generate one. Only reference it when the actual file can be included in the ZIP. Prefer generated, public-domain or openly reusable images when practical.
+StudyTube v1 supports five asset types:
 
-Declare packaged assets with project-relative paths:
+- `image`: a packaged local image. Required field: `path`. Optional: `alt` and resolved stock `source` metadata.
+- `video`: a packaged local video. Required field: `path`. Optional: `alt` and resolved stock `source` metadata.
+- `document`: a packaged local document. Required field: `path`. Optional: `title`.
+- `stockImage`: a stock-image resolver request. Required field: `query`; optional `provider` is `auto`, `pixabay`, `pexels` or `unsplash`; optional `alt`. Its `path` is empty until StudyTube resolves it during import.
+- `stockVideo`: a stock-video resolver request. Required field: `query`; optional `provider` is `auto`, `pixabay` or `pexels`; optional `alt`. Its `path` is empty until StudyTube resolves it during import.
+
+Use packaged assets when you already have or generate the exact media file. Use stock resolver assets when a search intent is enough and StudyTube should fetch the media during import. Never put a remote media URL in `path`.
+
+Example declarations:
 
 ```json
 "assets": {
@@ -158,15 +167,34 @@ Declare packaged assets with project-relative paths:
     "path": "assets/cycle.png",
     "alt": "Schematische onderzoekscyclus"
   },
+  "interview": {
+    "type": "video",
+    "path": "assets/interview.mp4",
+    "alt": "Interviewfragment"
+  },
   "reader": {
     "type": "document",
     "path": "assets/reader.pdf",
     "title": "Course reader"
+  },
+  "library-photo": {
+    "type": "stockImage",
+    "path": "",
+    "query": "university library students studying",
+    "provider": "auto",
+    "alt": "Studenten aan het studeren in een bibliotheek"
+  },
+  "city-footage": {
+    "type": "stockVideo",
+    "path": "",
+    "query": "people cycling through city street",
+    "provider": "pexels",
+    "alt": "Fietsers in een stedelijke straat"
   }
 }
 ```
 
-Paths must be project-relative. Never use absolute paths, `..` traversal, Windows drive paths, backslashes or web URLs as asset paths. Every declared asset must exist at the exact same path inside the `.studytube.zip`.
+For packaged `image`, `video` and `document` assets, paths must be project-relative. Never use absolute paths, `..` traversal, Windows drive paths, backslashes or web URLs as asset paths. Every packaged asset must exist at the exact same path inside the `.studytube.zip`. Stock resolver declarations are the exception: their path is `""` until import resolves and downloads them.
 
 ## Recommended chapter rhythm
 
@@ -190,16 +218,16 @@ Before returning a finished project, verify:
 2. `version` is `1.0` and style is `educational-explainer` or `midnight-focus`.
 3. IDs are unique and schema-safe.
 4. Every media scene references an existing asset of the correct type.
-5. Every declared asset is actually present in the ZIP at the declared path.
+5. Every packaged asset is actually present in the ZIP at the declared path; stock resolver requests use an empty path until import.
 6. Every flowchart edge points to a node in the same scene.
 7. Every scene type and motion intent is from the supported v1 lists above.
 8. On-screen copy stays compact.
 9. Narration word count roughly matches the requested duration.
 10. The sequence has enough visual variation to avoid a spoken PowerPoint.
 11. Claims stay faithful to the supplied material.
-12. No source, quotation, statistic or asset path is invented.
+12. No source, quotation, statistic or remote media path is invented.
 13. Projects without assets are returned as `.studytube.json`.
-14. Projects with assets are returned as `.studytube.zip` with `project.studytube.json` at the archive root.
+14. Projects with assets are returned as `.studytube.zip` with `project.studytube.json` at the archive root and all local packaged assets included.
 
 ## Reusable ChatGPT prompt
 
@@ -212,9 +240,9 @@ Language: nl-NL.
 
 Follow docs/AUTHORING.md exactly. Use only StudyTube v1 scene types and motion intents. Write natural spoken narration, keep on-screen copy compact, vary scene types based on explanatory purpose, and use chapter recaps. Do not invent facts, citations, quotations or statistics.
 
-You may use useful images from the internet or generate images when they improve the explanation, but only if you can include the actual image files in the final project package.
+You may use useful packaged images/videos/documents or stockImage/stockVideo resolver requests when media improves the explanation. Never put a remote media URL in project JSON.
 
-If the project has no assets, return one downloadable .studytube.json file. If it has assets, return one downloadable .studytube.zip containing project.studytube.json at the root and every declared asset at its project-relative path. Never leave assets as separate uploads or remote URLs.
+If the project has no assets, return one downloadable .studytube.json file. If it has assets, return one downloadable .studytube.zip containing project.studytube.json at the root and every local packaged asset at its project-relative path. Stock resolver declarations intentionally have no local file until StudyTube imports the project.
 
 Before output, check schema consistency, unique IDs, flowchart references, media asset types, package completeness and approximate narration word count.
 ```
