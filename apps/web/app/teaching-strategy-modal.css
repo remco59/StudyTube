@@ -21,7 +21,10 @@
 
 .teachingStrategyButton:focus-visible,
 .teachingStrategyModalClose:focus-visible,
-.teachingStrategyDoneButton:focus-visible {
+.teachingStrategyDoneButton:focus-visible,
+.teachingQuickToggle:focus-visible,
+.teachingHumorOptions button:focus-visible,
+.teachingAdvanced summary:focus-visible {
   outline: 2px solid #9b8cff;
   outline-offset: 2px;
 }
@@ -156,6 +159,157 @@
   padding-top: 0;
 }
 
+.teachingStrategyModal .teachingPresetOption.selected {
+  border-color: #7769c8;
+  background: rgba(123, 97, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(155, 140, 255, 0.1);
+}
+
+.teachingQuickGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.teachingQuickToggle,
+.teachingHumorCard {
+  min-width: 0;
+  border: 1px solid #343a45;
+  border-radius: 11px;
+  background: #15181d;
+  padding: 10px;
+}
+
+.teachingQuickToggle {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+  color: #a6abb5;
+  text-align: left;
+  cursor: pointer;
+}
+
+.teachingQuickToggle > span:last-child,
+.teachingHumorCard > span {
+  display: grid;
+  gap: 3px;
+}
+
+.teachingQuickToggle strong,
+.teachingHumorCard strong {
+  color: #e7e3dc;
+  font-size: 0.75rem;
+}
+
+.teachingQuickToggle small,
+.teachingHumorCard small {
+  color: #727884;
+  font-size: 0.66rem;
+  line-height: 1.35;
+}
+
+.teachingQuickToggle.selected {
+  border-color: #7769c8;
+  background: rgba(123, 97, 255, 0.12);
+}
+
+.teachingQuickToggle.selected .assetChoiceCheck {
+  border-color: #7b61ff;
+  background: #7b61ff;
+}
+
+.teachingHumorCard {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.teachingHumorOptions {
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  overflow: hidden;
+  border: 1px solid #343a45;
+  border-radius: 9px;
+}
+
+.teachingHumorOptions button {
+  border: 0;
+  border-right: 1px solid #343a45;
+  background: transparent;
+  padding: 8px 10px;
+  color: #858b96;
+  font-size: 0.68rem;
+  font-weight: 780;
+  cursor: pointer;
+}
+
+.teachingHumorOptions button:last-child {
+  border-right: 0;
+}
+
+.teachingHumorOptions button.selected {
+  background: rgba(123, 97, 255, 0.2);
+  color: #d8d2ff;
+}
+
+.teachingAdvanced {
+  overflow: hidden;
+  border: 1px solid rgba(76, 81, 93, 0.7);
+  border-radius: 12px;
+  background: rgba(13, 15, 18, 0.42);
+}
+
+.teachingAdvanced > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 13px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.teachingAdvanced > summary::-webkit-details-marker {
+  display: none;
+}
+
+.teachingAdvanced > summary > span:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.teachingAdvanced > summary strong {
+  color: #e7e3dc;
+  font-size: 0.78rem;
+}
+
+.teachingAdvanced > summary small {
+  color: #727884;
+  font-size: 0.67rem;
+  line-height: 1.35;
+}
+
+.teachingAdvancedChevron {
+  flex: 0 0 auto;
+  color: #8f95a0;
+  font-size: 1rem;
+  transition: transform 150ms ease;
+}
+
+.teachingAdvanced[open] .teachingAdvancedChevron {
+  transform: rotate(180deg);
+}
+
+.teachingAdvancedBody {
+  display: grid;
+  gap: 16px;
+  border-top: 1px solid rgba(76, 81, 93, 0.55);
+  padding: 14px;
+}
+
 .teachingStrategyModalFooter {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -210,6 +364,19 @@
   .teachingStrategyModalFooter {
     padding-left: 14px;
     padding-right: 14px;
+  }
+
+  .teachingQuickGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .teachingHumorCard {
+    grid-column: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .teachingHumorOptions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .teachingStrategyModalFooter {
