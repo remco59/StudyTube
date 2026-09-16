@@ -44,6 +44,12 @@ Then start the stack:
 docker compose up -d --build
 ```
 
+If this host has an Intel GPU and you want VAAPI rendering, opt in to the Intel device mapping with the supplied Compose override:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.intel.yml up -d --build
+```
+
 Open:
 
 ```text
@@ -52,9 +58,9 @@ http://<tower-ip>:3000
 
 Your browser will prompt for HTTP Basic credentials. The default username is `admin` unless `STUDYTUBE_AUTH_USER` is changed in `.env`.
 
-The standard StudyTube Compose configuration does **not** require an NVIDIA runtime. A normal `docker compose up -d --build` therefore starts on hosts without NVIDIA support. Intel `/dev/dri` remains exposed for VAAPI rendering on the intended Unraid host.
+The standard StudyTube Compose configuration does **not** require an NVIDIA runtime or `/dev/dri`, so a normal `docker compose up -d --build` starts on hosts without either GPU family. Intel `/dev/dri` is only mapped when `docker-compose.intel.yml` is included.
 
-NVIDIA is optional. StudyTube checks whether NVIDIA devices are actually visible inside the running container. If they are not, NVIDIA NVENC is simply shown as unavailable in the web interface while CPU and Intel rendering keep working.
+NVIDIA is optional. StudyTube checks whether NVIDIA devices are actually visible inside the running container. If they are not, NVIDIA NVENC is simply shown as unavailable in the web interface while CPU rendering keeps working.
 
 ## Access control
 
@@ -102,7 +108,7 @@ The first Piper start downloads its configured voice into `/mnt/user/appdata/stu
 The Create workflow lets you choose the encoder for every individual video:
 
 - **CPU (software)**: software H.264 encoding.
-- **Intel GPU (VAAPI)**: Intel `/dev/dri` with FFmpeg `h264_vaapi`.
+- **Intel GPU (VAAPI)**: Intel `/dev/dri` with FFmpeg `h264_vaapi`. Start Compose with `docker-compose.intel.yml` to expose the device.
 - **NVIDIA NVENC**: Remotion's H.264 NVENC path when NVIDIA is exposed to the container.
 
 StudyTube checks the hardware available inside the running container. If an encoder is not usable, its option is disabled in the web interface with a short explanation instead of silently falling back to CPU or preventing the app from starting.
@@ -112,6 +118,12 @@ You can verify the hardware exposed to the container with:
 ```bash
 docker exec studytube ls -la /dev/dri
 docker exec studytube ffmpeg -hide_banner -encoders | grep -E 'h264_vaapi|h264_nvenc'
+```
+
+If `/dev/dri` does not exist inside the container on an Intel-capable host, recreate the stack with:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.intel.yml up -d --build
 ```
 
 For NVIDIA specifically, the web UI only enables NVENC when `/dev/nvidia0` or `/dev/nvidiactl` is visible inside the container. Hosts without an NVIDIA runtime can ignore this entirely.
@@ -186,6 +198,13 @@ docker compose build --pull
 docker compose up -d
 ```
 
+If you use Intel VAAPI, include the Intel override in the build/recreate commands as well:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.intel.yml build --pull
+docker compose -f docker-compose.yml -f docker-compose.intel.yml up -d
+```
+
 Persistent job data and the narration cache are not removed by rebuilding the containers.
 
 ## Stop / restart
@@ -202,6 +221,8 @@ docker compose down
 docker compose up -d
 ```
 
+When running with the Intel override, use the same `-f docker-compose.yml -f docker-compose.intel.yml` arguments for lifecycle commands that recreate the stack.
+
 Do not add `-v` to `docker compose down` if you later switch from bind mounts to named volumes and want to keep them.
 
 ## Troubleshooting
@@ -216,7 +237,7 @@ docker compose up -d --force-recreate studytube
 
 ### A GPU option shows as unavailable
 
-Open the Render step and press **Detect** again. For Intel, verify `/dev/dri` exists inside the container. For NVIDIA, verify an NVIDIA device is actually exposed inside the container. StudyTube deliberately disables unavailable engines instead of silently falling back to CPU.
+Open the Render step and press **Detect** again. For Intel, verify the host has `/dev/dri` and that the stack was started with `docker-compose.intel.yml`. For NVIDIA, verify an NVIDIA device is actually exposed inside the container. StudyTube deliberately disables unavailable engines instead of silently falling back to CPU.
 
 ### Neural narration fails
 
