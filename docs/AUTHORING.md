@@ -2,7 +2,7 @@
 
 This is the content contract for generating StudyTube v1 projects with ChatGPT.
 
-StudyTube starts at the `.studytube.json` boundary. ChatGPT decides what matters, writes the spoken explanation and chooses semantic scene types. StudyTube owns exact timing, voice synthesis, layout, animation, captions and rendering.
+StudyTube starts at the project-file boundary. ChatGPT decides what matters, writes the spoken explanation, chooses semantic scene types and, when useful, supplies real media assets. StudyTube owns exact timing, voice synthesis, layout, animation, captions and rendering.
 
 ## Goal
 
@@ -19,9 +19,28 @@ A good project should:
 - stay faithful to the supplied source material;
 - preserve uncertainty and limitations.
 
+## Output package
+
+StudyTube uses one file per project:
+
+- **No assets:** return a `.studytube.json` file. It must not declare image or document assets.
+- **One or more assets:** return a `.studytube.zip` file. It must contain `project.studytube.json` at the archive root and every referenced asset at its exact project-relative path.
+
+Example ZIP:
+
+```text
+lesson.studytube.zip
+├── project.studytube.json
+└── assets
+    ├── cycle.png
+    └── reader.pdf
+```
+
+Do not use remote URLs as asset paths. Images found on the internet or generated with ChatGPT must be included as actual files in the ZIP.
+
 ## Pacing
 
-For Dutch narration, plan around 145–165 spoken words per minute. The renderer never trusts an estimated scene duration: Piper synthesizes the narration first and StudyTube measures the WAV.
+For Dutch narration, plan around 145–165 spoken words per minute. The renderer never trusts an estimated scene duration: narration is synthesized first and StudyTube measures the audio.
 
 Typical planning targets:
 
@@ -49,6 +68,8 @@ Prefer a new visual composition roughly every 6–15 seconds where the material 
 }
 ```
 
+`assets` may be omitted for text-only projects.
+
 All IDs must start with a letter or number and use only letters, numbers, hyphens and underscores. Scene IDs must be unique across the project.
 
 Do not put CSS, coordinates, frame numbers, React code, transition durations or camera keyframes in JSON. Describe semantic intent and let StudyTube render it.
@@ -68,9 +89,9 @@ Use only these v1 types:
 - `flowchart`: explicit directional relationships between nodes.
 - `diagram`: one central concept with 2–8 surrounding factors.
 - `iconScene`: scan-friendly set of examples or categories.
-- `image`: a real locally supplied image asset.
-- `document`: a real locally supplied document when source context matters visually.
-- `documentHighlight`: one short important passage/idea from a supplied document.
+- `image`: a real image asset included in the project ZIP.
+- `document`: a real document asset included in the project ZIP when source context matters visually.
+- `documentHighlight`: one short important passage/idea from an included document.
 - `question`: a real conceptual question or transition.
 - `visualGag`: occasional visual joke using an existing preset.
 - `recap`: 2–6 compact takeaways at the end of a substantial chapter.
@@ -116,13 +137,15 @@ Never invent an author, URL, page number, quote, statistic or source. A source r
 
 ## Assets
 
-Only declare files the user can provide alongside the JSON:
+When an image genuinely improves understanding or visual variety, ChatGPT may use an image found online or generate one. Only reference it when the actual file can be included in the ZIP. Prefer generated, public-domain or openly reusable images when practical.
+
+Declare packaged assets with project-relative paths:
 
 ```json
 "assets": {
   "cycle": {
     "type": "image",
-    "path": "assets/cycle.svg",
+    "path": "assets/cycle.png",
     "alt": "Schematische onderzoekscyclus"
   },
   "reader": {
@@ -133,7 +156,7 @@ Only declare files the user can provide alongside the JSON:
 }
 ```
 
-Paths must be project-relative. Never use absolute paths, `..` traversal, Windows drive paths or web URLs as local asset paths.
+Paths must be project-relative. Never use absolute paths, `..` traversal, Windows drive paths, backslashes or web URLs as asset paths. Every declared asset must exist at the exact same path inside the `.studytube.zip`.
 
 ## Recommended chapter rhythm
 
@@ -153,17 +176,20 @@ Do not follow this mechanically. Scene choice follows the material.
 
 Before returning a finished project, verify:
 
-1. JSON is valid and contains no Markdown fence.
+1. JSON is valid and contains no comments or placeholders.
 2. `version` is `1.0` and style is `educational-explainer`.
 3. IDs are unique and schema-safe.
 4. Every media scene references an existing asset of the correct type.
-5. Every flowchart edge points to a node in the same scene.
-6. No unsupported scene type or motion intent is used.
-7. On-screen copy stays compact.
-8. Narration word count roughly matches the requested duration.
-9. The sequence has enough visual variation to avoid a spoken PowerPoint.
-10. Claims stay faithful to the supplied material.
-11. No source, quotation, statistic or asset path is invented.
+5. Every declared asset is actually present in the ZIP at the declared path.
+6. Every flowchart edge points to a node in the same scene.
+7. No unsupported scene type or motion intent is used.
+8. On-screen copy stays compact.
+9. Narration word count roughly matches the requested duration.
+10. The sequence has enough visual variation to avoid a spoken PowerPoint.
+11. Claims stay faithful to the supplied material.
+12. No source, quotation, statistic or asset path is invented.
+13. Projects without assets are returned as `.studytube.json`.
+14. Projects with assets are returned as `.studytube.zip` with `project.studytube.json` at the archive root.
 
 ## Reusable ChatGPT prompt
 
@@ -174,9 +200,13 @@ Goal: a Dutch educational YouTube-style explainer for study and revision.
 Target duration: 15 minutes.
 Language: nl-NL.
 
-Follow docs/AUTHORING.md exactly. Use only StudyTube v1 scene types and motion intents. Write natural spoken narration, keep on-screen copy compact, vary scene types based on explanatory purpose, and use chapter recaps. Do not invent facts, citations, quotations, statistics or asset files. If no real asset files are supplied, do not use image/document scene types.
+Follow docs/AUTHORING.md exactly. Use only StudyTube v1 scene types and motion intents. Write natural spoken narration, keep on-screen copy compact, vary scene types based on explanatory purpose, and use chapter recaps. Do not invent facts, citations, quotations or statistics.
 
-Before output, check schema consistency, unique IDs, flowchart references, media asset types and approximate narration word count. Return only the complete `.studytube.json` content.
+You may use useful images from the internet or generate images when they improve the explanation, but only if you can include the actual image files in the final project package.
+
+If the project has no assets, return one downloadable .studytube.json file. If it has assets, return one downloadable .studytube.zip containing project.studytube.json at the root and every declared asset at its project-relative path. Never leave assets as separate uploads or remote URLs.
+
+Before output, check schema consistency, unique IDs, flowchart references, media asset types, package completeness and approximate narration word count.
 ```
 
 `examples/design-science-15min.studytube.json` is the reference for a substantial project, not a rigid content template.
