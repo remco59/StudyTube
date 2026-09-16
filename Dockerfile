@@ -34,6 +34,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY . .
+
+# Intel VAAPI needs the system FFmpeg, but Debian does not ship libfdk_aac.
+# Route Remotion's Intel-only FFmpeg calls through a compatibility wrapper
+# that rewrites libfdk_aac to the built-in AAC encoder before executing FFmpeg.
+RUN mkdir -p /opt/studytube-intel-ffmpeg \
+    && cp /app/docker/ffmpeg-intel/ffmpeg /opt/studytube-intel-ffmpeg/ffmpeg \
+    && chmod +x /opt/studytube-intel-ffmpeg/ffmpeg \
+    && ln -s /usr/bin/ffprobe /opt/studytube-intel-ffmpeg/ffprobe
+
 # Build-time tools such as TypeScript and @remotion/cli are devDependencies,
 # so install them before switching the runtime environment to production.
 RUN npm install

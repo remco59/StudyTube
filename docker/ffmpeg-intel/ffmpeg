@@ -1,0 +1,17 @@
+#!/usr/bin/env node
+
+const {spawnSync}=require("node:child_process");
+
+const rewrittenArgs=process.argv.slice(2).map((arg)=>arg==="libfdk_aac"?"aac":arg);
+
+if(process.env.STUDYTUBE_FFMPEG_WRAPPER_PRINT_ARGS==="1"){
+  process.stdout.write(`${JSON.stringify(rewrittenArgs)}\n`);
+  process.exit(0);
+}
+
+const result=spawnSync("/usr/bin/ffmpeg",rewrittenArgs,{stdio:"inherit"});
+if(result.error){
+  console.error(result.error);
+  process.exit(1);
+}
+process.exit(result.status??1);

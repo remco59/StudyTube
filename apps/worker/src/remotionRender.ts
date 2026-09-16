@@ -71,7 +71,7 @@ export const renderStudyTubeComposition=async(options:RenderStudyTubeOptions):Pr
     hardwareAcceleration:renderEngine==="nvidia"?"required":"disable",
     videoBitrate:renderEngine==="cpu"?null:"8M",
     disallowParallelEncoding:renderEngine==="intel",
-    binariesDirectory:renderEngine==="intel"?"/usr/bin":null,
+    binariesDirectory:renderEngine==="intel"?"/opt/studytube-intel-ffmpeg":null,
     ffmpegOverride:renderEngine==="intel"&&intelDevice?createIntelVaapiFfmpegOverride(intelDevice):undefined,
     cancelSignal:options.signal?makeRemotionCancelSignal(options.signal):undefined,
     onProgress:({progress,stitchStage})=>{void options.onProgress?.({progress:.12+progress*.88,stage:stitchStage});},

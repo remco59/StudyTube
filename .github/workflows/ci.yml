@@ -29,6 +29,16 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Test Intel FFmpeg compatibility wrapper
+        run: |
+          output="$(STUDYTUBE_FFMPEG_WRAPPER_PRINT_ARGS=1 node docker/ffmpeg-intel/ffmpeg -hide_banner -c:a libfdk_aac -b:a 320k)"
+          echo "$output"
+          echo "$output" | grep -q '"aac"'
+          if echo "$output" | grep -q 'libfdk_aac'; then
+            echo 'Intel FFmpeg wrapper did not replace libfdk_aac.'
+            exit 1
+          fi
+
       - name: Build
         run: npm run build
 
