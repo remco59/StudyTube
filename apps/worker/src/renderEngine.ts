@@ -48,11 +48,24 @@ const systemFfmpegHasEncoder=async(encoder:string):Promise<boolean>=>{
   }catch{return false;}
 };
 
+const systemFfmpegCanEncode=async(encoder:string):Promise<boolean>=>{
+  try{
+    await execFileAsync("/usr/bin/ffmpeg",[
+      "-hide_banner","-loglevel","error",
+      "-f","lavfi","-i","color=c=black:s=64x64:r=1",
+      "-frames:v","1","-an","-c:v",encoder,
+      "-f","null","-",
+    ],{timeout:8_000,maxBuffer:4_000_000});
+    return true;
+  }catch{return false;}
+};
+
 export const detectRenderCapabilities=async():Promise<RenderCapabilities>=>{
   const intelDevice=await findIntelRenderDevice();
   const intelEncoder=intelDevice?await systemFfmpegHasEncoder("h264_vaapi"):false;
   const nvidiaDevice=(await pathExists("/dev/nvidia0"))||(await pathExists("/dev/nvidiactl"));
   const nvidiaArchitecture=process.arch==="x64";
+  const nvidiaEncoder=nvidiaDevice&&nvidiaArchitecture?await systemFfmpegCanEncode("h264_nvenc"):false;
 
   return {
     engines:[
@@ -66,8 +79,8 @@ export const detectRenderCapabilities=async():Promise<RenderCapabilities>=>{
       {
         id:"nvidia",
         label:renderEngineLabels.nvidia,
-        available:nvidiaDevice&&nvidiaArchitecture,
-        detail:!nvidiaDevice?"NVIDIA device is not available inside the container.":!nvidiaArchitecture?"Remotion NVENC requires the Linux x64 renderer build.":"NVIDIA device is available; Remotion will require NVENC for this job.",
+        available:Boolean(nvidiaDevice&&nvidiaArchitecture&&nvidiaEncoder),
+        detail:!nvidiaDevice?"NVIDIA device is not available inside the container.":!nvidiaArchitecture?"Remotion NVENC requires the Linux x64 renderer build.":!nvidiaEncoder?"The NVIDIA device is visible, but an h264_nvenc encoder probe failed. Check the NVIDIA driver/runtime and video capability inside the container.":"NVIDIA device and h264_nvenc encoder probe are available.",
       },
     ],
     ...(intelDevice?{intelDevice}:{}),
