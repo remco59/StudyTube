@@ -8,6 +8,7 @@ import {registerActiveJob,unregisterActiveJob} from "@/lib/activeJobs";
 import {getGoogleChirpUsage,type GoogleChirpUsage} from "@/lib/googleChirpUsage";
 import {assertJobId,getDataDir,listJobStatuses,pruneOldRenders} from "@/lib/jobs";
 import {parseProjectPackage,stageProjectPackage,StudyTubePackageError} from "@/lib/projectPackage";
+import {persistQueuedJobRecovery} from "@/lib/queuedJobRecovery";
 import {enqueueRenderJob,getAvailableQueueSlots,RenderQueueFullError,withQueuePosition} from "@/lib/renderQueue";
 
 export const runtime="nodejs";
@@ -90,6 +91,7 @@ export async function POST(request:Request){
         jobRoot=join(dataDir,"jobs",jobId);
         await mkdir(jobRoot,{recursive:true});
         await writeFile(join(jobRoot,"status.json"),`${JSON.stringify({jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt,projectTitle:project.metadata.title,renderEngine,ttsProvider,...(baseJobIdInput?{baseJobId:baseJobIdInput}:{})},null,2)}\n`,`utf8`);
+        await persistQueuedJobRecovery(jobId,{projectPath,dataDir,uploadRoot,renderEngine,ttsProvider,ttsSettings,baseJobId:baseJobIdInput});
 
         const signal=registerActiveJob(jobId);
         try{

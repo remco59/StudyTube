@@ -58,6 +58,10 @@ export const markJobInterrupted=async(jobId:string):Promise<StudyTubeJobStatus>=
 export const readLiveJobStatus=async(jobId:string):Promise<StudyTubeJobStatus>=>{
   const status=await readJobStatus(jobId);
   if(isTerminalState(status.state)||isActiveJob(jobId))return status;
+  if(status.state==="queued"){
+    const {recoverQueuedJob}=await import("@/lib/queuedJobRecovery");
+    if(await recoverQueuedJob(jobId))return readJobStatus(jobId);
+  }
   return markJobInterrupted(jobId);
 };
 
