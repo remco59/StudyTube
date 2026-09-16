@@ -35,32 +35,32 @@ type StylePresetId = "educational-explainer" | "midnight-focus";
 // stay identical so every preset shares StudyTube's one consistent layout.
 export const colorPresets: Record<StylePresetId, ColorPalette> = {
   "educational-explainer": {
-    canvas: "#101216",
-    canvasSoft: "#171a20",
-    surface: "#1d2129",
-    surfaceRaised: "#252a34",
-    text: "#f4f1e8",
-    textMuted: "#a9adb8",
-    accent: "#b3a4ff",
-    accentStrong: "#8f7cff",
-    accentSoft: "#302a52",
-    line: "#343946",
-    paper: "#f4f1e8",
-    paperText: "#17191d",
-    success: "#8ed9ad",
-    warning: "#f2cd73",
+    canvas: "#08131f",
+    canvasSoft: "#0a2024",
+    surface: "#0d1b26",
+    surfaceRaised: "#102630",
+    text: "#f3f7f6",
+    textMuted: "#a8bab9",
+    accent: "#1fc7a3",
+    accentStrong: "#0ca783",
+    accentSoft: "#123b38",
+    line: "#1c4448",
+    paper: "#f3f1e9",
+    paperText: "#18201f",
+    success: "#78d6a5",
+    warning: "#f0c744",
   },
   "midnight-focus": {
-    canvas: "#0b1220",
-    canvasSoft: "#101a2c",
-    surface: "#152238",
-    surfaceRaised: "#1c2d47",
-    text: "#eef3ff",
-    textMuted: "#9fb0c9",
-    accent: "#5fd0ff",
-    accentStrong: "#33b8f2",
-    accentSoft: "#173247",
-    line: "#223350",
+    canvas: "#09111f",
+    canvasSoft: "#0d1829",
+    surface: "#101d2f",
+    surfaceRaised: "#14253a",
+    text: "#eef4ff",
+    textMuted: "#9cacc3",
+    accent: "#61cdea",
+    accentStrong: "#34b1d5",
+    accentSoft: "#143543",
+    line: "#203b50",
     paper: "#eef3ff",
     paperText: "#101a2c",
     success: "#7be0b0",
@@ -124,15 +124,15 @@ export const spacing = {
 } as const;
 
 export const radii = {
-  sm: 14,
-  md: 24,
-  lg: 36,
+  sm: 10,
+  md: 18,
+  lg: 26,
   pill: 999,
 } as const;
 
 export const shadows = {
-  soft: "0 18px 70px rgba(0, 0, 0, 0.22)",
-  raised: "0 28px 110px rgba(0, 0, 0, 0.34)",
+  soft: "0 10px 36px rgba(0, 0, 0, 0.12)",
+  raised: "0 18px 64px rgba(0, 0, 0, 0.2)",
 } as const;
 
 export const motion = {

@@ -1,5 +1,5 @@
 import type {NormalizedScene} from "@studytube/core";
-import {colors,radii,shadows,spacing,typography} from "@studytube/design-system";
+import {colors,radii,spacing,typography} from "@studytube/design-system";
 import type {CSSProperties} from "react";
 import {interpolate,useCurrentFrame,useVideoConfig} from "remotion";
 import {getFlowchartPositions,type Point} from "./structuredLayout";
@@ -39,87 +39,29 @@ export const SafeFlowchartScene=({scene}:{scene:FlowchartSceneType})=>{
     const sameRow=Math.abs(fromCenter.y-toCenter.y)<20;
     const midX=(from.x+to.x)/2;
     const midY=(from.y+to.y)/2;
-    const path=sameRow
-      ?`M ${from.x} ${from.y} L ${to.x} ${to.y}`
-      :`M ${from.x} ${from.y} C ${from.x} ${midY}, ${to.x} ${midY}, ${to.x} ${to.y}`;
-    return {
-      edge,
-      index,
-      path,
-      labelX:midX,
-      labelY:sameRow?Math.min(fromCenter.y,toCenter.y)-82:midY-36,
-    };
+    const path=sameRow?`M ${from.x} ${from.y} L ${to.x} ${to.y}`:`M ${from.x} ${from.y} C ${from.x} ${midY}, ${to.x} ${midY}, ${to.x} ${to.y}`;
+    return {edge,index,path,labelX:midX,labelY:sameRow?Math.min(fromCenter.y,toCenter.y)-82:midY-36};
   }).filter((value):value is NonNullable<typeof value>=>value!==null);
 
   return <div style={{display:"flex",flex:1,flexDirection:"column",justifyContent:"center",minHeight:0,minWidth:0,width:"100%"}}>
-    <div style={{...typography.heading,fontSize:54,marginBottom:spacing.lg}}>{scene.visual.title??"Flowchart"}</div>
+    <div style={{...typography.heading,fontSize:52,lineHeight:1.05,marginBottom:spacing.xl,maxWidth:1200}}>{scene.visual.title??"Flowchart"}</div>
     <div style={{height:CANVAS_HEIGHT,margin:"0 auto",position:"relative",width:CANVAS_WIDTH}}>
       <svg height={CANVAS_HEIGHT} style={{left:0,overflow:"visible",position:"absolute",top:0,zIndex:1}} width={CANVAS_WIDTH}>
-        <defs>
-          <marker id="studytube-safe-arrow" markerHeight="8" markerWidth="8" orient="auto" refX="7" refY="4">
-            <path d="M0,0 L8,4 L0,8 z" fill={colors.accentStrong}/>
-          </marker>
-        </defs>
+        <defs><marker id="studytube-safe-arrow" markerHeight="8" markerWidth="8" orient="auto" refX="7" refY="4"><path d="M0,0 L8,4 L0,8 z" fill={colors.accentStrong}/></marker></defs>
         {edges.map(({edge,index,path})=>{
           const progress=interpolate(frame,[6+index*2,18+index*2],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
-          return <path
-            key={`${edge.from}-${edge.to}-${index}`}
-            d={path}
-            fill="none"
-            markerEnd="url(#studytube-safe-arrow)"
-            opacity={progress}
-            stroke={colors.accentStrong}
-            strokeWidth={5}
-          />;
+          return <path key={`${edge.from}-${edge.to}-${index}`} d={path} fill="none" markerEnd="url(#studytube-safe-arrow)" opacity={progress} stroke={colors.accentStrong} strokeWidth={4}/>;
         })}
       </svg>
 
-      {edges.map(({edge,index,labelX,labelY})=>edge.label?<div
-        key={`label-${edge.from}-${edge.to}-${index}`}
-        style={{
-          ...reveal(frame,fps,6+index*2),
-          backgroundColor:colors.canvas,
-          border:`1px solid ${colors.line}`,
-          borderRadius:radii.pill,
-          color:colors.textMuted,
-          fontSize:20,
-          fontWeight:650,
-          left:labelX,
-          lineHeight:1.12,
-          maxWidth:280,
-          padding:"6px 10px",
-          position:"absolute",
-          textAlign:"center",
-          top:labelY,
-          transform:"translate(-50%, -50%)",
-          width:getFlowchartLabelWidth(edge.label),
-          zIndex:4,
-        }}
-      >{edge.label}</div>:null)}
+      {edges.map(({edge,index,labelX,labelY})=>edge.label?<div key={`label-${edge.from}-${edge.to}-${index}`} style={{...reveal(frame,fps,6+index*2),backgroundColor:colors.canvas,borderRadius:radii.pill,color:colors.textMuted,fontSize:20,fontWeight:650,left:labelX,lineHeight:1.12,maxWidth:280,padding:"6px 10px",position:"absolute",textAlign:"center",top:labelY,transform:"translate(-50%, -50%)",width:getFlowchartLabelWidth(edge.label),zIndex:4}}>{edge.label}</div>:null)}
 
       {scene.visual.nodes.map((node,index)=>{
         const point=positions[index];
         const labelFontSize=node.label.length>24?24:node.label.length>16?26:29;
-        return <div
-          key={node.id}
-          style={{
-            ...reveal(frame,fps,index*2),
-            backgroundColor:colors.surfaceRaised,
-            border:`1px solid ${colors.line}`,
-            borderRadius:radii.md,
-            boxShadow:shadows.soft,
-            left:point.x-NODE_HALF_WIDTH,
-            minHeight:100,
-            minWidth:0,
-            padding:`${spacing.sm}px ${spacing.md}px`,
-            position:"absolute",
-            top:point.y-50,
-            width:NODE_WIDTH,
-            zIndex:2,
-          }}
-        >
-          <div style={{fontSize:labelFontSize,fontWeight:800,lineHeight:1.05,overflowWrap:"anywhere"}}>{node.label}</div>
-          {node.detail?<div style={{color:colors.textMuted,fontSize:21,lineHeight:1.2,marginTop:8,overflowWrap:"anywhere"}}>{node.detail}</div>:null}
+        return <div key={node.id} style={{...reveal(frame,fps,index*2),left:point.x-NODE_HALF_WIDTH,minHeight:100,minWidth:0,padding:`${spacing.sm}px ${spacing.md}px`,position:"absolute",textAlign:"center",top:point.y-50,width:NODE_WIDTH,zIndex:2}}>
+          <div style={{borderBottom:`2px solid ${index===0?colors.accent:colors.line}`,fontSize:labelFontSize,fontWeight:800,lineHeight:1.08,overflowWrap:"anywhere",paddingBottom:10}}>{node.label}</div>
+          {node.detail?<div style={{color:colors.textMuted,fontSize:21,lineHeight:1.25,marginTop:10,overflowWrap:"anywhere"}}>{node.detail}</div>:null}
         </div>;
       })}
     </div>
