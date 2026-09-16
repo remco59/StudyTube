@@ -64,6 +64,7 @@ services:
       AZURE_SPEECH_ENDPOINT: ${AZURE_SPEECH_ENDPOINT:-}
     volumes:
       - ${STUDYTUBE_CREDENTIALS_PATH:-./credentials}:/credentials:ro
+      - ${STUDYTUBE_DATA_PATH:-./data}/cloud-tts:/data
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:5070/health"]
       interval: 30s
