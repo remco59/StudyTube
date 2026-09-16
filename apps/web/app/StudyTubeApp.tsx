@@ -3,7 +3,9 @@
 import Link from "next/link";
 import {useCallback,useEffect,useMemo,useRef,useState} from "react";
 import {buildChatGptPrompt,type PromptAssetAmount,type PromptAssetType} from "../lib/chatgptPrompt";
+import {defaultPromptTeachingConfig,type PromptTeachingConfig} from "../lib/promptConfig";
 import {PromptAssetSettings} from "./PromptAssetSettings";
+import {PromptTeachingSettings} from "./PromptTeachingSettings";
 import {applyProjectLanguage,defaultTtsSelection,serializeTtsSettings,TtsSelector,type TtsProviderChoice,type TtsSelection} from "./TtsSelector";
 
 type RequiredAsset={id:string;type:"image"|"document";path:string;fileName:string};
@@ -52,6 +54,7 @@ export const StudyTubeApp=()=>{
   const [promptDuration,setPromptDuration]=useState(8);
   const [promptLanguage,setPromptLanguage]=useState<PromptLanguage>("nl-NL");
   const [promptScope,setPromptScope]=useState("");
+  const [promptTeaching,setPromptTeaching]=useState<PromptTeachingConfig>(defaultPromptTeachingConfig);
   const [promptUseAssets,setPromptUseAssets]=useState(false);
   const [promptAssetTypes,setPromptAssetTypes]=useState<PromptAssetType[]>(["web-images","generated-images"]);
   const [promptAssetAmount,setPromptAssetAmount]=useState<PromptAssetAmount>("some");
@@ -210,6 +213,7 @@ export const StudyTubeApp=()=>{
       targetDurationMinutes:promptDuration,
       language:promptLanguage,
       scope:promptScope,
+      teaching:promptTeaching,
       useAssets:promptUseAssets,
       assetTypes:promptAssetTypes,
       assetAmount:promptAssetAmount,
@@ -371,8 +375,8 @@ export const StudyTubeApp=()=>{
                 <div className="promptCopy">
                   <p className="eyebrow">ChatGPT prompt</p>
                   <h2>Generate a StudyTube project.</h2>
-                  <p>Choose whether ChatGPT should create a text-only <code>.studytube.json</code> or package visual assets in a <code>.studytube.zip</code>.</p>
-                  <div className="promptSteps"><span>1 · Add study material</span><span>2 · Choose prompt settings</span><span>3 · Download JSON or ZIP</span></div>
+                  <p>Choose how the material should be taught, then decide whether ChatGPT should create a text-only <code>.studytube.json</code> or package visual assets in a <code>.studytube.zip</code>.</p>
+                  <div className="promptSteps"><span>1 · Add study material</span><span>2 · Choose teaching strategy</span><span>3 · Download JSON or ZIP</span></div>
                 </div>
                 <div className="promptBuilder">
                   <div className="promptFields">
@@ -380,6 +384,7 @@ export const StudyTubeApp=()=>{
                     <label><span>Language</span><select value={promptLanguage} onChange={(event)=>setPromptLanguage(event.target.value as PromptLanguage)}><option value="nl-NL">Dutch (nl-NL)</option><option value="en-US">English (en-US)</option></select></label>
                   </div>
                   <label className="scopeField"><span>Chapters or scope <em>optional</em></span><textarea rows={3} placeholder="e.g. Chapters 2–4, focus on Design Science and artefacts" value={promptScope} onChange={(event)=>setPromptScope(event.target.value)}/></label>
+                  <PromptTeachingSettings value={promptTeaching} onChange={setPromptTeaching}/>
                   <PromptAssetSettings enabled={promptUseAssets} assetTypes={promptAssetTypes} amount={promptAssetAmount} onEnabledChange={setPromptUseAssets} onAssetTypesChange={setPromptAssetTypes} onAmountChange={setPromptAssetAmount}/>
                   <button className="promptButton" onClick={()=>void copyPrompt()}>{promptCopied?"✓ Prompt copied":"Copy ChatGPT prompt"}</button>
                   <p className="promptHint">Targets schema v1.0 · {formatDuration(Math.round(promptDuration*60))} video · {promptUseAssets?".studytube.zip with assets":"text-only .studytube.json"}</p>
