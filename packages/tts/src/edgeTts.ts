@@ -50,7 +50,7 @@ export class EdgeTtsHttpProvider implements TtsProvider{
     this.defaultRate=options.defaultRate??DEFAULT_EDGE_TTS_RATE;
     this.timeoutMs=options.timeoutMs??180_000;
     this.fetchImpl=options.fetchImpl??fetch;
-    this.id=`edge-tts-http-v1:${this.defaultVoice}:${this.defaultRate}`;
+    this.id=`edge-tts-http-v2:${this.defaultVoice}:${this.defaultRate}`;
   }
 
   async synthesize(request:TtsRequest,outputPath:string):Promise<TtsProviderResult>{

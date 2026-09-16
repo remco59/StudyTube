@@ -13,6 +13,19 @@ export const isCompactVersusLabel=(value:string):boolean=>{
   return trimmed.length<=10&&trimmed.split(/\s+/u).length<=2;
 };
 
+export const getCompactVersusColumnWidth=(value:string):number=>{
+  const length=value.trim().length;
+  return Math.min(240,Math.max(130,94+length*16));
+};
+
+export const getCompactVersusFontSize=(value:string):number=>{
+  const length=value.trim().length;
+  if(length>=9)return 40;
+  if(length>=7)return 44;
+  if(length>=5)return 48;
+  return 56;
+};
+
 export const SafeComparisonScene=({scene}:{scene:ComparisonSceneType})=>{
   const frame=useCurrentFrame();
   const {fps}=useVideoConfig();
@@ -20,10 +33,12 @@ export const SafeComparisonScene=({scene}:{scene:ComparisonSceneType})=>{
   const compact=isCompactVersusLabel(versusLabel);
 
   if(compact){
+    const middleColumnWidth=getCompactVersusColumnWidth(versusLabel);
+    const middleFontSize=getCompactVersusFontSize(versusLabel);
     return <FullStage>
-      <div style={{alignItems:"stretch",display:"grid",gap:spacing.lg,gridTemplateColumns:"minmax(0,1fr) 130px minmax(0,1fr)",maxWidth:1540,minWidth:0,width:"100%"}}>
+      <div style={{alignItems:"stretch",display:"grid",gap:spacing.lg,gridTemplateColumns:`minmax(0,1fr) ${middleColumnWidth}px minmax(0,1fr)`,maxWidth:1540,minWidth:0,width:"100%"}}>
         <ComparisonCard sideData={scene.visual.left} side="left" style={revealStyle(frame,fps,0,-36)}/>
-        <div style={{...revealStyle(frame,fps,5),alignItems:"center",color:colors.accent,display:"flex",fontSize:56,fontWeight:900,justifyContent:"center",minWidth:0,textAlign:"center",overflowWrap:"anywhere"}}>{versusLabel}</div>
+        <div style={{...revealStyle(frame,fps,5),alignItems:"center",color:colors.accent,display:"flex",fontSize:middleFontSize,fontWeight:900,justifyContent:"center",lineHeight:1,minWidth:0,textAlign:"center",whiteSpace:"nowrap"}}>{versusLabel}</div>
         <ComparisonCard sideData={scene.visual.right} side="right" style={revealStyle(frame,fps,8,36)}/>
       </div>
     </FullStage>;

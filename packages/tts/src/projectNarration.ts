@@ -7,6 +7,7 @@ import {
 } from "@studytube/core";
 import type {StudyTubeProject} from "@studytube/schema";
 import {DEFAULT_DUTCH_LANGUAGE,NarrationAudioCache} from "./index";
+import {createWordTimedCaptionCues,readEmbeddedWordTimings} from "./wordTimings";
 
 export type PreparedNarrationTrack={
   cachePath:string;
@@ -64,13 +65,21 @@ export const prepareProjectNarration=async(
     for(const normalizedScene of chapter.scenes){
       const audio=audioBySceneId.get(normalizedScene.scene.id);
       if(!audio) throw new Error(`Missing prepared narration for scene ${normalizedScene.scene.id}`);
+      const wordTimings=await readEmbeddedWordTimings(audio.path).catch(()=>undefined);
+      const timedCaptions=wordTimings?createWordTimedCaptionCues(
+        normalizedScene.scene.narration,
+        wordTimings,
+        audio.durationSeconds,
+        normalizedProject.fps,
+        options.captionMaxWords,
+      ):undefined;
       tracks[normalizedScene.scene.id]={
         cachePath:audio.path,
         durationSeconds:audio.durationSeconds,
         cacheHit:audio.cacheHit,
         providerId:audio.providerId,
         voice:audio.voice,
-        captions:createPhraseCaptionCues(
+        captions:timedCaptions??createPhraseCaptionCues(
           normalizedScene.scene.narration,
           audio.durationSeconds,
           normalizedProject.fps,
