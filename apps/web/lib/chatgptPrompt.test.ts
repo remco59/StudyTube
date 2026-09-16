@@ -1,6 +1,6 @@
 import {describe,expect,it} from "vitest";
 import {buildChatGptPrompt} from "./chatgptPrompt";
-import {applyTeachingPreset,defaultPromptTeachingConfig} from "./promptConfig";
+import {applyTeachingPreset,defaultPromptTeachingConfig,matchesTeachingPreset} from "./promptConfig";
 
 describe("buildChatGptPrompt asset options",()=>{
   it("forces a text-only JSON project when assets are disabled",()=>{
@@ -11,7 +11,7 @@ describe("buildChatGptPrompt asset options",()=>{
     expect(prompt).not.toContain('"assets": {}');
   });
 
-  it("includes selected asset types and qualitative amount when enabled",()=>{
+  it("turns A lot into a concrete YouTube-style asset density target",()=>{
     const prompt=buildChatGptPrompt({
       targetDurationMinutes:8,
       language:"en-US",
@@ -23,7 +23,11 @@ describe("buildChatGptPrompt asset options",()=>{
     expect(prompt).toContain("Return one finished downloadable .studytube.zip file");
     expect(prompt).toContain("Asset types: AI-generated images, source documents/pages");
     expect(prompt).toContain("Asset amount: A lot");
-    expect(prompt).toContain("Use assets very frequently throughout the video");
+    expect(prompt).toContain("Treat images and video as a primary visual language");
+    expect(prompt).toContain("roughly 32-60 asset-backed scenes");
+    expect(prompt).toContain("about one every 8-15 seconds");
+    expect(prompt).toContain("Aim for roughly two thirds of image/video scenes to be full-frame");
+    expect(prompt).toContain("feel like an edited YouTube explainer rather than a narrated slide deck");
     expect(prompt).toContain('"assets": {},\n  "chapters": []');
     expect(prompt).not.toContain('"assets": {},\\n');
     expect(prompt).toContain("annotatedImage");
@@ -41,23 +45,27 @@ describe("buildChatGptPrompt asset options",()=>{
     });
     expect(prompt).toContain('"variant":"full | split-text | split-image"');
     expect(prompt).toContain('"splitRatio":"40/60 | 50/50 | 60/40"');
+    expect(prompt).toContain("Use full for photographic or cinematic visuals that should dominate the frame");
     expect(prompt).toContain("split-text when an image supports a concise explanation");
     expect(prompt).toContain("split-image for side-by-side comparison");
     expect(prompt).toContain("Prefer fit=contain for portrait, square, screenshot, diagram or infographic assets");
     expect(prompt).toContain("every split-image scene references a valid second image or stockImage asset");
   });
 
-  it("describes provider-backed stock images and video",()=>{
+  it("pushes recurring stock video when a high asset amount is selected",()=>{
     const prompt=buildChatGptPrompt({
       targetDurationMinutes:5,
       language:"en-US",
       scope:"",
       useAssets:true,
       assetTypes:["web-images","stock-video"],
-      assetAmount:"some",
+      assetAmount:"lots",
     });
     expect(prompt).toContain("stock images (Pixabay, Pexels or Unsplash)");
     expect(prompt).toContain("stock video (Pixabay or Pexels)");
+    expect(prompt).toContain("Stock video should recur throughout the project rather than appearing once or twice");
+    expect(prompt).toContain("about one video scene for every two to three image scenes");
+    expect(prompt).toContain("Prefer fit=cover for cinematic full-frame B-roll");
     expect(prompt).toContain('"type": "stockImage"');
     expect(prompt).toContain('"type": "stockVideo"');
     expect(prompt).toContain('"provider": "auto"');
@@ -67,13 +75,16 @@ describe("buildChatGptPrompt asset options",()=>{
 });
 
 describe("buildChatGptPrompt teaching strategy",()=>{
-  it("uses the adaptive balanced teaching defaults",()=>{
+  it("uses examples, metaphors and light humor in the balanced defaults",()=>{
     const prompt=buildChatGptPrompt({targetDurationMinutes:8,language:"nl-NL",scope:""});
     expect(prompt).toContain("TEACHING STRATEGY");
     expect(prompt).toContain("Primary explanation method: auto");
     expect(prompt).toContain("Explanation depth: balanced");
     expect(prompt).toContain("Use active-recall questions regularly");
     expect(prompt).toContain("Surface likely misconceptions");
+    expect(prompt).toContain("Use concrete real-world examples regularly");
+    expect(prompt).toContain("Use metaphors and analogies proactively");
+    expect(prompt).toContain("Use occasional light humor");
   });
 
   it("honors a preset and explicit personal-example context",()=>{
@@ -101,5 +112,11 @@ describe("buildChatGptPrompt teaching strategy",()=>{
     const prompt=buildChatGptPrompt({targetDurationMinutes:6,language:"nl-NL",scope:"",teaching});
     expect(prompt).toContain("only from context the learner has actually shared");
     expect(prompt).toContain("Never invent personal details");
+  });
+
+  it("marks an untouched preset as selected and stops matching after customization",()=>{
+    const preset=applyTeachingPreset("teach-from-scratch");
+    expect(matchesTeachingPreset(preset,"teach-from-scratch")).toBe(true);
+    expect(matchesTeachingPreset({...preset,techniques:{...preset.techniques,humor:"off"}},"teach-from-scratch")).toBe(false);
   });
 });
