@@ -37,9 +37,9 @@ Open:
 http://<tower-ip>:3000
 ```
 
-The standard StudyTube Compose configuration exposes both Intel `/dev/dri` and the NVIDIA GPU to the renderer. This happens once when the container is created. After that, the encoder is selected per video from the web interface; no alternate Compose command is needed to switch render engines.
+The standard StudyTube Compose configuration does **not** require an NVIDIA runtime. A normal `docker compose up -d --build` therefore starts on hosts without NVIDIA support. Intel `/dev/dri` remains exposed for VAAPI rendering on the intended Unraid host.
 
-The Unraid host therefore needs its Intel graphics device available at `/dev/dri` and a working NVIDIA Container Toolkit/runtime for NVIDIA access.
+NVIDIA is optional. StudyTube checks whether NVIDIA devices are actually visible inside the running container. If they are not, NVIDIA NVENC is simply shown as unavailable in the web interface while CPU and Intel rendering keep working.
 
 ## Narration provider
 
@@ -73,9 +73,9 @@ The Create workflow lets you choose the encoder for every individual video:
 
 - **CPU (software)**: software H.264 encoding.
 - **Intel GPU (VAAPI)**: Intel `/dev/dri` with FFmpeg `h264_vaapi`.
-- **NVIDIA NVENC**: Remotion's H.264 NVENC path.
+- **NVIDIA NVENC**: Remotion's H.264 NVENC path when NVIDIA is exposed to the container.
 
-StudyTube checks the hardware available inside the running container. If an encoder is not usable, its option is disabled in the web interface with a short explanation instead of silently falling back to CPU.
+StudyTube checks the hardware available inside the running container. If an encoder is not usable, its option is disabled in the web interface with a short explanation instead of silently falling back to CPU or preventing the app from starting.
 
 You can verify the hardware exposed to the container with:
 
@@ -84,7 +84,7 @@ docker exec studytube ls -la /dev/dri
 docker exec studytube ffmpeg -hide_banner -encoders | grep -E 'h264_vaapi|h264_nvenc'
 ```
 
-The important distinction is that Docker grants hardware access when the container starts, while StudyTube chooses which already-exposed device to use when each render job starts.
+For NVIDIA specifically, the web UI only enables NVENC when `/dev/nvidia0` or `/dev/nvidiactl` is visible inside the container. Hosts without an NVIDIA runtime can ignore this entirely.
 
 ## Configuration
 
@@ -176,7 +176,7 @@ Do not add `-v` to `docker compose down` if you later switch from bind mounts to
 
 ### A GPU option shows as unavailable
 
-Open the Render step and press **Detect** again. For Intel, verify `/dev/dri` exists inside the container. For NVIDIA, verify the NVIDIA driver/container runtime is working. StudyTube deliberately disables unavailable engines instead of silently falling back to CPU.
+Open the Render step and press **Detect** again. For Intel, verify `/dev/dri` exists inside the container. For NVIDIA, verify an NVIDIA device is actually exposed inside the container. StudyTube deliberately disables unavailable engines instead of silently falling back to CPU.
 
 ### Neural narration fails
 
