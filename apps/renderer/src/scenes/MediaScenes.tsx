@@ -1,7 +1,7 @@
 import type {NormalizedScene,NormalizedStudyTubeProject} from "@studytube/core";
 import {colors,radii,shadows,spacing,typography} from "@studytube/design-system";
 import type {ReactNode} from "react";
-import {Img,interpolate,useCurrentFrame,useVideoConfig} from "remotion";
+import {Img,OffthreadVideo,interpolate,useCurrentFrame,useVideoConfig} from "remotion";
 import {resolveProjectAsset} from "../assets/assetResolver";
 
 type Scene=NormalizedScene["scene"];
@@ -12,6 +12,7 @@ export const MediaSceneRenderer=({normalizedScene,project}:{normalizedScene:Norm
   const {scene}=normalizedScene;
   switch(scene.type){
     case "image": return <ImageScene project={project} scene={scene}/>;
+    case "video": return <VideoScene project={project} scene={scene}/>;
     case "document": return <DocumentScene project={project} scene={scene}/>;
     case "documentHighlight": return <DocumentHighlightScene project={project} scene={scene}/>;
     case "visualGag": return <VisualGagScene scene={scene}/>;
@@ -23,6 +24,11 @@ const ImageScene=({project,scene}:{project:Project;scene:SceneOf<"image">})=>{
   const frame=useCurrentFrame();const {fps}=useVideoConfig();const asset=resolveProjectAsset(project,scene.visual.assetId,"image");
   const zoom=interpolate(frame,[0,fps*5],[1.02,1.08],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
   return <Stage><div style={{display:"flex",flexDirection:"column",gap:spacing.md,height:"100%",width:"100%"}}><div style={{border:`1px solid ${colors.line}`,borderRadius:radii.lg,boxShadow:shadows.raised,flex:1,minHeight:0,overflow:"hidden",position:"relative"}}><Img src={asset.src} alt={asset.alt??scene.visual.caption??asset.id} style={{height:"100%",objectFit:scene.visual.fit??"cover",transform:`scale(${zoom})`,width:"100%"}}/><div style={{background:"linear-gradient(transparent, rgba(16,18,22,.7))",bottom:0,height:180,left:0,position:"absolute",right:0}}/></div>{scene.visual.caption?<div style={{...typography.body,color:colors.textMuted,fontSize:30}}>{scene.visual.caption}</div>:null}</div></Stage>;
+};
+
+const VideoScene=({project,scene}:{project:Project;scene:SceneOf<"video">})=>{
+  const asset=resolveProjectAsset(project,scene.visual.assetId,"video");
+  return <Stage><div style={{display:"flex",flexDirection:"column",gap:spacing.md,height:"100%",width:"100%"}}><div style={{border:`1px solid ${colors.line}`,borderRadius:radii.lg,boxShadow:shadows.raised,flex:1,minHeight:0,overflow:"hidden",position:"relative"}}><OffthreadVideo src={asset.src} muted style={{height:"100%",objectFit:scene.visual.fit??"cover",width:"100%"}}/><div style={{background:"linear-gradient(transparent, rgba(16,18,22,.55))",bottom:0,height:150,left:0,pointerEvents:"none",position:"absolute",right:0}}/></div>{scene.visual.caption?<div style={{...typography.body,color:colors.textMuted,fontSize:30}}>{scene.visual.caption}</div>:null}</div></Stage>;
 };
 
 const DocumentScene=({project,scene}:{project:Project;scene:SceneOf<"document">})=>{const asset=resolveProjectAsset(project,scene.visual.assetId,"document");return <Stage centered><Paper><DocumentHeader title={asset.title??filename(asset.path)} page={scene.visual.page}/><DocumentLines/><DocumentLines short/><DocumentLines/><div style={{...typography.body,color:colors.paperText,fontSize:31,marginTop:spacing.lg}}>{scene.visual.caption??"Bronmateriaal wordt als document-context in de video gebruikt."}</div></Paper></Stage>;};
