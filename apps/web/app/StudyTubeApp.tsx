@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {useCallback,useEffect,useMemo,useRef,useState} from "react";
 import {buildChatGptPrompt} from "../lib/chatgptPrompt";
 import {applyProjectLanguage,defaultTtsSelection,serializeTtsSettings,TtsSelector,type TtsProviderChoice,type TtsSelection} from "./TtsSelector";
@@ -20,6 +21,18 @@ type JobLogEntry={timestamp:string;event:string;message:string;data?:unknown};
 type PromptLanguage="nl-NL"|"en-US";
 type AppTab="create"|"jobs";
 type CreateStep=0|1|2;
+type StoredTtsSettings={
+  provider:TtsProviderChoice;
+  language:string;
+  edge:TtsSelection["edge"];
+  piper:TtsSelection["piper"];
+  omnivoice:Omit<TtsSelection["omnivoice"],"referenceFile">;
+  chatterbox:Omit<TtsSelection["chatterbox"],"referenceFile">;
+  xtts:Omit<TtsSelection["xtts"],"referenceFile">;
+  googleChirp:TtsSelection["googleChirp"];
+  azure:TtsSelection["azure"];
+};
+type SettingsResponse={settings:{promptDurationMinutes:number;promptLanguage:PromptLanguage;renderEngine:RenderEngine;tts:StoredTtsSettings}};
 
 const renderEngineChoices:RenderEngine[]=["cpu","intel","nvidia"];
 
@@ -90,6 +103,24 @@ export const StudyTubeApp=()=>{
     const timer=window.setTimeout(()=>void refreshRenderCapabilities(),0);
     return()=>window.clearTimeout(timer);
   },[refreshRenderCapabilities]);
+
+  useEffect(()=>{
+    let cancelled=false;
+    const timer=window.setTimeout(()=>{
+      void fetch("/api/settings",{cache:"no-store"}).then(async(response)=>{
+        if(!response.ok)return;
+        const result=await response.json() as SettingsResponse;
+        if(cancelled||!result.settings)return;
+        setPromptDuration(result.settings.promptDurationMinutes);
+        setPromptLanguage(result.settings.promptLanguage);
+        setRenderEngine(result.settings.renderEngine);
+        setTtsSelection(toTtsSelection(result.settings.tts));
+      }).catch(()=>{
+        // Keep built-in defaults when persisted settings are temporarily unavailable.
+      });
+    },0);
+    return()=>{cancelled=true;window.clearTimeout(timer);};
+  },[]);
 
   useEffect(()=>{
     if(activeTab!=="jobs")return;
@@ -265,6 +296,7 @@ export const StudyTubeApp=()=>{
       <nav className="appTabs" aria-label="StudyTube sections">
         <button type="button" className={activeTab==="create"?"active":""} onClick={()=>setActiveTab("create")}>Create</button>
         <button type="button" className={activeTab==="jobs"?"active":""} onClick={openJobs}>Jobs{jobs.length>0?<span>{jobs.length}</span>:null}</button>
+        <Link href="/settings">Settings</Link>
       </nav>
       <span className="badge topbarBadge">Local render</span>
     </header>
@@ -469,6 +501,17 @@ const formatDiffSummary=(diff:ProjectDiff)=>{
   ].filter((part):part is string=>part!==null);
   return parts.length>0?parts.join(", "):"No changes";
 };
+const toTtsSelection=(value:StoredTtsSettings):TtsSelection=>({
+  provider:value.provider,
+  language:value.language,
+  edge:value.edge,
+  piper:value.piper,
+  omnivoice:{...value.omnivoice,referenceFile:null},
+  chatterbox:{...value.chatterbox,referenceFile:null},
+  xtts:{...value.xtts,referenceFile:null},
+  googleChirp:value.googleChirp,
+  azure:value.azure,
+});
 const copyText=async(text:string)=>{
   if(navigator.clipboard?.writeText){await navigator.clipboard.writeText(text);return;}
   const textarea=document.createElement("textarea");

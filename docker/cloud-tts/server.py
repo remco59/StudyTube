@@ -1,4 +1,5 @@
 import html
+import json
 import os
 from pathlib import Path
 from typing import Optional
@@ -11,6 +12,9 @@ from pydantic import BaseModel, Field
 
 app = FastAPI(title="StudyTube Cloud TTS")
 _google_client = None
+_google_credentials_mtime = None
+CREDENTIALS_DIR = Path(os.getenv("STUDYTUBE_CREDENTIALS_DIR", "/credentials"))
+CLOUD_SETTINGS_PATH = CREDENTIALS_DIR / "cloud.json"
 
 
 class CloudSynthesisRequest(BaseModel):
@@ -19,22 +23,50 @@ class CloudSynthesisRequest(BaseModel):
     voice: str
 
 
+def google_credentials_path() -> Optional[Path]:
+    value = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
+    return Path(value) if value else None
+
+
 def google_configured() -> bool:
-    path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "").strip()
-    return bool(path and Path(path).is_file())
+    path = google_credentials_path()
+    return bool(path and path.is_file())
+
+
+def read_cloud_settings() -> dict:
+    try:
+        value = json.loads(CLOUD_SETTINGS_PATH.read_text(encoding="utf-8"))
+        return value if isinstance(value, dict) else {}
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return {}
+
+
+def azure_values():
+    settings = read_cloud_settings()
+    key = os.getenv("AZURE_SPEECH_KEY", "").strip() or str(settings.get("azureSpeechKey", "")).strip()
+    region = os.getenv("AZURE_SPEECH_REGION", "").strip() or str(settings.get("azureSpeechRegion", "")).strip()
+    endpoint = os.getenv("AZURE_SPEECH_ENDPOINT", "").strip() or str(settings.get("azureSpeechEndpoint", "")).strip()
+    return key, region, endpoint
 
 
 def azure_configured() -> bool:
-    return bool(os.getenv("AZURE_SPEECH_KEY", "").strip() and os.getenv("AZURE_SPEECH_REGION", "").strip())
+    key, region, _ = azure_values()
+    return bool(key and region)
 
 
 def get_google_client():
-    global _google_client
-    if not google_configured():
-        raise HTTPException(status_code=503, detail="Google Chirp is not configured. Put credentials at /credentials/google.json or set GOOGLE_APPLICATION_CREDENTIALS.")
-    if _google_client is None:
+    global _google_client, _google_credentials_mtime
+    path = google_credentials_path()
+    if not path or not path.is_file():
+        raise HTTPException(status_code=503, detail="Google Chirp is not configured. Open StudyTube Settings and upload Google credentials.")
+    try:
+        mtime = path.stat().st_mtime_ns
+    except OSError as exc:
+        raise HTTPException(status_code=503, detail=f"Could not read Google Cloud credentials: {exc}") from exc
+    if _google_client is None or _google_credentials_mtime != mtime:
         try:
             _google_client = texttospeech.TextToSpeechClient()
+            _google_credentials_mtime = mtime
         except Exception as exc:
             raise HTTPException(status_code=503, detail=f"Could not initialize Google Cloud TTS: {exc}") from exc
     return _google_client
@@ -67,12 +99,11 @@ def google_synthesize(request: CloudSynthesisRequest):
 
 @app.post("/azure/synthesize")
 def azure_synthesize(request: CloudSynthesisRequest):
-    key = os.getenv("AZURE_SPEECH_KEY", "").strip()
-    region = os.getenv("AZURE_SPEECH_REGION", "").strip()
+    key, region, configured_endpoint = azure_values()
     if not key or not region:
-        raise HTTPException(status_code=503, detail="Azure Speech is not configured. Set AZURE_SPEECH_KEY and AZURE_SPEECH_REGION.")
+        raise HTTPException(status_code=503, detail="Azure Speech is not configured. Open StudyTube Settings and add Azure Speech credentials.")
 
-    endpoint = os.getenv("AZURE_SPEECH_ENDPOINT", "").strip() or f"https://{region}.tts.speech.microsoft.com/cognitiveservices/v1"
+    endpoint = configured_endpoint or f"https://{region}.tts.speech.microsoft.com/cognitiveservices/v1"
     ssml = (
         f"<speak version='1.0' xml:lang='{html.escape(request.language, quote=True)}'>"
         f"<voice name='{html.escape(request.voice, quote=True)}'>"
