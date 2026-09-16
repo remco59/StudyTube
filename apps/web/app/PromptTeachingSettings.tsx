@@ -3,11 +3,13 @@
 import {useCallback,useEffect,useRef,useState} from "react";
 import {
   applyTeachingPreset,
+  matchesTeachingPreset,
   summarizeTeachingConfig,
   teachingPresets,
   type PromptActiveRecall,
   type PromptExplanationDepth,
   type PromptExplanationMethod,
+  type PromptHumorLevel,
   type PromptLearningGoal,
   type PromptPersonalExampleMode,
   type PromptTeachingConfig,
@@ -47,10 +49,8 @@ const learningGoalChoices:{id:PromptLearningGoal;label:string}[]=[
   {id:"transfer",label:"Transfer to practice"},
 ];
 
-const techniqueChoices:{key:Exclude<keyof PromptTeachingConfig["techniques"],"activeRecall">;label:string;detail:string}[]=[
+const techniqueChoices:{key:Exclude<keyof PromptTeachingConfig["techniques"],"activeRecall"|"humor"|"realWorldExamples"|"analogies">;label:string;detail:string}[]=[
   {key:"personalExamples",label:"Personal examples",detail:"Use relevant context you have actually shared"},
-  {key:"realWorldExamples",label:"Real-world examples",detail:"Make abstract ideas concrete"},
-  {key:"analogies",label:"Analogies",detail:"Build intuition with useful comparisons"},
   {key:"counterExamples",label:"Counterexamples",detail:"Show what a concept is not"},
   {key:"misconceptions",label:"Common misconceptions",detail:"Correct likely confusion explicitly"},
   {key:"repeatKeyConcepts",label:"Spaced reinforcement",detail:"Revisit key ideas later in a new way"},
@@ -65,6 +65,12 @@ const recallChoices:{id:PromptActiveRecall;label:string}[]=[
   {id:"low",label:"Low"},
   {id:"medium",label:"Medium"},
   {id:"high",label:"High"},
+];
+
+const humorChoices:{id:PromptHumorLevel;label:string}[]=[
+  {id:"off",label:"Off"},
+  {id:"light",label:"Light"},
+  {id:"playful",label:"Playful"},
 ];
 
 const personalModes:{id:PromptPersonalExampleMode;label:string;detail:string}[]=[
@@ -98,7 +104,7 @@ export const PromptTeachingSettings=({value,onChange}:Props)=>{
     };
   },[closeModal,open]);
 
-  const setTechnique=(key:Exclude<keyof PromptTeachingConfig["techniques"],"activeRecall">,enabled:boolean)=>{
+  const setTechnique=(key:Exclude<keyof PromptTeachingConfig["techniques"],"activeRecall"|"humor">,enabled:boolean)=>{
     onChange({...value,techniques:{...value.techniques,[key]:enabled}});
   };
 
@@ -121,7 +127,7 @@ export const PromptTeachingSettings=({value,onChange}:Props)=>{
       onClick={()=>setOpen(true)}
     >
       <span className="teachingStrategyButtonCopy">
-        <strong>Teaching strategy</strong>
+        <strong>Teaching mode</strong>
         <small>{summary}</small>
       </span>
       <span className="teachingStrategyButtonAction">Customize</span>
@@ -138,21 +144,22 @@ export const PromptTeachingSettings=({value,onChange}:Props)=>{
       >
         <header className="teachingStrategyModalHeader">
           <div>
-            <p className="eyebrow">Teaching strategy</p>
+            <p className="eyebrow">Teaching mode</p>
             <h2 id="teaching-strategy-title">How should StudyTube teach this?</h2>
-            <p id="teaching-strategy-description">Control how StudyTube explains the material, not just what it covers.</p>
+            <p id="teaching-strategy-description">Pick a preset, then optionally adjust examples, metaphors and humor. Everything else lives under Advanced.</p>
           </div>
-          <button ref={closeRef} type="button" className="teachingStrategyModalClose" aria-label="Close teaching strategy" onClick={closeModal}>×</button>
+          <button ref={closeRef} type="button" className="teachingStrategyModalClose" aria-label="Close teaching mode" onClick={closeModal}>×</button>
         </header>
 
         <div className="teachingStrategyModalBody">
           <div className="teachingPromptBlock">
             <div className="teachingPromptSection teachingPromptSectionFirst">
-              <div className="assetPromptLabel"><strong>Preset</strong><span>Start with a learning strategy, then customize it</span></div>
+              <div className="assetPromptLabel"><strong>Teaching preset</strong><span>One click changes the overall teaching style</span></div>
               <div className="teachingPresetGrid">
                 {(Object.keys(teachingPresets) as PromptTeachingPreset[]).map((id)=>{
                   const preset=teachingPresets[id];
-                  return <button type="button" key={id} className="teachingPresetOption" onClick={()=>applyPreset(id)}>
+                  const selected=matchesTeachingPreset(value,id);
+                  return <button type="button" key={id} className={`teachingPresetOption${selected?" selected":""}`} aria-pressed={selected} onClick={()=>applyPreset(id)}>
                     <strong>{preset.label}</strong><small>{preset.description}</small>
                   </button>;
                 })}
@@ -160,64 +167,89 @@ export const PromptTeachingSettings=({value,onChange}:Props)=>{
             </div>
 
             <div className="teachingPromptSection">
-              <div className="assetPromptLabel"><strong>Explanation method</strong><span>Auto can vary method per concept</span></div>
-              <div className="teachingMethodGrid">
-                {methodChoices.map((choice)=><button type="button" key={choice.id} className={`teachingMethodOption${value.method===choice.id?" selected":""}`} aria-pressed={value.method===choice.id} onClick={()=>onChange({...value,method:choice.id})}>
-                  <strong>{choice.label}</strong><small>{choice.detail}</small>
-                </button>)}
+              <div className="assetPromptLabel"><strong>Quick style controls</strong><span>The settings most likely to change the feel of the video</span></div>
+              <div className="teachingQuickGrid">
+                <button type="button" className={`teachingQuickToggle${value.techniques.realWorldExamples?" selected":""}`} aria-pressed={value.techniques.realWorldExamples} onClick={()=>setTechnique("realWorldExamples",!value.techniques.realWorldExamples)}>
+                  <span className="assetChoiceCheck">{value.techniques.realWorldExamples?"✓":""}</span>
+                  <span><strong>More examples</strong><small>Explain abstract ideas through concrete situations</small></span>
+                </button>
+                <button type="button" className={`teachingQuickToggle${value.techniques.analogies?" selected":""}`} aria-pressed={value.techniques.analogies} onClick={()=>setTechnique("analogies",!value.techniques.analogies)}>
+                  <span className="assetChoiceCheck">{value.techniques.analogies?"✓":""}</span>
+                  <span><strong>Metaphors</strong><small>Use memorable comparisons to build intuition</small></span>
+                </button>
+                <div className="teachingHumorCard">
+                  <span><strong>Humor</strong><small>Keep the explanation human without turning it into a comedy sketch</small></span>
+                  <div className="teachingHumorOptions">
+                    {humorChoices.map((choice)=><button type="button" key={choice.id} className={value.techniques.humor===choice.id?"selected":""} aria-pressed={value.techniques.humor===choice.id} onClick={()=>onChange({...value,techniques:{...value.techniques,humor:choice.id}})}>{choice.label}</button>)}
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="teachingPromptSection">
-              <div className="assetPromptLabel"><strong>Explanation depth</strong><span>Independent from academic level</span></div>
-              <div className="teachingDepthOptions">
-                {depthChoices.map((choice)=><button type="button" key={choice.id} className={`teachingDepthOption${value.depth===choice.id?" selected":""}`} aria-pressed={value.depth===choice.id} onClick={()=>onChange({...value,depth:choice.id})}>
-                  <strong>{choice.label}</strong><small>{choice.detail}</small>
-                </button>)}
-              </div>
-            </div>
+            <details className="teachingAdvanced">
+              <summary><span><strong>Advanced settings</strong><small>Explanation method, depth, learning goals, recall and detailed teaching techniques</small></span><span className="teachingAdvancedChevron" aria-hidden="true">⌄</span></summary>
+              <div className="teachingAdvancedBody">
+                <div className="teachingPromptSection teachingPromptSectionFirst">
+                  <div className="assetPromptLabel"><strong>Explanation method</strong><span>Auto can vary method per concept</span></div>
+                  <div className="teachingMethodGrid">
+                    {methodChoices.map((choice)=><button type="button" key={choice.id} className={`teachingMethodOption${value.method===choice.id?" selected":""}`} aria-pressed={value.method===choice.id} onClick={()=>onChange({...value,method:choice.id})}>
+                      <strong>{choice.label}</strong><small>{choice.detail}</small>
+                    </button>)}
+                  </div>
+                </div>
 
-            <div className="teachingPromptSection">
-              <div className="assetPromptLabel"><strong>Learning emphasis</strong><span>Choose one or more</span></div>
-              <div className="teachingGoalGrid">
-                {learningGoalChoices.map((choice)=>{
-                  const selected=value.learningGoals.includes(choice.id);
-                  return <button type="button" key={choice.id} className={`teachingGoalOption${selected?" selected":""}`} aria-pressed={selected} onClick={()=>toggleLearningGoal(choice.id)}>
-                    <span>{selected?"✓":""}</span>{choice.label}
-                  </button>;
-                })}
-              </div>
-            </div>
+                <div className="teachingPromptSection">
+                  <div className="assetPromptLabel"><strong>Explanation depth</strong><span>Independent from academic level</span></div>
+                  <div className="teachingDepthOptions">
+                    {depthChoices.map((choice)=><button type="button" key={choice.id} className={`teachingDepthOption${value.depth===choice.id?" selected":""}`} aria-pressed={value.depth===choice.id} onClick={()=>onChange({...value,depth:choice.id})}>
+                      <strong>{choice.label}</strong><small>{choice.detail}</small>
+                    </button>)}
+                  </div>
+                </div>
 
-            <div className="teachingPromptSection">
-              <div className="assetPromptLabel"><strong>Teaching techniques</strong><span>Mix techniques as needed</span></div>
-              <div className="teachingTechniqueGrid">
-                {techniqueChoices.map((choice)=>{
-                  const selected=value.techniques[choice.key];
-                  return <button type="button" key={choice.key} className={`teachingTechniqueOption${selected?" selected":""}`} aria-pressed={selected} onClick={()=>setTechnique(choice.key,!selected)}>
-                    <span className="assetChoiceCheck">{selected?"✓":""}</span>
-                    <span><strong>{choice.label}</strong><small>{choice.detail}</small></span>
-                  </button>;
-                })}
-              </div>
-            </div>
+                <div className="teachingPromptSection">
+                  <div className="assetPromptLabel"><strong>Learning emphasis</strong><span>Choose one or more</span></div>
+                  <div className="teachingGoalGrid">
+                    {learningGoalChoices.map((choice)=>{
+                      const selected=value.learningGoals.includes(choice.id);
+                      return <button type="button" key={choice.id} className={`teachingGoalOption${selected?" selected":""}`} aria-pressed={selected} onClick={()=>toggleLearningGoal(choice.id)}>
+                        <span>{selected?"✓":""}</span>{choice.label}
+                      </button>;
+                    })}
+                  </div>
+                </div>
 
-            <div className="teachingPromptSection">
-              <div className="assetPromptLabel"><strong>Active recall</strong><span>How often the video should ask the learner to retrieve or apply knowledge</span></div>
-              <div className="assetAmountOptions">
-                {recallChoices.map((choice)=><button type="button" key={choice.id} className={`assetAmountOption${value.techniques.activeRecall===choice.id?" selected":""}`} aria-pressed={value.techniques.activeRecall===choice.id} onClick={()=>onChange({...value,techniques:{...value.techniques,activeRecall:choice.id}})}>{choice.label}</button>)}
-              </div>
-            </div>
+                <div className="teachingPromptSection">
+                  <div className="assetPromptLabel"><strong>Teaching techniques</strong><span>Fine-tune the preset</span></div>
+                  <div className="teachingTechniqueGrid">
+                    {techniqueChoices.map((choice)=>{
+                      const selected=value.techniques[choice.key];
+                      return <button type="button" key={choice.key} className={`teachingTechniqueOption${selected?" selected":""}`} aria-pressed={selected} onClick={()=>setTechnique(choice.key,!selected)}>
+                        <span className="assetChoiceCheck">{selected?"✓":""}</span>
+                        <span><strong>{choice.label}</strong><small>{choice.detail}</small></span>
+                      </button>;
+                    })}
+                  </div>
+                </div>
 
-            {value.techniques.personalExamples?<div className="teachingPromptSection personalExampleSettings">
-              <div className="assetPromptLabel"><strong>Personal examples</strong><span>Never invent learner details</span></div>
-              <div className="personalModeGrid">
-                {personalModes.map((choice)=><button type="button" key={choice.id} className={`personalModeOption${value.personalExampleMode===choice.id?" selected":""}`} aria-pressed={value.personalExampleMode===choice.id} onClick={()=>onChange({...value,personalExampleMode:choice.id})}>
-                  <strong>{choice.label}</strong><small>{choice.detail}</small>
-                </button>)}
+                <div className="teachingPromptSection">
+                  <div className="assetPromptLabel"><strong>Active recall</strong><span>How often the video should ask the learner to retrieve or apply knowledge</span></div>
+                  <div className="assetAmountOptions">
+                    {recallChoices.map((choice)=><button type="button" key={choice.id} className={`assetAmountOption${value.techniques.activeRecall===choice.id?" selected":""}`} aria-pressed={value.techniques.activeRecall===choice.id} onClick={()=>onChange({...value,techniques:{...value.techniques,activeRecall:choice.id}})}>{choice.label}</button>)}
+                  </div>
+                </div>
+
+                {value.techniques.personalExamples?<div className="teachingPromptSection personalExampleSettings">
+                  <div className="assetPromptLabel"><strong>Personal examples</strong><span>Never invent learner details</span></div>
+                  <div className="personalModeGrid">
+                    {personalModes.map((choice)=><button type="button" key={choice.id} className={`personalModeOption${value.personalExampleMode===choice.id?" selected":""}`} aria-pressed={value.personalExampleMode===choice.id} onClick={()=>onChange({...value,personalExampleMode:choice.id})}>
+                      <strong>{choice.label}</strong><small>{choice.detail}</small>
+                    </button>)}
+                  </div>
+                  {value.personalExampleMode==="provided-context"?<label className="personalContextField"><span>Personal example context <em>optional</em></span><textarea rows={2} value={value.personalContext} onChange={(event)=>onChange({...value,personalContext:event.target.value})} placeholder="e.g. I race bicycles and work in media production"/></label>:null}
+                </div>:null}
               </div>
-              {value.personalExampleMode==="provided-context"?<label className="personalContextField"><span>Personal example context <em>optional</em></span><textarea rows={2} value={value.personalContext} onChange={(event)=>onChange({...value,personalContext:event.target.value})} placeholder="e.g. I race bicycles and work in media production"/></label>:null}
-            </div>:null}
+            </details>
           </div>
         </div>
 
