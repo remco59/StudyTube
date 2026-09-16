@@ -30,6 +30,22 @@ describe("buildChatGptPrompt asset options",()=>{
     expect(prompt).toContain("workedExample");
     expect(prompt).toContain("quote");
   });
+
+  it("documents and recommends the image scene variants",()=>{
+    const prompt=buildChatGptPrompt({
+      targetDurationMinutes:5,
+      language:"en-US",
+      scope:"",
+      useAssets:true,
+      assetTypes:["generated-images"],
+    });
+    expect(prompt).toContain('"variant":"full | split-text | split-image"');
+    expect(prompt).toContain('"splitRatio":"40/60 | 50/50 | 60/40"');
+    expect(prompt).toContain("split-text when an image supports a concise explanation");
+    expect(prompt).toContain("split-image for side-by-side comparison");
+    expect(prompt).toContain("Prefer fit=contain for portrait, square, screenshot, diagram or infographic assets");
+    expect(prompt).toContain("every split-image scene references a valid second image asset");
+  });
 });
 
 describe("buildChatGptPrompt teaching strategy",()=>{
