@@ -5,11 +5,16 @@ import {buildChatGptPrompt} from "../lib/chatgptPrompt";
 
 type RequiredAsset={id:string;type:"image"|"document";path:string;fileName:string};
 type ValidationResult={valid:true;summary:{title:string;language:string;targetDuration:number;chapters:number;scenes:number;assets:number};assets:RequiredAsset[]}|{valid:false;issues:{path:string;message:string}[]};
-type JobStatus={jobId:string;state:string;progress:number;createdAt?:string;updatedAt?:string;projectTitle?:string;outputPath?:string;error?:string;downloadedAt?:string;expiresAt?:string};
+type RenderEngine="cpu"|"intel"|"nvidia";
+type RenderCapability={id:RenderEngine;label:string;available:boolean;detail:string};
+type RenderCapabilities={engines:RenderCapability[]};
+type JobStatus={jobId:string;state:string;progress:number;createdAt?:string;updatedAt?:string;projectTitle?:string;renderEngine?:RenderEngine;outputPath?:string;error?:string;downloadedAt?:string;expiresAt?:string};
 type JobLogEntry={timestamp:string;event:string;message:string;data?:unknown};
 type PromptLanguage="nl-NL"|"en-US";
 type AppTab="create"|"jobs";
 type CreateStep=0|1|2;
+
+const renderEngineChoices:RenderEngine[]=["cpu","intel","nvidia"];
 
 export const StudyTubeApp=()=>{
   const [activeTab,setActiveTab]=useState<AppTab>("create");
@@ -29,6 +34,8 @@ export const StudyTubeApp=()=>{
   const [promptScope,setPromptScope]=useState("");
   const [promptCopied,setPromptCopied]=useState(false);
   const [cancellingJobId,setCancellingJobId]=useState<string|null>(null);
+  const [renderEngine,setRenderEngine]=useState<RenderEngine>("cpu");
+  const [renderCapabilities,setRenderCapabilities]=useState<RenderCapabilities|null>(null);
   const validationRequest=useRef(0);
 
   const refreshJobs=useCallback(async()=>{
@@ -57,11 +64,26 @@ export const StudyTubeApp=()=>{
     }
   },[]);
 
+  const refreshRenderCapabilities=useCallback(async()=>{
+    try{
+      const response=await fetch("/api/render-capabilities",{cache:"no-store"});
+      if(!response.ok)return;
+      setRenderCapabilities(await response.json() as RenderCapabilities);
+    }catch{
+      // CPU remains a safe default when hardware detection is unavailable.
+    }
+  },[]);
+
   useEffect(()=>{
     const initialTimer=window.setTimeout(()=>void refreshJobs(),0);
     const timer=window.setInterval(()=>void refreshJobs(),30_000);
     return()=>{window.clearTimeout(initialTimer);window.clearInterval(timer);};
   },[refreshJobs]);
+
+  useEffect(()=>{
+    const timer=window.setTimeout(()=>void refreshRenderCapabilities(),0);
+    return()=>window.clearTimeout(timer);
+  },[refreshRenderCapabilities]);
 
   useEffect(()=>{
     if(activeTab!=="jobs")return;
@@ -143,6 +165,8 @@ export const StudyTubeApp=()=>{
   const hasActiveJob=busy||jobs.some((item)=>!isTerminal(item.state));
   const renderReady=Boolean(validation?.valid&&missingAssets.length===0);
   const canOpenRender=Boolean(job)||renderReady;
+  const selectedRenderCapability=renderCapabilities?.engines.find((item)=>item.id===renderEngine);
+  const renderEngineAvailable=renderEngine==="cpu"||(selectedRenderCapability?.available??false);
 
   const copyPrompt=async()=>{
     const prompt=buildChatGptPrompt({targetDurationMinutes:promptDuration,language:promptLanguage,scope:promptScope});
@@ -156,16 +180,16 @@ export const StudyTubeApp=()=>{
   };
 
   const startRender=async()=>{
-    if(!projectFile||!validation?.valid||missingAssets.length>0||hasActiveJob)return;
+    if(!projectFile||!validation?.valid||missingAssets.length>0||hasActiveJob||!renderEngineAvailable)return;
     setCancellingJobId(null);
     setError(null);
-    setJob({jobId:"starting",state:"queued",progress:0,projectTitle:validation.summary.title});
-    const form=new FormData();form.append("project",projectFile);
+    setJob({jobId:"starting",state:"queued",progress:0,projectTitle:validation.summary.title,renderEngine});
+    const form=new FormData();form.append("project",projectFile);form.append("renderEngine",renderEngine);
     for(const asset of validation.assets){const file=matchedAssets.get(asset.id);if(file)form.append(`asset:${asset.id}`,file,file.name);}
     const response=await fetch("/api/jobs",{method:"POST",body:form});
-    const result=await response.json() as {jobId?:string;error?:string};
-    if(!response.ok||!result.jobId){setJob(null);setError(result.error??"Could not start render");return;}
-    const next:JobStatus={jobId:result.jobId,state:"queued",progress:0,createdAt:new Date().toISOString(),projectTitle:validation.summary.title};
+    const result=await response.json() as {jobId?:string;renderEngine?:RenderEngine;error?:string};
+    if(!response.ok||!result.jobId){setJob(null);setError(result.error??"Could not start render");void refreshRenderCapabilities();return;}
+    const next:JobStatus={jobId:result.jobId,state:"queued",progress:0,createdAt:new Date().toISOString(),projectTitle:validation.summary.title,renderEngine:result.renderEngine??renderEngine};
     setJob(next);
     setManagedJobId(next.jobId);
     setJobs((current)=>[next,...current.filter((item)=>item.jobId!==next.jobId)]);
@@ -268,7 +292,7 @@ export const StudyTubeApp=()=>{
                   {validation.assets.length===0?<div className="assetComplete">✓ This project has no external assets.</div>:<div className="assetList">{validation.assets.map((asset)=>{const match=matchedAssets.get(asset.id);return <div className="assetRow" key={asset.id}><div><strong>{asset.fileName}</strong><span>{asset.type} · {asset.path}</span></div><span className={match?"assetOk":"assetMissing"}>{match?"✓ matched":"missing"}</span></div>;})}</div>}
                 </div>:null}
               </div>
-              <div className="workflowFooter"><button type="button" className="secondaryButton" onClick={()=>setCreateStep(0)}>Back</button><button type="button" className="primaryButton compactButton" disabled={!renderReady} onClick={()=>setCreateStep(2)}>Continue to render</button></div>
+              <div className="workflowFooter"><button type="button" className="secondaryButton" onClick={()=>setCreateStep(0)}>Back</button><button type="button" className="primaryButton compactButton" disabled={!renderReady} onClick={()=>{setCreateStep(2);void refreshRenderCapabilities();}}>Continue to render</button></div>
             </>:null}
 
             {createStep===2?<>
@@ -278,10 +302,23 @@ export const StudyTubeApp=()=>{
                   <h2>{job?.state==="completed"?"Your video is ready.":job?.state==="failed"?"Render failed.":job?.state==="cancelled"?"Render cancelled.":busy?humanState(job?.state):hasActiveJob?"A render is already running.":"Ready to create the MP4."}</h2>
                   <p>{renderDescription(job,busy,hasActiveJob)}</p>
                   {validation?.valid?<div className="renderProjectSummary"><strong>{validation.summary.title}</strong><span>{formatDuration(validation.summary.targetDuration)} · {validation.summary.scenes} scenes · {validation.summary.language}</span></div>:null}
+                  <div className="renderEngineBlock">
+                    <div className="renderEngineHeading"><div><strong>Render engine</strong><span>Choose the encoder for this video.</span></div><button type="button" className="engineRefresh" onClick={()=>void refreshRenderCapabilities()} disabled={busy}>↻ Detect</button></div>
+                    <div className="renderEngineOptions">{renderEngineChoices.map((engine)=>{
+                      const capability=renderCapabilities?.engines.find((item)=>item.id===engine);
+                      const available=engine==="cpu"||(capability?.available??false);
+                      const checking=engine!=="cpu"&&!renderCapabilities;
+                      return <button type="button" key={engine} className={`renderEngineOption${renderEngine===engine?" selected":""}`} disabled={busy||!available} onClick={()=>setRenderEngine(engine)}>
+                        <span className="engineRadio">{renderEngine===engine?"●":"○"}</span>
+                        <span className="engineCopy"><strong>{capability?.label??renderEngineLabel(engine)}</strong><small>{checking?"Checking hardware…":capability?.detail??"Software H.264 encoding."}</small></span>
+                        <span className={`engineAvailability ${available?"available":"unavailable"}`}>{available?"Available":checking?"Checking":"Unavailable"}</span>
+                      </button>;
+                    })}</div>
+                  </div>
                 </div>
                 <div className="renderAction wizardRenderAction">
                   {busy?<div className="progress"><div className="progressTrack"><span style={{width:`${Math.round((job?.progress??0)*100)}%`}}/></div><strong>{Math.round((job?.progress??0)*100)}%</strong></div>:null}
-                  {job?.state==="completed"?<a className="primaryButton" href={`/api/jobs/${job.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(),1200)}>Download MP4</a>:job&&busy&&job.jobId!=="starting"?<button className="cancelButton" disabled={cancellingJobId===job.jobId} onClick={()=>void cancelJob(job)}>{cancellingJobId===job.jobId?"Cancelling…":"Cancel render"}</button>:busy?<button className="primaryButton" disabled>Starting…</button>:hasActiveJob?<button type="button" className="primaryButton" onClick={openJobs}>View running job</button>:<button className="primaryButton" disabled={!renderReady} onClick={()=>void startRender()}>Generate video</button>}
+                  {job?.state==="completed"?<a className="primaryButton" href={`/api/jobs/${job.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(),1200)}>Download MP4</a>:job&&busy&&job.jobId!=="starting"?<button className="cancelButton" disabled={cancellingJobId===job.jobId} onClick={()=>void cancelJob(job)}>{cancellingJobId===job.jobId?"Cancelling…":"Cancel render"}</button>:busy?<button className="primaryButton" disabled>Starting…</button>:hasActiveJob?<button type="button" className="primaryButton" onClick={openJobs}>View running job</button>:<button className="primaryButton" disabled={!renderReady||!renderEngineAvailable} onClick={()=>void startRender()}>Generate video</button>}
                   {job&&job.jobId!=="starting"?<button type="button" className="secondaryButton" onClick={()=>{setManagedJobId(job.jobId);openJobs();}}>Open in Jobs</button>:null}
                 </div>
               </div>
@@ -302,7 +339,7 @@ export const StudyTubeApp=()=>{
           </section>
 
           {managedJob?<section className="jobManager">
-            <div className="jobManagerHeader"><div><p className="eyebrow">Selected job</p><h2>{managedJob.projectTitle??"StudyTube render"}</h2><span className="jobIdText">{managedJob.jobId}</span></div><span className={`jobStatePill ${stateClass(managedJob.state)}`}>{jobStatusLabel(managedJob)}</span></div>
+            <div className="jobManagerHeader"><div><p className="eyebrow">Selected job</p><h2>{managedJob.projectTitle??"StudyTube render"}</h2><span className="jobIdText">{managedJob.jobId}</span><span className="jobEngineText">{renderEngineLabel(managedJob.renderEngine??"cpu")}</span></div><span className={`jobStatePill ${stateClass(managedJob.state)}`}>{jobStatusLabel(managedJob)}</span></div>
             {!isTerminal(managedJob.state)?<div className="managerProgress"><div className="progress"><div className="progressTrack"><span style={{width:`${Math.round(managedJob.progress*100)}%`}}/></div><strong>{Math.round(managedJob.progress*100)}%</strong></div><span>{humanState(managedJob.state)}</span></div>:null}
             {managedJob.error?<div className="errorBox managerError"><strong>Render stopped</strong><p>{managedJob.error}</p></div>:null}
             <div className="jobActionBar">
@@ -328,12 +365,13 @@ const formatDuration=(seconds:number)=>{const total=Math.max(0,Math.round(second
 const humanState=(state?:string)=>({queued:"Preparing render…",validating:"Analyzing project…",synthesizing:"Generating narration…",staging:"Preparing assets…",bundling:"Building video…",rendering:"Rendering MP4…"}[state??""]??"Working…");
 const isTerminal=(state?:string)=>state==="completed"||state==="failed"||state==="cancelled";
 const sortJobs=(a:JobStatus,b:JobStatus)=>Date.parse(b.createdAt??"")-Date.parse(a.createdAt??"");
+const renderEngineLabel=(engine:RenderEngine)=>({cpu:"CPU (software)",intel:"Intel GPU (VAAPI)",nvidia:"NVIDIA NVENC"}[engine]);
 const renderDescription=(job:JobStatus|null,busy:boolean,hasActiveJob:boolean)=>{
   if(job?.state==="failed")return job.error??"The render pipeline stopped. Open the job to inspect its logs.";
   if(job?.state==="cancelled")return "This render was cancelled. You can start it again when you are ready.";
   if(job?.state==="completed"&&job.downloadedAt)return "Downloaded. StudyTube will remove this job automatically about one hour after the first download.";
   if(job?.state==="completed")return "The finished video stays on the server until you download it.";
-  if(busy)return "StudyTube is rendering this project on your server.";
+  if(busy)return `StudyTube is rendering this project on your server using ${renderEngineLabel(job?.renderEngine??"cpu")}.`;
   if(hasActiveJob)return "Another saved render is still running. Open Jobs to follow or cancel it.";
   return "StudyTube will synthesize the narration and render a finished 1080p MP4.";
 };

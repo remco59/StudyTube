@@ -1,4 +1,0 @@
-services:
-  studytube:
-    devices:
-      - /dev/dri:/dev/dri

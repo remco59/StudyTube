@@ -1,13 +1,15 @@
 import {bundle} from "@remotion/bundler";
 import {renderMedia,selectComposition} from "@remotion/renderer";
 import type {NarrationManifest,NormalizedStudyTubeProject} from "@studytube/core";
-import type {RenderProgress} from "./types";
+import {createIntelVaapiFfmpegOverride,requireRenderEngine} from "./renderEngine";
+import type {RenderEngine,RenderProgress} from "./types";
 
 export type RenderStudyTubeOptions={
   entryPoint:string;
   publicDir:string;
   outputPath:string;
   props:{project:NormalizedStudyTubeProject;narration?:NarrationManifest;showCaptions?:boolean};
+  renderEngine?:RenderEngine;
   signal?:AbortSignal;
   onProgress?:(progress:RenderProgress)=>void|Promise<void>;
 };
@@ -41,6 +43,8 @@ const makeRemotionCancelSignal=(signal:AbortSignal):NonNullable<Parameters<typeo
   };
 
 export const renderStudyTubeComposition=async(options:RenderStudyTubeOptions):Promise<void>=>{
+  const renderEngine=options.renderEngine??"cpu";
+  const capabilities=await requireRenderEngine(renderEngine);
   throwIfCancelled(options.signal);
   await options.onProgress?.({progress:0,stage:"bundling"});
   const serveUrl=await bundle({
@@ -53,6 +57,8 @@ export const renderStudyTubeComposition=async(options:RenderStudyTubeOptions):Pr
   const composition=await selectComposition({serveUrl,id:"StudyTube",inputProps});
   throwIfCancelled(options.signal);
   const renderSettings=resolveRemotionRenderSettings();
+  const intelDevice=capabilities.intelDevice;
+
   await renderMedia({
     serveUrl,
     composition,
@@ -62,6 +68,11 @@ export const renderStudyTubeComposition=async(options:RenderStudyTubeOptions):Pr
     overwrite:true,
     concurrency:renderSettings.concurrency,
     timeoutInMilliseconds:renderSettings.timeoutInMilliseconds,
+    hardwareAcceleration:renderEngine==="nvidia"?"required":"disable",
+    videoBitrate:renderEngine==="cpu"?null:"8M",
+    disallowParallelEncoding:renderEngine==="intel",
+    binariesDirectory:renderEngine==="intel"?"/usr/bin":null,
+    ffmpegOverride:renderEngine==="intel"&&intelDevice?createIntelVaapiFfmpegOverride(intelDevice):undefined,
     cancelSignal:options.signal?makeRemotionCancelSignal(options.signal):undefined,
     onProgress:({progress,stitchStage})=>{void options.onProgress?.({progress:.12+progress*.88,stage:stitchStage});},
   });

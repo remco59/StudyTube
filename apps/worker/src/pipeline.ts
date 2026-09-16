@@ -1,6 +1,6 @@
 import {randomUUID} from "node:crypto";
 import {copyFile,mkdir,readFile,writeFile} from "node:fs/promises";
-import {basename,dirname,join,resolve} from "node:path";
+import {dirname,join,resolve} from "node:path";
 import {fileURLToPath} from "node:url";
 import type {NarrationManifest,NormalizedStudyTubeProject} from "@studytube/core";
 import {parseStudyTubeProject} from "@studytube/schema";
@@ -16,8 +16,9 @@ import {
 } from "@studytube/tts";
 import {appendJobLog,createJobPaths,initializeJobPaths,writeJobStatus} from "./jobStore";
 import {normalizeRelativeProjectPath,resolveInside} from "./pathSafety";
+import {parseRenderEngine,renderEngineLabels} from "./renderEngine";
 import {renderStudyTubeComposition} from "./remotionRender";
-import type {JobPaths,JobState,RenderProgress,StudyTubeJobStatus} from "./types";
+import type {JobPaths,JobState,RenderEngine,RenderProgress,StudyTubeJobStatus} from "./types";
 
 export type StudyTubeRenderProps={
   project:NormalizedStudyTubeProject;
@@ -30,6 +31,7 @@ export type PipelineRenderFunction=(options:{
   publicDir:string;
   outputPath:string;
   props:StudyTubeRenderProps;
+  renderEngine?:RenderEngine;
   signal?:AbortSignal;
   onProgress?:(progress:RenderProgress)=>void|Promise<void>;
 })=>Promise<void>;
@@ -41,6 +43,7 @@ export type RunStudyTubeJobOptions={
   dataDir?:string;
   jobId?:string;
   ttsProvider?:TtsProviderKind;
+  renderEngine?:RenderEngine;
   showCaptions?:boolean;
   fps?:number;
   scenePaddingSeconds?:number;
@@ -90,9 +93,10 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
   const now=deps.now??(()=>new Date());
   const jobId=options.jobId??createJobId(now());
   const dataDir=resolve(options.dataDir??process.env.STUDYTUBE_DATA_DIR??"data");
+  const renderEngine=parseRenderEngine(options.renderEngine);
   const paths=createJobPaths(dataDir,jobId);
   const createdAt=now().toISOString();
-  let status:StudyTubeJobStatus={jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt};
+  let status:StudyTubeJobStatus={jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt,renderEngine};
   let statusQueue=Promise.resolve();
   let logQueue=Promise.resolve();
 
@@ -112,7 +116,7 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
 
   await initializeJobPaths(paths);
   await writeJobStatus(paths,status);
-  await log("job.created","Render job created",{projectPath:options.projectPath});
+  await log("job.created","Render job created",{projectPath:options.projectPath,renderEngine});
 
   try{
     checkCancelled();
@@ -155,7 +159,7 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
     const outputName=`${slugify(project.metadata.title)||"studytube"}-${jobId}.mp4`;
     const outputPath=join(paths.outputDir,outputName);
     await update("bundling",.4);
-    await log("render.started","Building renderer and starting MP4 render",{frames:prepared.normalizedProject.totalFrames});
+    await log("render.started","Building renderer and starting MP4 render",{frames:prepared.normalizedProject.totalFrames,renderEngine,label:renderEngineLabels[renderEngine]});
     checkCancelled();
     const entryPoint=resolveRendererEntryPoint();
     const render=deps.render??renderStudyTubeComposition;
@@ -166,6 +170,7 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
       publicDir:paths.publicDir,
       outputPath,
       props,
+      renderEngine,
       signal:options.signal,
       onProgress:({progress,stage})=>{
         if(options.signal?.aborted)return;
@@ -178,14 +183,14 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
         if(bucket>lastRenderBucket||stageName!==lastRenderStage){
           lastRenderBucket=bucket;
           lastRenderStage=stageName;
-          void log("render.progress",`${stageName==="bundling"?"Bundling":"Rendering"} video: ${Math.min(100,bucket)}%`,{stage:stageName,progress:safeProgress});
+          void log("render.progress",`${stageName==="bundling"?"Bundling":"Rendering"} video: ${Math.min(100,bucket)}%`,{stage:stageName,progress:safeProgress,renderEngine});
         }
       },
     });
     checkCancelled();
     await Promise.all([statusQueue,logQueue]);
 
-    await log("render.completed","MP4 render completed",{outputPath,totalFrames:prepared.normalizedProject.totalFrames});
+    await log("render.completed","MP4 render completed",{outputPath,totalFrames:prepared.normalizedProject.totalFrames,renderEngine});
     await update("completed",1,{outputPath});
     await Promise.all([statusQueue,logQueue]);
     return {jobId,paths,status,outputPath};

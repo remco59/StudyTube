@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/pipeline.ts",
-    "./types": "./src/types.ts"
+    "./types": "./src/types.ts",
+    "./render-engine": "./src/renderEngine.ts"
   },
   "scripts": {
     "render": "tsx src/cli.ts",

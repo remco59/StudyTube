@@ -37,7 +37,9 @@ Open:
 http://<tower-ip>:3000
 ```
 
-The default stack starts the neural TTS bridge immediately; there is no voice-model download step.
+The standard StudyTube Compose configuration exposes both Intel `/dev/dri` and the NVIDIA GPU to the renderer. This happens once when the container is created. After that, the encoder is selected per video from the web interface; no alternate Compose command is needed to switch render engines.
+
+The Unraid host therefore needs its Intel graphics device available at `/dev/dri` and a working NVIDIA Container Toolkit/runtime for NVIDIA access.
 
 ## Narration provider
 
@@ -65,25 +67,24 @@ docker compose --profile offline-tts up -d --build
 
 The first Piper start downloads its configured voice into `/mnt/user/appdata/studytube/piper`; later starts reuse it.
 
-## Intel `/dev/dri` access
+## Render engine selection
 
-The base compose file deliberately does not require a GPU device. It therefore works with CPU rendering only.
+The Create workflow lets you choose the encoder for every individual video:
 
-On Tower, where Intel UHD graphics exposes `/dev/dri`, start with the optional override:
+- **CPU (software)**: software H.264 encoding.
+- **Intel GPU (VAAPI)**: Intel `/dev/dri` with FFmpeg `h264_vaapi`.
+- **NVIDIA NVENC**: Remotion's H.264 NVENC path.
 
-```bash
-docker compose -f docker-compose.yml -f docker-compose.qsv.yml up -d --build
-```
+StudyTube checks the hardware available inside the running container. If an encoder is not usable, its option is disabled in the web interface with a short explanation instead of silently falling back to CPU.
 
-This makes `/dev/dri` available inside StudyTube so Intel media acceleration can be evaluated and used by future FFmpeg optimizations. The current render pipeline remains CPU-compatible and does not require Quick Sync.
-
-Check the device inside the container with:
+You can verify the hardware exposed to the container with:
 
 ```bash
 docker exec studytube ls -la /dev/dri
+docker exec studytube ffmpeg -hide_banner -encoders | grep -E 'h264_vaapi|h264_nvenc'
 ```
 
-If the host has no `/dev/dri`, use only the base compose file.
+The important distinction is that Docker grants hardware access when the container starts, while StudyTube chooses which already-exposed device to use when each render job starts.
 
 ## Configuration
 
@@ -140,26 +141,17 @@ Every render also keeps job-specific diagnostics under:
 /mnt/user/appdata/studytube/data/jobs/<job-id>/
 ```
 
-including `status.json` and `logs.ndjson`.
+including `status.json` and `logs.ndjson`. The selected render engine is stored with the job and included in the render log metadata.
 
 ## Update
 
-CPU-safe deployment:
+Updating remains the normal Compose workflow regardless of which encoder you use in the web interface:
 
 ```bash
 cd /mnt/user/appdata/studytube/repo
 git pull
 docker compose build --pull
 docker compose up -d
-```
-
-With the Intel device override:
-
-```bash
-cd /mnt/user/appdata/studytube/repo
-git pull
-docker compose -f docker-compose.yml -f docker-compose.qsv.yml build --pull
-docker compose -f docker-compose.yml -f docker-compose.qsv.yml up -d
 ```
 
 Persistent job data and the narration cache are not removed by rebuilding the containers.
@@ -181,6 +173,10 @@ docker compose up -d
 Do not add `-v` to `docker compose down` if you later switch from bind mounts to named volumes and want to keep them.
 
 ## Troubleshooting
+
+### A GPU option shows as unavailable
+
+Open the Render step and press **Detect** again. For Intel, verify `/dev/dri` exists inside the container. For NVIDIA, verify the NVIDIA driver/container runtime is working. StudyTube deliberately disables unavailable engines instead of silently falling back to CPU.
 
 ### Neural narration fails
 

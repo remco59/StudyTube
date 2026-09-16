@@ -27,7 +27,10 @@ examples/       Reference StudyTube project and local assets
 2. Save the returned JSON as a `.studytube.json` file.
 3. Open StudyTube and select the project file.
 4. Add any local image or document assets referenced by the project.
-5. Press **Generate video** and download the completed MP4.
+5. Choose the render engine in the Render step and press **Generate video**.
+6. Follow or manage the render from the **Jobs** tab and download the completed MP4.
+
+StudyTube supports CPU, Intel VAAPI and NVIDIA NVENC per render job. The standard Unraid Compose setup exposes the available GPU hardware to the container once; switching engines afterwards happens entirely in the web interface.
 
 The substantial reference project is [`examples/design-science-15min.studytube.json`](./examples/design-science-15min.studytube.json). It targets roughly fifteen minutes, uses all v1 scene types and ships with its required local example assets.
 
@@ -44,7 +47,7 @@ docker compose up -d --build
 
 Then open `http://localhost:3000`.
 
-For Unraid installation, persistent paths, updates, offline TTS and optional Intel `/dev/dri` passthrough, see [`docs/UNRAID.md`](./docs/UNRAID.md).
+For the intended Unraid deployment, persistent paths, GPU requirements, updates and offline TTS, see [`docs/UNRAID.md`](./docs/UNRAID.md).
 
 ## Local development
 
