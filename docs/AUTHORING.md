@@ -177,7 +177,7 @@ Do not follow this mechanically. Scene choice follows the material.
 Before returning a finished project, verify:
 
 1. JSON is valid and contains no comments or placeholders.
-2. `version` is `1.0` and style is `educational-explainer`.
+2. `version` is `1.0` and style is `educational-explainer` or `midnight-focus`.
 3. IDs are unique and schema-safe.
 4. Every media scene references an existing asset of the correct type.
 5. Every declared asset is actually present in the ZIP at the declared path.
