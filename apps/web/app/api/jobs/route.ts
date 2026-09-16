@@ -28,6 +28,7 @@ export async function POST(request:Request){
     await requireRenderEngine(renderEngine);
     const ttsProvider=resolveTtsProviderKind(typeof form.get("ttsProvider")==="string"?String(form.get("ttsProvider")):undefined);
     if(ttsProvider==="synthetic")throw new Error("Synthetic TTS is only available for development renders");
+    await requireCloudTtsConfigured(ttsProvider);
     const ttsSettings=parseTtsSettings(form.get("ttsSettings"));
     const baseJobIdInput=optionalText(form.get("baseJobId"),120,"Base job id");
     if(baseJobIdInput)assertJobId(baseJobIdInput);
@@ -74,6 +75,22 @@ export async function POST(request:Request){
     return Response.json({error:error instanceof Error?error.message:"Could not start render"},{status:400});
   }
 }
+
+const requireCloudTtsConfigured=async(provider:string)=>{
+  if(provider!=="google-chirp"&&provider!=="azure")return;
+  const label=provider==="google-chirp"?"Google Chirp 3 HD":"Azure Speech";
+  const baseUrl=(process.env.CLOUD_TTS_URL??"http://cloud-tts:5070").replace(/\/$/u,"");
+  let response:Response;
+  try{
+    response=await fetch(`${baseUrl}/health`,{cache:"no-store",signal:AbortSignal.timeout(4000)});
+  }catch{
+    throw new Error(`${label} is unavailable. Open Settings and check the cloud TTS configuration.`);
+  }
+  if(!response.ok)throw new Error(`${label} is unavailable. Open Settings and check the cloud TTS configuration.`);
+  const status=await response.json() as {googleConfigured?:unknown;azureConfigured?:unknown};
+  const configured=provider==="google-chirp"?status.googleConfigured===true:status.azureConfigured===true;
+  if(!configured)throw new Error(`${label} is not configured. Open Settings and add the required credentials before rendering.`);
+};
 
 const parseTtsSettings=(value:FormDataEntryValue|null):TtsJobSettings=>{
   if(typeof value!=="string"||!value.trim())return {};
