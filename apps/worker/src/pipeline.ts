@@ -2,7 +2,7 @@ import {randomUUID} from "node:crypto";
 import {copyFile,mkdir,readFile,writeFile} from "node:fs/promises";
 import {dirname,join,resolve} from "node:path";
 import {fileURLToPath} from "node:url";
-import type {NarrationManifest,NormalizedStudyTubeProject} from "@studytube/core";
+import type {NarrationManifest,NormalizedScene,NormalizedStudyTubeProject} from "@studytube/core";
 import {parseStudyTubeProject} from "@studytube/schema";
 import {
   AzureSpeechHttpProvider,
@@ -24,7 +24,7 @@ import {appendJobLog,createJobPaths,initializeJobPaths,writeJobStatus} from "./j
 import {normalizeRelativeProjectPath,resolveInside} from "./pathSafety";
 import {parseRenderEngine,renderEngineLabels} from "./renderEngine";
 import {renderStudyTubeComposition} from "./remotionRender";
-import type {JobPaths,JobState,RenderEngine,RenderProgress,StudyTubeJobStatus} from "./types";
+import type {JobPaths,JobState,RenderEngine,RenderProgress,SceneProgress,StudyTubeJobStatus} from "./types";
 
 export type StudyTubeRenderProps={project:NormalizedStudyTubeProject;narration?:NarrationManifest;showCaptions?:boolean};
 export type PipelineRenderFunction=(options:{entryPoint:string;publicDir:string;outputPath:string;props:StudyTubeRenderProps;renderEngine?:RenderEngine;signal?:AbortSignal;onProgress?:(progress:RenderProgress)=>void|Promise<void>})=>Promise<void>;
@@ -79,7 +79,8 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
     const props:StudyTubeRenderProps={project:prepared.normalizedProject,narration,showCaptions:options.showCaptions??true};await writeFile(paths.renderPropsFile,`${JSON.stringify(props,null,2)}\n`,`utf8`);
     const outputName=`${slugify(project.metadata.title)||"studytube"}-${jobId}.mp4`;const outputPath=join(paths.outputDir,outputName);await update("bundling",.4);await log("render.started","Building renderer and starting MP4 render",{frames:prepared.normalizedProject.totalFrames,renderEngine,label:renderEngineLabels[renderEngine],ttsProvider:providerKind});checkCancelled();
     const entryPoint=resolveRendererEntryPoint();const render=deps.render??renderStudyTubeComposition;let lastRenderBucket=-1;let lastRenderStage="";
-    await render({entryPoint,publicDir:paths.publicDir,outputPath,props,renderEngine,signal:options.signal,onProgress:({progress,stage})=>{if(options.signal?.aborted)return;const safeProgress=clamp(progress);const state=stage==="bundling"?"bundling":"rendering";const mapped=.4+safeProgress*.58;void update(state,mapped);const bucket=Math.floor(safeProgress*10)*10;const stageName=stage??state;if(bucket>lastRenderBucket||stageName!==lastRenderStage){lastRenderBucket=bucket;lastRenderStage=stageName;void log("render.progress",`${stageName==="bundling"?"Bundling":"Rendering"} video: ${Math.min(100,bucket)}%`,{stage:stageName,progress:safeProgress,renderEngine});}}});
+    const flatScenes=prepared.normalizedProject.chapters.flatMap((chapter)=>chapter.scenes);const totalFrames=prepared.normalizedProject.totalFrames;const renderStartedAt=now().getTime();
+    await render({entryPoint,publicDir:paths.publicDir,outputPath,props,renderEngine,signal:options.signal,onProgress:({progress,stage,renderedFrames})=>{if(options.signal?.aborted)return;const safeProgress=clamp(progress);const state=stage==="bundling"?"bundling":"rendering";const mapped=.4+safeProgress*.58;const elapsedSeconds=(now().getTime()-renderStartedAt)/1000;const etaSeconds=safeProgress>.02?Math.max(0,elapsedSeconds*(1-safeProgress)/safeProgress):undefined;const sceneProgress=locateSceneProgress(flatScenes,totalFrames,renderedFrames,etaSeconds);void update(state,mapped,{sceneProgress});const bucket=Math.floor(safeProgress*10)*10;const stageName=stage??state;if(bucket>lastRenderBucket||stageName!==lastRenderStage){lastRenderBucket=bucket;lastRenderStage=stageName;void log("render.progress",`${stageName==="bundling"?"Bundling":"Rendering"} video: ${Math.min(100,bucket)}%`,{stage:stageName,progress:safeProgress,renderEngine,sceneProgress});}}});
     checkCancelled();await Promise.all([statusQueue,logQueue]);await log("render.completed","MP4 render completed",{outputPath,totalFrames:prepared.normalizedProject.totalFrames,renderEngine,ttsProvider:providerKind});await update("completed",1,{outputPath});await Promise.all([statusQueue,logQueue]);return {jobId,paths,status,outputPath};
   }catch(error){
     if(options.signal?.aborted){await log("job.cancelled","Render cancelled by user").catch(logSwallowedError(jobId,"log job.cancelled"));await update("cancelled",status.progress,{error:undefined}).catch(logSwallowedError(jobId,"update status to cancelled"));await Promise.all([statusQueue.catch(logSwallowedError(jobId,"flush status queue")),logQueue.catch(logSwallowedError(jobId,"flush log queue"))]);throw new StudyTubeJobCancelledError(jobId,paths.root,error);}
@@ -105,3 +106,16 @@ const logSwallowedError=(jobId:string,action:string)=>(error:unknown)=>{console.
 const createJobId=(date:Date)=>`${date.toISOString().replaceAll(":","").replaceAll(".","-")}-${randomUUID().slice(0,8)}`;
 const slugify=(value:string)=>value.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/gu,"-").replace(/^-+|-+$/gu,"").slice(0,70);
 const clamp=(value:number)=>Math.min(1,Math.max(0,value));
+const locateSceneProgress=(scenes:NormalizedScene[],totalFrames:number,renderedFrames:number|undefined,etaSeconds:number|undefined):SceneProgress|undefined=>{
+  if(scenes.length===0)return undefined;
+  const frames=Math.min(totalFrames,Math.max(0,renderedFrames??0));
+  const currentIndex=scenes.findIndex((scene)=>frames<scene.endFrameExclusive);
+  const index=currentIndex===-1?scenes.length-1:currentIndex;
+  return {
+    currentSceneId:scenes[index]?.scene.id,
+    currentSceneIndex:index,
+    completedScenes:currentIndex===-1?scenes.length:currentIndex,
+    totalScenes:scenes.length,
+    etaSeconds,
+  };
+};

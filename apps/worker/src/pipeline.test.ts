@@ -50,6 +50,26 @@ describe("runStudyTubeJob",()=>{
     expect((await stat(result.outputPath)).isFile()).toBe(true);
   });
 
+  it("reports which scene is currently rendering and an ETA",async()=>{
+    const root=await makeRoot();
+    const projectPath=await writeProject(root);
+    const render=vi.fn(async({outputPath,props,onProgress})=>{
+      const secondScene=props.project.chapters[0]?.scenes[1];
+      await onProgress?.({progress:.7,stage:"rendering",renderedFrames:secondScene?.startFrame});
+      await mkdir(dirname(outputPath),{recursive:true});
+      await writeFile(outputPath,"fake mp4");
+    });
+
+    const result=await runStudyTubeJob({projectPath,dataDir:join(root,"data"),jobId:"job-scene-progress",ttsProvider:"synthetic"},{provider:new SyntheticWavProvider(),render});
+    expect(result.status.sceneProgress).toEqual({
+      currentSceneId:"two",
+      currentSceneIndex:1,
+      completedScenes:1,
+      totalScenes:2,
+      etaSeconds:expect.any(Number),
+    });
+  });
+
   it("marks a render as cancelled when its abort signal is triggered",async()=>{
     const root=await makeRoot();
     const projectPath=await writeProject(root);
