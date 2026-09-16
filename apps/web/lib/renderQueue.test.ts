@@ -101,4 +101,27 @@ describe("renderQueue",()=>{
 
     release?.();
   });
+
+  it("rejects new jobs when the pending queue reaches its cap",async()=>{
+    const {enqueueRenderJob,getAvailableQueueSlots,getQueueSnapshot,MAX_PENDING_RENDER_JOBS,RenderQueueFullError}=await import("./renderQueue");
+    let releaseRunning:(()=>void)|undefined;
+    runStudyTubeJob.mockImplementation(async({jobId}:{jobId:string})=>{
+      if(jobId==="running")await new Promise<void>((resolve)=>{releaseRunning=resolve;});
+    });
+
+    enqueueRenderJob(job("running"));
+    await Promise.resolve();
+    expect(getAvailableQueueSlots()).toBe(MAX_PENDING_RENDER_JOBS);
+
+    for(let index=0;index<MAX_PENDING_RENDER_JOBS;index+=1){
+      enqueueRenderJob(job(`queued-${index}`));
+    }
+
+    expect(getQueueSnapshot()).toHaveLength(MAX_PENDING_RENDER_JOBS);
+    expect(getAvailableQueueSlots()).toBe(0);
+    expect(()=>enqueueRenderJob(job("overflow"))).toThrow(RenderQueueFullError);
+
+    releaseRunning?.();
+    await vi.waitFor(()=>expect(getQueueSnapshot()).toEqual([]));
+  });
 });
