@@ -65,25 +65,57 @@ docker compose --profile offline-tts up -d --build
 
 The first Piper start downloads its configured voice into `/mnt/user/appdata/studytube/piper`; later starts reuse it.
 
-## Intel `/dev/dri` access
+## Render engine selection
 
-The base compose file deliberately does not require a GPU device. It therefore works with CPU rendering only.
+The Create workflow lets you choose the encoder for every individual video:
 
-On Tower, where Intel UHD graphics exposes `/dev/dri`, start with the optional override:
+- **CPU (software)**: always available and uses software H.264 encoding.
+- **Intel GPU (VAAPI)**: uses the Intel render device exposed through `/dev/dri` and FFmpeg's `h264_vaapi` encoder.
+- **NVIDIA NVENC**: uses Remotion's native H.264 NVENC path.
+
+StudyTube detects the hardware available **inside the running container**. Missing GPU options are disabled in the web interface with a short explanation. Selecting Intel or NVIDIA is therefore a per-job choice, but Docker must still expose the relevant hardware to the container once when the stack is configured.
+
+### Intel `/dev/dri`
+
+On a host with Intel integrated graphics, use the Intel override:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.qsv.yml up -d --build
 ```
 
-This makes `/dev/dri` available inside StudyTube so Intel media acceleration can be evaluated and used by future FFmpeg optimizations. The current render pipeline remains CPU-compatible and does not require Quick Sync.
-
-Check the device inside the container with:
+The StudyTube image contains the Intel media VAAPI driver. Check the device inside the container with:
 
 ```bash
 docker exec studytube ls -la /dev/dri
 ```
 
-If the host has no `/dev/dri`, use only the base compose file.
+After the container is running, the Create → Render step should show **Intel GPU (VAAPI)** as available.
+
+### NVIDIA NVENC
+
+NVIDIA requires the NVIDIA driver and NVIDIA Container Toolkit on the Unraid host. Start StudyTube with:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.nvidia.yml up -d --build
+```
+
+The override exposes the NVIDIA GPU and enables the `video` driver capability required by NVENC. After startup, **NVIDIA NVENC** should show as available in the Render step.
+
+### Expose Intel and NVIDIA together
+
+If the server has both GPUs, expose both to the same StudyTube container:
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.qsv.yml \
+  -f docker-compose.nvidia.yml \
+  up -d --build
+```
+
+You then keep one StudyTube stack running and choose **CPU**, **Intel** or **NVIDIA** separately for each video from the web interface. You no longer need to recreate the container merely to switch the encoder used by the next job.
+
+If you always want the same override files applied, Docker Compose also supports configuring `COMPOSE_FILE` in your shell or deployment configuration so ordinary `docker compose up -d` and update commands reuse them.
 
 ## Configuration
 
@@ -140,11 +172,11 @@ Every render also keeps job-specific diagnostics under:
 /mnt/user/appdata/studytube/data/jobs/<job-id>/
 ```
 
-including `status.json` and `logs.ndjson`.
+including `status.json` and `logs.ndjson`. The selected render engine is stored with the job and included in the render log metadata.
 
 ## Update
 
-CPU-safe deployment:
+CPU-only deployment:
 
 ```bash
 cd /mnt/user/appdata/studytube/repo
@@ -153,18 +185,20 @@ docker compose build --pull
 docker compose up -d
 ```
 
-With the Intel device override:
+For GPU-enabled deployments, use the same override files you used at installation. For example, with both Intel and NVIDIA:
 
 ```bash
 cd /mnt/user/appdata/studytube/repo
 git pull
-docker compose -f docker-compose.yml -f docker-compose.qsv.yml build --pull
-docker compose -f docker-compose.yml -f docker-compose.qsv.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.qsv.yml -f docker-compose.nvidia.yml build --pull
+docker compose -f docker-compose.yml -f docker-compose.qsv.yml -f docker-compose.nvidia.yml up -d
 ```
 
 Persistent job data and the narration cache are not removed by rebuilding the containers.
 
 ## Stop / restart
+
+Use the same Compose files that were used to create the stack. For a CPU-only deployment:
 
 ```bash
 docker compose stop
@@ -181,6 +215,10 @@ docker compose up -d
 Do not add `-v` to `docker compose down` if you later switch from bind mounts to named volumes and want to keep them.
 
 ## Troubleshooting
+
+### A GPU option shows as unavailable
+
+Open the Render step and press **Detect** again. For Intel, verify `/dev/dri` exists inside the container. For NVIDIA, verify the NVIDIA Container Toolkit is working and the NVIDIA device is visible inside the container. StudyTube deliberately disables unavailable engines instead of silently falling back to CPU.
 
 ### Neural narration fails
 
