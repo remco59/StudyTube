@@ -5,6 +5,7 @@ import "./prompt.css";
 import "./jobs.css";
 import "./workflow.css";
 import "./render-engine.css";
+import "./settings.css";
 
 export const metadata: Metadata = {
   title: "StudyTube",
