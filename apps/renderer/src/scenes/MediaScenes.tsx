@@ -7,6 +7,7 @@ import {resolveProjectAsset} from "../assets/assetResolver";
 type Scene=NormalizedScene["scene"];
 type SceneOf<T extends Scene["type"]>=Extract<Scene,{type:T}>;
 type Project=NormalizedStudyTubeProject["project"];
+type ImageVisual=SceneOf<"image">["visual"];
 
 export const MediaSceneRenderer=({normalizedScene,project}:{normalizedScene:NormalizedScene;project:Project})=>{
   const {scene}=normalizedScene;
@@ -21,15 +22,45 @@ export const MediaSceneRenderer=({normalizedScene,project}:{normalizedScene:Norm
 };
 
 const ImageScene=({project,scene}:{project:Project;scene:SceneOf<"image">})=>{
-  const frame=useCurrentFrame();const {fps}=useVideoConfig();const asset=resolveProjectAsset(project,scene.visual.assetId,"image");
-  const zoom=interpolate(frame,[0,fps*5],[1.02,1.08],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
-  return <Stage><div style={{display:"flex",flexDirection:"column",gap:spacing.md,height:"100%",width:"100%"}}><div style={{border:`1px solid ${colors.line}`,borderRadius:radii.lg,boxShadow:shadows.raised,flex:1,minHeight:0,overflow:"hidden",position:"relative"}}><Img src={asset.src} alt={asset.alt??scene.visual.caption??asset.id} style={{height:"100%",objectFit:scene.visual.fit??"cover",transform:`scale(${zoom})`,width:"100%"}}/><div style={{background:"linear-gradient(transparent, rgba(16,18,22,.7))",bottom:0,height:180,left:0,position:"absolute",right:0}}/></div>{scene.visual.caption?<div style={{...typography.body,color:colors.textMuted,fontSize:30}}>{scene.visual.caption}</div>:null}</div></Stage>;
+  const frame=useCurrentFrame();
+  const {fps}=useVideoConfig();
+  const visual=scene.visual;
+  const variant=visual.variant??"full";
+  const asset=resolveProjectAsset(project,visual.assetId,"image");
+  const fullZoom=interpolate(frame,[0,fps*5],[1.02,1.08],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
+  const splitZoom=interpolate(frame,[0,fps*5],[1,1.025],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
+
+  if(variant==="split-text"){
+    const imagePane=<ImagePane src={asset.src} alt={asset.alt??visual.caption??asset.id} fit={visual.fit??"contain"} zoom={splitZoom} caption={visual.caption}/>;
+    const textPane=<ImageTextPane title={visual.title} text={visual.text}/>;
+    const imageFirst=(visual.layout??"image-left")==="image-left";
+    return <Stage><SplitLayout ratio={visual.splitRatio}>{imageFirst?imagePane:textPane}{imageFirst?textPane:imagePane}</SplitLayout></Stage>;
+  }
+
+  if(variant==="split-image"&&visual.secondaryAssetId){
+    const secondary=resolveProjectAsset(project,visual.secondaryAssetId,"image");
+    return <Stage><SplitLayout ratio={visual.splitRatio}>
+      <ImagePane src={asset.src} alt={asset.alt??visual.caption??asset.id} fit={visual.fit??"contain"} zoom={splitZoom} caption={visual.caption}/>
+      <ImagePane src={secondary.src} alt={secondary.alt??visual.secondaryCaption??secondary.id} fit={visual.secondaryFit??"contain"} zoom={splitZoom} caption={visual.secondaryCaption}/>
+    </SplitLayout></Stage>;
+  }
+
+  return <Stage><div style={{display:"flex",flexDirection:"column",gap:spacing.md,height:"100%",width:"100%"}}><div style={{border:`1px solid ${colors.line}`,borderRadius:radii.lg,boxShadow:shadows.raised,flex:1,minHeight:0,overflow:"hidden",position:"relative"}}><Img src={asset.src} alt={asset.alt??visual.caption??asset.id} style={{height:"100%",objectFit:visual.fit??"cover",transform:`scale(${fullZoom})`,width:"100%"}}/><div style={{background:"linear-gradient(transparent, rgba(16,18,22,.7))",bottom:0,height:180,left:0,position:"absolute",right:0}}/></div>{visual.caption?<div style={{...typography.body,color:colors.textMuted,fontSize:30}}>{visual.caption}</div>:null}</div></Stage>;
 };
 
 const VideoScene=({project,scene}:{project:Project;scene:SceneOf<"video">})=>{
   const asset=resolveProjectAsset(project,scene.visual.assetId,"video");
   return <Stage><div style={{display:"flex",flexDirection:"column",gap:spacing.md,height:"100%",width:"100%"}}><div style={{border:`1px solid ${colors.line}`,borderRadius:radii.lg,boxShadow:shadows.raised,flex:1,minHeight:0,overflow:"hidden",position:"relative"}}><OffthreadVideo src={asset.src} muted style={{height:"100%",objectFit:scene.visual.fit??"cover",width:"100%"}}/><div style={{background:"linear-gradient(transparent, rgba(16,18,22,.55))",bottom:0,height:150,left:0,pointerEvents:"none",position:"absolute",right:0}}/></div>{scene.visual.caption?<div style={{...typography.body,color:colors.textMuted,fontSize:30}}>{scene.visual.caption}</div>:null}</div></Stage>;
 };
+
+const SplitLayout=({children,ratio="50/50"}:{children:ReactNode;ratio?:ImageVisual["splitRatio"]})=>{
+  const columns=ratio==="60/40"?"3fr 2fr":ratio==="40/60"?"2fr 3fr":"1fr 1fr";
+  return <div style={{display:"grid",gap:spacing.xl,gridTemplateColumns:columns,height:"100%",minHeight:0,width:"100%"}}>{children}</div>;
+};
+
+const ImagePane=({src,alt,fit,zoom,caption}:{src:string;alt:string;fit:"contain"|"cover";zoom:number;caption?:string})=><div style={{display:"flex",flexDirection:"column",gap:spacing.sm,height:"100%",minHeight:0,minWidth:0}}><div style={{backgroundColor:colors.surfaceRaised,border:`1px solid ${colors.line}`,borderRadius:radii.lg,boxShadow:shadows.raised,flex:1,minHeight:0,overflow:"hidden",position:"relative"}}><Img src={src} alt={alt} style={{height:"100%",objectFit:fit,transform:`scale(${zoom})`,width:"100%"}}/></div>{caption?<div style={{...typography.body,color:colors.textMuted,fontSize:24,lineHeight:1.25}}>{caption}</div>:null}</div>;
+
+const ImageTextPane=({title,text}:{title?:string;text?:string})=><div style={{alignItems:"flex-start",display:"flex",flexDirection:"column",justifyContent:"center",minHeight:0,minWidth:0,padding:`${spacing.lg}px ${spacing.md}px`}}>{title?<div style={{...typography.heading,fontSize:58,lineHeight:1.05,maxWidth:660}}>{title}</div>:null}{text?<div style={{...typography.body,color:colors.textMuted,fontSize:34,lineHeight:1.38,marginTop:title?spacing.lg:0,maxWidth:660}}>{text}</div>:null}</div>;
 
 const DocumentScene=({project,scene}:{project:Project;scene:SceneOf<"document">})=>{const asset=resolveProjectAsset(project,scene.visual.assetId,"document");return <Stage centered><Paper><DocumentHeader title={asset.title??filename(asset.path)} page={scene.visual.page}/><DocumentLines/><DocumentLines short/><DocumentLines/><div style={{...typography.body,color:colors.paperText,fontSize:31,marginTop:spacing.lg}}>{scene.visual.caption??"Bronmateriaal wordt als document-context in de video gebruikt."}</div></Paper></Stage>;};
 
