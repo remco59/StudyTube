@@ -19,6 +19,7 @@ MODEL_NAME = os.getenv("OMNIVOICE_MODEL", "k2-fsa/OmniVoice")
 DEVICE = os.getenv("OMNIVOICE_DEVICE", "cpu").strip() or "cpu"
 
 _model = None
+_asr_loaded = False
 _model_lock = threading.Lock()
 _synthesis_lock = threading.Lock()
 _clone_prompts = {}
@@ -47,6 +48,14 @@ def get_model():
     return _model
 
 
+def ensure_asr(model):
+    global _asr_loaded
+    if _asr_loaded:
+        return
+    model.load_asr_model()
+    _asr_loaded = True
+
+
 def get_clone_prompt(model, request: SynthesisRequest):
     if not request.referenceAudio:
         return None
@@ -65,6 +74,8 @@ def get_clone_prompt(model, request: SynthesisRequest):
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as handle:
             handle.write(audio_bytes)
             path = handle.name
+        if not request.referenceText:
+            ensure_asr(model)
         prompt = model.create_voice_clone_prompt(ref_audio=path, ref_text=request.referenceText or None)
         _clone_prompts[key] = prompt
         return prompt
@@ -78,7 +89,7 @@ def get_clone_prompt(model, request: SynthesisRequest):
 
 @app.get("/health")
 def health():
-    return {"ok": True, "modelLoaded": _model is not None, "device": DEVICE, "model": MODEL_NAME}
+    return {"ok": True, "modelLoaded": _model is not None, "asrLoaded": _asr_loaded, "device": DEVICE, "model": MODEL_NAME}
 
 
 @app.post("/synthesize")
