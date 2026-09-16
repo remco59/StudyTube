@@ -2,7 +2,7 @@
 
 import {useCallback,useEffect,useMemo,useRef,useState} from "react";
 import {buildChatGptPrompt} from "../lib/chatgptPrompt";
-import {defaultTtsSelection,serializeTtsSettings,TtsSelector,type TtsProviderChoice,type TtsSelection} from "./TtsSelector";
+import {applyProjectLanguage,defaultTtsSelection,serializeTtsSettings,TtsSelector,type TtsProviderChoice,type TtsSelection} from "./TtsSelector";
 
 type RequiredAsset={id:string;type:"image"|"document";path:string;fileName:string};
 type PreviewScene={id:string;type:string;narration:string;estimatedDurationSeconds:number};
@@ -111,7 +111,9 @@ export const StudyTubeApp=()=>{
     form.append("project",file,file.name);
     void fetch("/api/validate",{method:"POST",body:form}).then(async(response)=>{
       const result=await response.json() as ValidationResult;
-      if(requestId===validationRequest.current)setValidation(result);
+      if(requestId!==validationRequest.current)return;
+      setValidation(result);
+      if(result.valid)setTtsSelection((current)=>applyProjectLanguage(current,result.summary.language));
     }).catch((cause)=>{
       if(requestId===validationRequest.current)setError(cause instanceof Error?cause.message:"Validation failed");
     }).finally(()=>{
