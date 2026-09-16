@@ -1,4 +1,4 @@
-import type {NormalizedScene,NormalizedStudyTubeProject} from "@studytube/core";
+import {resolveMultipleChoiceThinkingSeconds,type NormalizedScene,type NormalizedStudyTubeProject} from "@studytube/core";
 import {colors,radii,spacing,typography} from "@studytube/design-system";
 import type {CSSProperties,ReactNode} from "react";
 import {Img,interpolate,useCurrentFrame,useVideoConfig} from "remotion";
@@ -16,7 +16,7 @@ export const VersatileSceneRenderer=({normalizedScene,project}:{normalizedScene:
     case "dataChart":return <DataChartScene scene={scene}/>;
     case "matrix":return <MatrixScene scene={scene}/>;
     case "cycle":return <CycleScene scene={scene}/>;
-    case "multipleChoice":return <MultipleChoiceScene scene={scene}/>;
+    case "multipleChoice":return <MultipleChoiceScene scene={scene} narrationDurationSeconds={normalizedScene.narrationDurationSeconds}/>;
     case "workedExample":return <WorkedExampleScene scene={scene}/>;
     case "hierarchy":return <HierarchyScene scene={scene}/>;
     default:throw new Error(`Versatile scene renderer cannot render "${scene.type}".`);
@@ -77,9 +77,9 @@ const CycleScene=({scene}:{scene:SceneOf<"cycle">})=>{
   </div></Stage>;
 };
 
-const MultipleChoiceScene=({scene}:{scene:SceneOf<"multipleChoice">})=>{
-  const frame=useCurrentFrame();const {fps}=useVideoConfig();const revealAt=(scene.visual.revealAfterSeconds??3)*fps;const revealed=frame>=revealAt;
-  return <Stage><div style={{...typography.heading,fontSize:58,lineHeight:1.08,marginBottom:spacing.xl,maxWidth:1450}}>{scene.visual.question}</div><div style={{display:"grid",width:"100%"}}>{scene.visual.options.map((option,index)=>{const correct=index===scene.visual.correctIndex;return <div key={option.label} style={{...reveal(frame,fps,index*3),alignItems:"center",backgroundColor:revealed&&correct?colors.accentSoft:undefined,borderBottom:`1px solid ${colors.line}`,borderLeft:revealed&&correct?`4px solid ${colors.accent}`:"4px solid transparent",display:"grid",gap:spacing.md,gridTemplateColumns:"60px 1fr",padding:`${spacing.md}px ${spacing.lg}px`}}><div style={{alignItems:"center",border:`2px solid ${revealed&&correct?colors.accent:colors.line}`,borderRadius:radii.pill,color:revealed&&correct?colors.accent:colors.textMuted,display:"flex",fontSize:22,fontWeight:850,height:46,justifyContent:"center",width:46}}>{String.fromCharCode(65+index)}</div><div><div style={{fontSize:30,fontWeight:750}}>{option.label}</div>{revealed&&correct&&option.explanation?<div style={{color:colors.textMuted,fontSize:23,lineHeight:1.3,marginTop:8}}>{option.explanation}</div>:null}</div></div>;})}</div>{!revealed?<div style={{color:colors.textMuted,fontSize:24,marginTop:spacing.md}}>Denk even na…</div>:null}</Stage>;
+const MultipleChoiceScene=({scene,narrationDurationSeconds}:{scene:SceneOf<"multipleChoice">;narrationDurationSeconds:number})=>{
+  const frame=useCurrentFrame();const {fps}=useVideoConfig();const thinkingSeconds=resolveMultipleChoiceThinkingSeconds(scene);const thinkingStartsAt=Math.ceil(narrationDurationSeconds*fps);const revealAt=thinkingStartsAt+Math.ceil(thinkingSeconds*fps);const revealed=frame>=revealAt;const thinking=frame>=thinkingStartsAt&&!revealed;const remainingSeconds=Math.max(1,Math.ceil((revealAt-frame)/fps));
+  return <Stage><div style={{...typography.heading,fontSize:58,lineHeight:1.08,marginBottom:spacing.xl,maxWidth:1450}}>{scene.visual.question}</div><div style={{display:"grid",width:"100%"}}>{scene.visual.options.map((option,index)=>{const correct=index===scene.visual.correctIndex;return <div key={option.label} style={{...reveal(frame,fps,index*3),alignItems:"center",backgroundColor:revealed&&correct?colors.accentSoft:undefined,borderBottom:`1px solid ${colors.line}`,borderLeft:revealed&&correct?`4px solid ${colors.accent}`:"4px solid transparent",display:"grid",gap:spacing.md,gridTemplateColumns:"60px 1fr",padding:`${spacing.md}px ${spacing.lg}px`}}><div style={{alignItems:"center",border:`2px solid ${revealed&&correct?colors.accent:colors.line}`,borderRadius:radii.pill,color:revealed&&correct?colors.accent:colors.textMuted,display:"flex",fontSize:22,fontWeight:850,height:46,justifyContent:"center",width:46}}>{String.fromCharCode(65+index)}</div><div><div style={{fontSize:30,fontWeight:750}}>{option.label}</div>{revealed&&correct&&option.explanation?<div style={{color:colors.textMuted,fontSize:23,lineHeight:1.3,marginTop:8}}>{option.explanation}</div>:null}</div></div>;})}</div>{!revealed?<div style={{alignItems:"center",color:colors.textMuted,display:"flex",fontSize:24,gap:spacing.sm,marginTop:spacing.md}}>{thinking?<><span>Denk na</span><span style={{alignItems:"center",border:`2px solid ${colors.accent}`,borderRadius:radii.pill,color:colors.accent,display:"flex",fontSize:22,fontWeight:850,height:44,justifyContent:"center",width:44}}>{remainingSeconds}</span></>:<span>Luister naar de vraag…</span>}</div>:<div style={{color:colors.accent,fontSize:24,fontWeight:800,marginTop:spacing.md}}>Antwoord</div>}</Stage>;
 };
 
 const WorkedExampleScene=({scene}:{scene:SceneOf<"workedExample">})=>{

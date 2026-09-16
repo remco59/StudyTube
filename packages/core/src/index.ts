@@ -9,6 +9,8 @@ export const DEFAULT_FPS = 30;
 export const DEFAULT_SCENE_PADDING_SECONDS = 0.35;
 export const DEFAULT_ESTIMATED_WORDS_PER_MINUTE = 155;
 export const MINIMUM_ESTIMATED_NARRATION_SECONDS = 2.25;
+export const DEFAULT_MULTIPLE_CHOICE_THINKING_SECONDS = 5;
+export const MULTIPLE_CHOICE_ANSWER_HOLD_SECONDS = 2;
 
 export type NarrationDurationProvider = (
   scene: StudyTubeScene,
@@ -85,6 +87,42 @@ export const estimateNarrationDurationSeconds = (
   return Math.max(MINIMUM_ESTIMATED_NARRATION_SECONDS, spokenSeconds);
 };
 
+const countWords = (value: string): number =>
+  value.trim().split(/\s+/u).filter(Boolean).length;
+
+export const resolveMultipleChoiceThinkingSeconds = (
+  scene: StudyTubeScene,
+): number => {
+  if (scene.type !== "multipleChoice") return 0;
+
+  const questionWords = countWords(scene.visual.question);
+  const optionWords = scene.visual.options.reduce(
+    (total, option) => total + countWords(option.label),
+    0,
+  );
+  const optionCharacters = scene.visual.options.reduce(
+    (total, option) => total + option.label.length,
+    0,
+  );
+  const averageOptionCharacters = optionCharacters / scene.visual.options.length;
+
+  let automaticThinkingSeconds = DEFAULT_MULTIPLE_CHOICE_THINKING_SECONDS;
+  if (questionWords > 16 || scene.visual.question.length > 100) {
+    automaticThinkingSeconds += 1;
+  }
+  if (scene.visual.options.length >= 4) {
+    automaticThinkingSeconds += 1;
+  }
+  if (optionWords > 28 || averageOptionCharacters > 45) {
+    automaticThinkingSeconds += 1;
+  }
+
+  return Math.max(
+    automaticThinkingSeconds,
+    scene.visual.revealAfterSeconds ?? 0,
+  );
+};
+
 export const estimatedNarrationDurationProvider: NarrationDurationProvider = (
   scene,
 ) => estimateNarrationDurationSeconds(scene.narration);
@@ -122,8 +160,13 @@ export const normalizeStudyTubeProject = async (
         `narration duration for scene ${scene.id}`,
       );
 
+      const quizTailSeconds =
+        scene.type === "multipleChoice"
+          ? resolveMultipleChoiceThinkingSeconds(scene) +
+            MULTIPLE_CHOICE_ANSWER_HOLD_SECONDS
+          : 0;
       const requestedDurationSeconds =
-        narrationDurationSeconds + scenePaddingSeconds;
+        narrationDurationSeconds + scenePaddingSeconds + quizTailSeconds;
       const durationInFrames = secondsToFrames(requestedDurationSeconds, fps);
       const durationSeconds = framesToSeconds(durationInFrames, fps);
       const startFrame = cursorFrame;
