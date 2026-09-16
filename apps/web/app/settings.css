@@ -3,6 +3,23 @@
   text-decoration: none;
 }
 
+.appTabs a {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 14px;
+  color: #868c97;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.appTabs a:hover {
+  color: #d9d5ef;
+}
+
 .settingsNav {
   display: flex;
   align-items: center;
