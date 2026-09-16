@@ -8,6 +8,7 @@ import {
 } from "@studytube/design-system";
 import type {CSSProperties, ReactNode} from "react";
 import {interpolate, useCurrentFrame, useVideoConfig} from "remotion";
+import {IconGlyph} from "./IconGlyph";
 import {
   getAdaptiveGridColumns,
   getFlowchartPositions,
@@ -382,7 +383,7 @@ const IconScene = ({scene}: {scene: SceneOf<"iconScene">}) => {
                 width: 94,
               }}
             >
-              {item.icon}
+              <IconGlyph icon={item.icon} size={54} />
             </div>
             <div style={{fontSize: 34, fontWeight: 820, marginTop: spacing.sm}}>{item.label}</div>
             {item.detail ? (
