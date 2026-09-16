@@ -14,4 +14,8 @@ COPY server.py /app/server.py
 COPY test_server.py /app/test_server.py
 
 EXPOSE 5070
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD curl --fail --silent http://127.0.0.1:5070/health >/dev/null || exit 1
+
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "5070", "--workers", "1"]
