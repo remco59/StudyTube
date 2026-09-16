@@ -13,13 +13,24 @@ export type NarrationTrack={
 
 export type NarrationManifest=Record<string,NarrationTrack>;
 
-export const splitNarrationIntoPhrases=(text:string,maxWords=8):string[]=>{
+export const splitNarrationIntoPhrases=(text:string,maxWords=8,maxCharacters=64):string[]=>{
   if(!Number.isInteger(maxWords)||maxWords<1) throw new Error("maxWords must be a positive integer");
+  if(!Number.isInteger(maxCharacters)||maxCharacters<1) throw new Error("maxCharacters must be a positive integer");
   const sentences=text.trim().split(/(?<=[.!?])\s+/u).filter(Boolean);
   const phrases:string[]=[];
   for(const sentence of sentences){
     const words=sentence.trim().split(/\s+/u).filter(Boolean);
-    for(let index=0;index<words.length;index+=maxWords){phrases.push(words.slice(index,index+maxWords).join(" "));}
+    let current:string[]=[];
+    for(const word of words){
+      const candidate=current.length===0?word:`${current.join(" ")} ${word}`;
+      if(current.length>0&&(current.length>=maxWords||candidate.length>maxCharacters)){
+        phrases.push(current.join(" "));
+        current=[word];
+      }else{
+        current.push(word);
+      }
+    }
+    if(current.length>0)phrases.push(current.join(" "));
   }
   return phrases;
 };
