@@ -20,6 +20,7 @@ describe("versatile scene pack",()=>{
       {id:"quiz",type:"multipleChoice",narration:"Recall question.",visual:{question:"Which answer?",options:[{label:"A"},{label:"B",explanation:"Supported answer"}],correctIndex:1}},
       {id:"example",type:"workedExample",narration:"Apply the method.",visual:{problem:"Solve the case",steps:[{title:"Inspect",body:"Read the evidence"}],result:"Choose the supported conclusion"}},
       {id:"hierarchy",type:"hierarchy",narration:"Ordered levels.",visual:{levels:[{label:"Strategic"},{label:"Tactical"},{label:"Operational"}]}},
+      {id:"quote",type:"quote",narration:"A direct quotation grounds the explanation in the literature.",visual:{quote:"Design is a way of changing existing situations into preferred ones.",author:"Example author",work:"Example work",locator:"p. 12",context:"Key idea from the literature"}},
     ]}]};
     expect(safeParseStudyTubeProject(project).success).toBe(true);
   });
