@@ -57,6 +57,7 @@ services:
     container_name: studytube-cloud-tts
     restart: unless-stopped
     environment:
+      STUDYTUBE_CREDENTIALS_DIR: /credentials
       GOOGLE_APPLICATION_CREDENTIALS: /credentials/google.json
       AZURE_SPEECH_KEY: ${AZURE_SPEECH_KEY:-}
       AZURE_SPEECH_REGION: ${AZURE_SPEECH_REGION:-}
@@ -127,6 +128,7 @@ services:
       - "${STUDYTUBE_PORT:-3000}:3000"
     environment:
       STUDYTUBE_DATA_DIR: /data
+      STUDYTUBE_CREDENTIALS_DIR: /credentials
       STUDYTUBE_RENDERER_ENTRY: /app/apps/renderer/src/index.ts
       STUDYTUBE_RENDER_CONCURRENCY: ${STUDYTUBE_RENDER_CONCURRENCY:-2}
       STUDYTUBE_RENDER_TIMEOUT_MS: ${STUDYTUBE_RENDER_TIMEOUT_MS:-120000}
@@ -152,6 +154,8 @@ services:
       CLOUD_TTS_URL: http://cloud-tts:5070
       GOOGLE_CHIRP_VOICE: ${GOOGLE_CHIRP_VOICE:-nl-NL-Chirp3-HD-Charon}
       AZURE_TTS_VOICE: ${AZURE_TTS_VOICE:-nl-NL-MaartenNeural}
+      AZURE_SPEECH_REGION: ${AZURE_SPEECH_REGION:-}
+      AZURE_SPEECH_ENDPOINT: ${AZURE_SPEECH_ENDPOINT:-}
       NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
       NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,video,utility}
       NEXT_TELEMETRY_DISABLED: "1"
@@ -159,6 +163,7 @@ services:
       - /dev/dri:/dev/dri
     volumes:
       - ${STUDYTUBE_DATA_PATH:-./data}:/data
+      - ${STUDYTUBE_CREDENTIALS_PATH:-./credentials}:/credentials
     shm_size: "1gb"
     healthcheck:
       test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:3000/api/health"]
