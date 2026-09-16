@@ -56,14 +56,16 @@ export const planSceneRuns=(current:SceneManifest,base:SceneManifest|undefined|n
   const runs:SceneRun[]=[];
   for(const [index,scene] of current.scenes.entries()){
     const isReuse=reusable[index];
+    const match=isReuse?baseById.get(scene.id):undefined;
     const last=runs.at(-1);
-    if(last&&(last.kind==="reuse")===isReuse){
+    const canMergeRender=last?.kind==="render"&&!isReuse;
+    const canMergeReuse=last?.kind==="reuse"&&isReuse&&match!==undefined&&last.baseEndFrameExclusive===match.startFrame;
+    if(last&&(canMergeRender||canMergeReuse)){
       last.sceneIds.push(scene.id);
       last.endFrameExclusive=scene.endFrameExclusive;
-      if(isReuse)last.baseEndFrameExclusive=baseById.get(scene.id)?.endFrameExclusive;
+      if(isReuse)last.baseEndFrameExclusive=match?.endFrameExclusive;
       continue;
     }
-    const match=isReuse?baseById.get(scene.id):undefined;
     runs.push({
       kind:isReuse?"reuse":"render",
       sceneIds:[scene.id],

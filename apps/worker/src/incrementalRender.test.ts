@@ -78,6 +78,23 @@ describe("planSceneRuns",()=>{
     ]);
   });
 
+  it("does not merge reuse scenes that are adjacent now but non-contiguous in the base render",()=>{
+    const current=manifest([
+      {id:"one",contentHash:"a",frames:30},
+      {id:"three",contentHash:"c",frames:30},
+    ]);
+    const base=manifest([
+      {id:"one",contentHash:"a",frames:30},
+      {id:"two",contentHash:"b",frames:45},
+      {id:"three",contentHash:"c",frames:30},
+    ]);
+
+    expect(planSceneRuns(current,base)).toEqual([
+      {kind:"reuse",sceneIds:["one"],startFrame:0,endFrameExclusive:30,baseStartFrame:0,baseEndFrameExclusive:30},
+      {kind:"reuse",sceneIds:["three"],startFrame:30,endFrameExclusive:60,baseStartFrame:75,baseEndFrameExclusive:105},
+    ]);
+  });
+
   it("treats a scene missing from the base render as changed",()=>{
     const current=manifest([
       {id:"one",contentHash:"a",frames:30},
