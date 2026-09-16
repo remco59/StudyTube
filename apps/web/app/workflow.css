@@ -323,6 +323,82 @@
   line-height: 1.5;
 }
 
+.diffBlock {
+  margin-top: 22px;
+  border-top: 1px solid #292d35;
+  padding-top: 20px;
+}
+
+.diffBlock summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.diffBlock summary::-webkit-details-marker {
+  display: none;
+}
+
+.diffBlock summary span {
+  color: #858a95;
+  font-size: 0.8rem;
+}
+
+.diffEntryList {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.diffEntry {
+  border: 1px solid #2d323c;
+  border-radius: 14px;
+  background: #14171c;
+  padding: 12px 14px;
+}
+
+.diffEntryMeta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: #7f8590;
+}
+
+.diffEntry p {
+  margin: 6px 0 0;
+  color: #c4c8d1;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.diffStatus {
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.diffStatus.added {
+  background: rgba(92, 221, 161, 0.1);
+  color: #7de1b1;
+}
+
+.diffStatus.removed {
+  background: rgba(255, 120, 120, 0.1);
+  color: #e58a8a;
+}
+
+.diffStatus.modified {
+  background: rgba(255, 181, 94, 0.1);
+  color: #d6a86d;
+}
+
 .wizardRender {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);

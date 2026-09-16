@@ -78,6 +78,14 @@ export const listJobStatuses=async():Promise<StudyTubeJobStatus[]>=>{
     .slice(0,MAX_LISTED_JOBS);
 };
 
+export const readJobProjectFile=async(jobId:string):Promise<string>=>
+  readFile(join(getJobRoot(jobId),"project.studytube.json"),"utf8");
+
+export const findLatestCompletedJobByTitle=async(title:string):Promise<StudyTubeJobStatus|null>=>{
+  const statuses=await listJobStatuses();
+  return statuses.find((status)=>status.state==="completed"&&status.projectTitle===title)??null;
+};
+
 export const readJobLogs=async(jobId:string):Promise<JobLogEntry[]>=>{
   const path=join(getJobRoot(jobId),"logs.ndjson");
   let text:string;
