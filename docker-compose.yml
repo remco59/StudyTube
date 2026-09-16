@@ -161,8 +161,6 @@ services:
       NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
       NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,video,utility}
       NEXT_TELEMETRY_DISABLED: "1"
-    devices:
-      - /dev/dri:/dev/dri
     volumes:
       - ${STUDYTUBE_DATA_PATH:-./data}:/data
       - ${STUDYTUBE_CREDENTIALS_PATH:-./credentials}:/credentials
