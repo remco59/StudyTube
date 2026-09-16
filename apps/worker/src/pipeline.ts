@@ -24,12 +24,13 @@ import {
 import {appendJobLog,createJobPaths,initializeJobPaths,writeJobStatus} from "./jobStore";
 import {normalizeRelativeProjectPath,resolveInside} from "./pathSafety";
 import {parseRenderEngine,renderEngineLabels} from "./renderEngine";
-import {renderStudyTubeComposition} from "./remotionRender";
+import {renderStudyTubeComposition,renderStudyTubeThumbnail} from "./remotionRender";
 import {concatenateSegments,extractSegment} from "./segmentEncoder";
 import type {JobPaths,JobState,RenderEngine,RenderProgress,SceneProgress,StudyTubeJobStatus} from "./types";
 
 export type StudyTubeRenderProps={project:NormalizedStudyTubeProject;narration?:NarrationManifest;showCaptions?:boolean};
 export type PipelineRenderFunction=(options:{entryPoint:string;publicDir:string;outputPath:string;props:StudyTubeRenderProps;renderEngine?:RenderEngine;frameRange?:[number,number];signal?:AbortSignal;onProgress?:(progress:RenderProgress)=>void|Promise<void>})=>Promise<void>;
+export type PipelineThumbnailFunction=(options:{entryPoint:string;publicDir:string;outputPath:string;props:StudyTubeRenderProps;frame:number;signal?:AbortSignal})=>Promise<void>;
 
 export type TtsProviderKind="edge"|"piper"|"omnivoice"|"chatterbox"|"xtts"|"google-chirp"|"azure"|"synthetic";
 export type TtsJobSettings={
@@ -46,6 +47,7 @@ export type RunStudyTubeJobOptions={projectPath:string;dataDir?:string;jobId?:st
 export type PipelineDependencies={
   provider?:TtsProvider;
   render?:PipelineRenderFunction;
+  renderThumbnail?:PipelineThumbnailFunction;
   now?:()=>Date;
   extractSegment?:typeof extractSegment;
   concatenateSegments?:typeof concatenateSegments;
@@ -123,7 +125,11 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
       await renderFull({entryPoint,publicDir:paths.publicDir,outputPath,props,renderEngine,render,signal:options.signal,reportProgress});
     }
 
-    checkCancelled();await Promise.all([statusQueue,logQueue]);await log("render.completed","MP4 render completed",{outputPath,totalFrames:prepared.normalizedProject.totalFrames,renderEngine,ttsProvider:providerKind});await update("completed",1,{outputPath,captions:{srtPath,vttPath}});await Promise.all([statusQueue,logQueue]);return {jobId,paths,status,outputPath};
+    checkCancelled();
+    const thumbnailPath=await generateThumbnail({entryPoint,publicDir:paths.publicDir,outputDir:paths.outputDir,outputBaseName,props,flatScenes,renderThumbnail:deps.renderThumbnail??renderStudyTubeThumbnail,signal:options.signal})
+      .catch((error)=>{logSwallowedError(jobId,"generate a video thumbnail")(error);return undefined;});
+
+    checkCancelled();await Promise.all([statusQueue,logQueue]);await log("render.completed","MP4 render completed",{outputPath,totalFrames:prepared.normalizedProject.totalFrames,renderEngine,ttsProvider:providerKind});await update("completed",1,{outputPath,captions:{srtPath,vttPath},...(thumbnailPath?{thumbnailPath}:{})});await Promise.all([statusQueue,logQueue]);return {jobId,paths,status,outputPath};
   }catch(error){
     if(options.signal?.aborted){await log("job.cancelled","Render cancelled by user").catch(logSwallowedError(jobId,"log job.cancelled"));await update("cancelled",status.progress,{error:undefined}).catch(logSwallowedError(jobId,"update status to cancelled"));await Promise.all([statusQueue.catch(logSwallowedError(jobId,"flush status queue")),logQueue.catch(logSwallowedError(jobId,"flush log queue"))]);throw new StudyTubeJobCancelledError(jobId,paths.root,error);}
     const message=error instanceof Error?error.message:String(error);await log("job.failed",message).catch(logSwallowedError(jobId,"log job.failed"));await update("failed",status.progress,{error:message}).catch(logSwallowedError(jobId,"update status to failed"));await Promise.all([statusQueue.catch(logSwallowedError(jobId,"flush status queue")),logQueue.catch(logSwallowedError(jobId,"flush log queue"))]);throw new StudyTubeJobError(jobId,paths.root,error);
@@ -162,6 +168,14 @@ const loadIncrementalPlan=async(dataDir:string,baseJobId:string,currentManifest:
   const runs=planSceneRuns(currentManifest,baseManifest);
   if(!runs)return null;
   return {runs,baseOutputPath:baseStatus.outputPath};
+};
+
+const generateThumbnail=async(args:{entryPoint:string;publicDir:string;outputDir:string;outputBaseName:string;props:StudyTubeRenderProps;flatScenes:NormalizedScene[];renderThumbnail:PipelineThumbnailFunction;signal?:AbortSignal}):Promise<string>=>{
+  const firstScene=args.flatScenes[0];
+  const frame=firstScene?Math.floor((firstScene.startFrame+firstScene.endFrameExclusive)/2):0;
+  const outputPath=join(args.outputDir,`${args.outputBaseName}.jpg`);
+  await args.renderThumbnail({entryPoint:args.entryPoint,publicDir:args.publicDir,outputPath,props:args.props,frame,signal:args.signal});
+  return outputPath;
 };
 
 const renderFull=async(args:{entryPoint:string;publicDir:string;outputPath:string;props:StudyTubeRenderProps;renderEngine:RenderEngine;render:PipelineRenderFunction;signal?:AbortSignal;reportProgress:(fraction:number,stage:string|undefined,absoluteFrame:number|undefined)=>void})=>{

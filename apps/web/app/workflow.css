@@ -537,6 +537,20 @@
   gap: 18px;
 }
 
+.jobManagerHeader > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.jobManagerThumbnail {
+  flex: 0 0 auto;
+  width: 120px;
+  height: 68px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: #0d0f12;
+}
+
 .jobIdText {
   display: block;
   max-width: 100%;

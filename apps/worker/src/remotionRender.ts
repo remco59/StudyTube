@@ -1,5 +1,5 @@
 import {bundle} from "@remotion/bundler";
-import {renderMedia,selectComposition} from "@remotion/renderer";
+import {renderMedia,renderStill,selectComposition} from "@remotion/renderer";
 import type {NarrationManifest,NormalizedStudyTubeProject} from "@studytube/core";
 import {createIntelVaapiFfmpegOverride,requireRenderEngine} from "./renderEngine";
 import type {RenderEngine,RenderProgress} from "./types";
@@ -13,6 +13,15 @@ export type RenderStudyTubeOptions={
   frameRange?:[number,number];
   signal?:AbortSignal;
   onProgress?:(progress:RenderProgress)=>void|Promise<void>;
+};
+
+export type RenderStudyTubeThumbnailOptions={
+  entryPoint:string;
+  publicDir:string;
+  outputPath:string;
+  props:{project:NormalizedStudyTubeProject;narration?:NarrationManifest;showCaptions?:boolean};
+  frame:number;
+  signal?:AbortSignal;
 };
 
 export type RemotionRenderSettings={
@@ -77,5 +86,27 @@ export const renderStudyTubeComposition=async(options:RenderStudyTubeOptions):Pr
     ffmpegOverride:renderEngine==="intel"&&intelDevice?createIntelVaapiFfmpegOverride(intelDevice):undefined,
     cancelSignal:options.signal?makeRemotionCancelSignal(options.signal):undefined,
     onProgress:({progress,stitchStage,renderedFrames})=>{void options.onProgress?.({progress:.12+progress*.88,stage:stitchStage,renderedFrames});},
+  });
+};
+
+export const renderStudyTubeThumbnail=async(options:RenderStudyTubeThumbnailOptions):Promise<void>=>{
+  throwIfCancelled(options.signal);
+  const serveUrl=await bundle({entryPoint:options.entryPoint,publicDir:options.publicDir});
+  throwIfCancelled(options.signal);
+  const inputProps=options.props as unknown as Record<string,unknown>;
+  const composition=await selectComposition({serveUrl,id:"StudyTube",inputProps});
+  throwIfCancelled(options.signal);
+  const frame=Math.min(Math.max(0,options.frame),composition.durationInFrames-1);
+
+  await renderStill({
+    serveUrl,
+    composition,
+    output:options.outputPath,
+    frame,
+    inputProps,
+    imageFormat:"jpeg",
+    jpegQuality:90,
+    overwrite:true,
+    cancelSignal:options.signal?makeRemotionCancelSignal(options.signal):undefined,
   });
 };

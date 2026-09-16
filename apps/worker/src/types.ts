@@ -26,6 +26,7 @@ export type StudyTubeJobStatus={
   sceneProgress?:SceneProgress;
   baseJobId?:string;
   captions?:{srtPath:string;vttPath:string};
+  thumbnailPath?:string;
 };
 
 export type JobLogEntry={
