@@ -170,6 +170,11 @@
   color: #7de1b1;
 }
 
+.ttsOption.blocked .ttsBadge.google-chirp {
+  background: rgba(255, 181, 94, 0.08);
+  color: #e0b06f;
+}
+
 .ttsBadge.piper,
 .ttsBadge.azure {
   background: rgba(102, 173, 255, 0.09);
@@ -206,6 +211,10 @@
   background: rgba(123, 97, 255, 0.08);
 }
 
+.ttsOption.blocked {
+  border-color: rgba(255, 181, 94, 0.23);
+}
+
 .ttsOptionSelect {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr) auto;
@@ -240,6 +249,59 @@
 .ttsSettingsButton.active {
   background: rgba(123,97,255,0.09);
   color: #c4baff;
+}
+
+.chirpUsageMeter {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 7px;
+  border-top: 1px solid #2d323c;
+  background: rgba(8, 10, 13, 0.34);
+  padding: 10px 12px 11px;
+}
+
+.chirpUsageMeta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #8e949f;
+  font-size: 0.68rem;
+}
+
+.chirpUsageMeta strong {
+  color: #c8cbd1;
+  font-size: 0.69rem;
+}
+
+.chirpUsageMeter small {
+  color: #707681;
+  font-size: 0.64rem;
+  line-height: 1.4;
+}
+
+.chirpUsageMeter.unavailable small,
+.chirpUsageMeter.exhausted small {
+  color: #c49b67;
+}
+
+.chirpUsageTrack {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #242932;
+}
+
+.chirpUsageTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #7b61ff;
+  transition: width 180ms ease;
+}
+
+.chirpUsageMeter.exhausted .chirpUsageTrack span {
+  background: #ca8b4b;
 }
 
 .ttsSettingsPanel {
@@ -364,5 +426,11 @@
   .ttsSettingsGrid .wide,
   .ttsSettingsHint {
     grid-column: auto;
+  }
+
+  .chirpUsageMeta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
   }
 }
