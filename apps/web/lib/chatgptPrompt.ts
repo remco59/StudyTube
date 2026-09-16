@@ -46,6 +46,7 @@ CONTENT REQUIREMENTS
 - Treat every visual field as a strict screen-space budget: titles should usually stay below 9 words, kinetic text below 16 words, comparison side titles below 5 words, comparison bodies below 18 words, and recap points below 14 words.
 - For comparison scenes, versusLabel must be a very short connector of at most 3 short words such as "vs.", "of", or "tegenover". Never put a sentence or the full comparison message in versusLabel.
 - Vary the visual presentation. Do not make every scene a title card or bullet list.
+- Prefer a semantically specific scene such as cycle, matrix, workedExample, hierarchy, dataChart or annotatedImage over forcing the content into a generic card layout.
 - Write narration as natural spoken ${languageNames[language]}, not academic written prose.
 - Aim for approximately 130-160 spoken words per minute.
 
@@ -140,10 +141,42 @@ Use visualGag only occasionally and only when it supports the explanation.
 recap
 {"title":"optional","points":["2 to 6 concise points"]}
 
+bulletReveal
+{"title":"optional","points":["2 to 6 concise points"]}
+Use bulletReveal when several related points should appear progressively during one explanation. Do not use it as a default replacement for more meaningful visual structures.
+
+dataChart
+{"title":"optional","chartType":"bar | line | donut","data":[{"label":"required","value":0}],"unit":"optional","sourceLabel":"optional"}
+Use 2-8 non-negative data points. Only visualize numeric values explicitly supported by the supplied material.
+
+matrix
+{"title":"optional","xAxis":{"low":"optional label","high":"optional label"},"yAxis":{"low":"optional label","high":"optional label"},"quadrants":{"topLeft":{"title":"required","detail":"optional"},"topRight":{"title":"required","detail":"optional"},"bottomLeft":{"title":"required","detail":"optional"},"bottomRight":{"title":"required","detail":"optional"}}}
+Use matrix for genuine two-dimensional frameworks or classifications.
+
+cycle
+{"title":"optional","center":"optional","steps":[{"title":"required","detail":"optional","icon":"optional"}]}
+Use 3-8 steps. Use cycle only when the final step conceptually feeds back into the first.
+
+multipleChoice
+{"question":"required","options":[{"label":"required","explanation":"optional"}],"correctIndex":0,"revealAfterSeconds":"optional number, default 3"}
+Use 2-5 options. correctIndex is zero-based and must point to an existing option. Only include a correct answer when it is supported by the material.
+
+workedExample
+{"title":"optional","problem":"required","steps":[{"label":"optional","title":"required","body":"required"}],"result":"optional"}
+Use 1-5 concise steps. Use workedExample to demonstrate applying a method, model, calculation or reasoning process.
+
+hierarchy
+{"title":"optional","direction":"topDown | bottomUp","levels":[{"label":"required","detail":"optional"}]}
+Use 2-6 levels and only when the source implies a genuine ordering, layering or hierarchy.
+
 Use these scene types only when the corresponding asset is present in the project package:
 
 image
 {"assetId":"existing image asset ID","fit":"contain | cover","caption":"optional"}
+
+annotatedImage
+{"assetId":"existing image asset ID","fit":"contain | cover","title":"optional","annotations":[{"label":"required","x":50,"y":50,"targetX":"optional 0-100","targetY":"optional 0-100"}],"caption":"optional"}
+Coordinates are percentages from the top-left. Keep annotations sparse, normally 1-5, and place labels so they do not overlap important image content.
 
 document
 {"assetId":"existing document asset ID","page":1,"caption":"optional"}
@@ -157,7 +190,9 @@ Do not invent URLs or source details.
 
 VIDEO DESIGN
 Think in scenes rather than slides.
-Prefer definition for terminology, comparison for contrasts, process for sequential methods, flowchart for decisions and relationships, diagram for connected concepts, timeline for chronology, bigNumber for meaningful figures, kineticText for a short important statement, question for active recall, and recap for consolidation.
+Prefer definition for terminology, comparison for contrasts, process for one-way sequential methods, cycle for repeating processes, flowchart for decisions and relationships, diagram for connected concepts, hierarchy for levels, matrix for two-dimensional frameworks, timeline for chronology, dataChart for supported numeric evidence, workedExample for applying knowledge, multipleChoice for active recall, bigNumber for meaningful figures, kineticText for a short important statement, question for reflection, and recap for consolidation.
+Use annotatedImage when labels or callouts make an image teach something that the image alone would not communicate.
+Use bulletReveal for short progressive lists, but avoid falling back to it when another scene type expresses the relationships more clearly.
 Use image scenes selectively when a photograph, illustration, diagram or generated visual adds something the structured StudyTube scenes cannot communicate as well.
 Do not repeat the narration verbatim in the visual.
 Make transitions between scenes logical so the narration feels like one coherent video rather than disconnected cards.
@@ -174,11 +209,12 @@ Before returning the file, internally check that:
 8. Every scene uses a supported scene type.
 9. Every visual object contains only fields supported by that scene type.
 10. Every flowchart edge references an existing node.
-11. No image or document scene references a nonexistent asset.
-12. Every declared asset exists at the exact same path inside the ZIP.
-13. A text-only project contains no declared assets and is returned as .studytube.json.
-14. A project with assets is returned as .studytube.zip with project.studytube.json at the archive root.
-15. The project JSON is valid JSON with no comments, trailing commas or placeholders.
+11. Every multipleChoice correctIndex references an existing option.
+12. No image, annotatedImage or document scene references a nonexistent asset.
+13. Every declared asset exists at the exact same path inside the ZIP.
+14. A text-only project contains no declared assets and is returned as .studytube.json.
+15. A project with assets is returned as .studytube.zip with project.studytube.json at the archive root.
+16. The project JSON is valid JSON with no comments, trailing commas or placeholders.
 
 OUTPUT
 Return the finished file as a downloadable attachment, not as explanatory prose.
