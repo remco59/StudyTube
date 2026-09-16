@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect,useRef,useState} from "react";
+import {useCallback,useEffect,useRef,useState} from "react";
 import {
   applyTeachingPreset,
   summarizeTeachingConfig,
@@ -78,10 +78,10 @@ export const PromptTeachingSettings=({value,onChange}:Props)=>{
   const triggerRef=useRef<HTMLButtonElement>(null);
   const closeRef=useRef<HTMLButtonElement>(null);
 
-  const closeModal=()=>{
+  const closeModal=useCallback(()=>{
     setOpen(false);
     window.requestAnimationFrame(()=>triggerRef.current?.focus());
-  };
+  },[]);
 
   useEffect(()=>{
     if(!open)return;
@@ -96,7 +96,7 @@ export const PromptTeachingSettings=({value,onChange}:Props)=>{
       document.body.style.overflow=previousOverflow;
       window.removeEventListener("keydown",handleKeyDown);
     };
-  },[open]);
+  },[closeModal,open]);
 
   const setTechnique=(key:Exclude<keyof PromptTeachingConfig["techniques"],"activeRecall">,enabled:boolean)=>{
     onChange({...value,techniques:{...value.techniques,[key]:enabled}});
