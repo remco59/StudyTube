@@ -44,20 +44,20 @@ export const getTtsReferenceFile=(selection:TtsSelection):File|null=>{
 
 type Props={value:TtsSelection;disabled?:boolean;onChange:(value:TtsSelection)=>void};
 const choices:{id:TtsProviderChoice;label:string;detail:string;badge:string}[]=[
-  {id:"edge",label:"Edge TTS",detail:"Microsoft neural voices · fast · internet required",badge:"Recommended"},
-  {id:"google-chirp",label:"Google Chirp 3 HD",detail:"Premium cloud voices · Dutch HD · 1M chars/month free",badge:"Free tier"},
-  {id:"azure",label:"Azure Speech",detail:"Official Microsoft Speech API · Dutch neural and HD voices",badge:"Cloud"},
-  {id:"piper",label:"Piper",detail:"Fully local and lightweight · very fast on CPU",badge:"Offline"},
-  {id:"omnivoice",label:"OmniVoice",detail:"Local multilingual model · voice design and cloning",badge:"Experimental"},
-  {id:"chatterbox",label:"Chatterbox Multilingual",detail:"Local Dutch TTS · zero-shot voice cloning · V2/V3",badge:"Local HQ"},
-  {id:"xtts",label:"XTTS v2",detail:"Local multilingual voice cloning · CPML license",badge:"Local"},
+  {id:"edge",label:"Edge TTS",detail:"Microsoft neural voices · fast · internet required",badge:"Standard"},
+  {id:"google-chirp",label:"Google Chirp 3 HD",detail:"Premium cloud voices · Dutch HD · 1M chars/month free",badge:"Standard"},
+  {id:"piper",label:"Piper",detail:"Fully local and lightweight · very fast on CPU",badge:"Standard"},
+  {id:"azure",label:"Azure Speech",detail:"Optional Microsoft Speech API · Dutch neural and HD voices",badge:"Optional"},
+  {id:"omnivoice",label:"OmniVoice",detail:"Optional local model · voice design and cloning · enable Docker profile",badge:"Optional"},
+  {id:"chatterbox",label:"Chatterbox Multilingual",detail:"Optional local Dutch TTS · zero-shot voice cloning · enable Docker profile",badge:"Optional"},
+  {id:"xtts",label:"XTTS v2",detail:"Optional local multilingual voice cloning · enable Docker profile",badge:"Optional"},
 ];
 
 export const TtsSelector=({value,disabled=false,onChange}:Props)=>{
   const [settingsOpen,setSettingsOpen]=useState<TtsProviderChoice|null>(null);
   const select=(provider:TtsProviderChoice)=>onChange({...value,provider});
   return <div className="ttsBlock">
-    <div className="ttsHeading"><div><strong>Text-to-speech</strong><span>Choose the voice engine for this render. Local engines start with the normal Docker stack.</span></div></div>
+    <div className="ttsHeading"><div><strong>Text-to-speech</strong><span>Edge TTS, Piper and Google Chirp 3 HD are included in the standard Docker stack. Larger local engines are optional.</span></div></div>
     <div className="ttsOptions">{choices.map((choice)=><div className={`ttsOption${value.provider===choice.id?" selected":""}`} key={choice.id}>
       <button type="button" className="ttsOptionSelect" disabled={disabled} onClick={()=>select(choice.id)}>
         <span className="engineRadio">{value.provider===choice.id?"●":"○"}</span>

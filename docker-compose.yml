@@ -32,6 +32,7 @@ services:
       start_period: 60s
 
   omnivoice:
+    profiles: ["optional", "omnivoice"]
     build:
       context: ./docker/omnivoice
     container_name: studytube-omnivoice
@@ -70,6 +71,7 @@ services:
       start_period: 10s
 
   chatterbox:
+    profiles: ["optional", "chatterbox"]
     build:
       context: ./docker/chatterbox
     container_name: studytube-chatterbox
@@ -89,6 +91,7 @@ services:
       start_period: 20s
 
   xtts:
+    profiles: ["optional", "xtts"]
     build:
       context: ./docker/xtts
     container_name: studytube-xtts
@@ -118,13 +121,7 @@ services:
         condition: service_healthy
       piper:
         condition: service_healthy
-      omnivoice:
-        condition: service_healthy
       cloud-tts:
-        condition: service_healthy
-      chatterbox:
-        condition: service_healthy
-      xtts:
         condition: service_healthy
     ports:
       - "${STUDYTUBE_PORT:-3000}:3000"
