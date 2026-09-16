@@ -48,11 +48,19 @@ const systemFfmpegHasEncoder=async(encoder:string):Promise<boolean>=>{
   }catch{return false;}
 };
 
+const nvidiaDriverIsUsable=async():Promise<boolean>=>{
+  try{
+    const {stdout}=await execFileAsync("nvidia-smi",["-L"],{timeout:8_000,maxBuffer:1_000_000});
+    return stdout.trim().length>0;
+  }catch{return false;}
+};
+
 export const detectRenderCapabilities=async():Promise<RenderCapabilities>=>{
   const intelDevice=await findIntelRenderDevice();
   const intelEncoder=intelDevice?await systemFfmpegHasEncoder("h264_vaapi"):false;
   const nvidiaDevice=(await pathExists("/dev/nvidia0"))||(await pathExists("/dev/nvidiactl"));
   const nvidiaArchitecture=process.arch==="x64";
+  const nvidiaDriver=nvidiaDevice&&nvidiaArchitecture?await nvidiaDriverIsUsable():false;
 
   return {
     engines:[
@@ -66,8 +74,8 @@ export const detectRenderCapabilities=async():Promise<RenderCapabilities>=>{
       {
         id:"nvidia",
         label:renderEngineLabels.nvidia,
-        available:nvidiaDevice&&nvidiaArchitecture,
-        detail:!nvidiaDevice?"NVIDIA device is not available inside the container.":!nvidiaArchitecture?"Remotion NVENC requires the Linux x64 renderer build.":"NVIDIA device is available; Remotion will require NVENC for this job.",
+        available:nvidiaDevice&&nvidiaArchitecture&&nvidiaDriver,
+        detail:!nvidiaDevice?"NVIDIA device is not available inside the container.":!nvidiaArchitecture?"Remotion NVENC requires the Linux x64 renderer build.":!nvidiaDriver?"NVIDIA device files are present, but nvidia-smi could not communicate with a usable driver.":"NVIDIA device and driver are available; Remotion will require NVENC for this job.",
       },
     ],
     ...(intelDevice?{intelDevice}:{}),
