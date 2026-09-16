@@ -28,6 +28,19 @@ git clone https://github.com/remco59/StudyTube.git repo
 cd repo
 cp .env.example .env
 mkdir -p /mnt/user/appdata/studytube/data /mnt/user/appdata/studytube/piper
+```
+
+Generate a strong access password:
+
+```bash
+openssl rand -base64 32
+```
+
+Put that value in `.env` as `STUDYTUBE_AUTH_PASSWORD`. StudyTube deliberately fails closed when this value is empty, so the UI and API are not exposed accidentally.
+
+Then start the stack:
+
+```bash
 docker compose up -d --build
 ```
 
@@ -37,9 +50,26 @@ Open:
 http://<tower-ip>:3000
 ```
 
+Your browser will prompt for HTTP Basic credentials. The default username is `admin` unless `STUDYTUBE_AUTH_USER` is changed in `.env`.
+
 The standard StudyTube Compose configuration does **not** require an NVIDIA runtime. A normal `docker compose up -d --build` therefore starts on hosts without NVIDIA support. Intel `/dev/dri` remains exposed for VAAPI rendering on the intended Unraid host.
 
 NVIDIA is optional. StudyTube checks whether NVIDIA devices are actually visible inside the running container. If they are not, NVIDIA NVENC is simply shown as unavailable in the web interface while CPU and Intel rendering keep working.
+
+## Access control
+
+StudyTube protects the UI and all application API routes with HTTP Basic authentication. `/api/health` is intentionally left unauthenticated so Docker can perform health checks.
+
+Configure access in `.env`:
+
+```dotenv
+STUDYTUBE_AUTH_USER=admin
+STUDYTUBE_AUTH_PASSWORD=<long-random-password>
+```
+
+If `STUDYTUBE_AUTH_PASSWORD` is missing or empty, StudyTube returns `503` for protected routes instead of running without authentication.
+
+Basic authentication must be transported over a trusted network or HTTPS. If you expose StudyTube outside your LAN, terminate HTTPS in a reverse proxy or tunnel; do not port-forward the plain HTTP service directly to the public internet.
 
 ## Narration provider
 
@@ -92,6 +122,8 @@ Copy `.env.example` to `.env` and adjust as needed:
 
 ```dotenv
 STUDYTUBE_PORT=3000
+STUDYTUBE_AUTH_USER=admin
+STUDYTUBE_AUTH_PASSWORD=<long-random-password>
 STUDYTUBE_DATA_PATH=/mnt/user/appdata/studytube/data
 STUDYTUBE_RENDER_CONCURRENCY=2
 STUDYTUBE_RENDER_TIMEOUT_MS=120000
@@ -173,6 +205,14 @@ docker compose up -d
 Do not add `-v` to `docker compose down` if you later switch from bind mounts to named volumes and want to keep them.
 
 ## Troubleshooting
+
+### The UI returns 503 instead of asking for a password
+
+Set a non-empty `STUDYTUBE_AUTH_PASSWORD` in `.env`, then recreate the StudyTube container:
+
+```bash
+docker compose up -d --force-recreate studytube
+```
 
 ### A GPU option shows as unavailable
 
