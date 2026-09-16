@@ -35,7 +35,7 @@ WORKDIR /app
 
 # Install dependencies in a cache-friendly layer. Source-code changes no longer
 # invalidate npm install; this layer is rebuilt only when a workspace manifest changes.
-COPY package.json ./
+COPY package.json package-lock.json ./
 COPY apps/renderer/package.json apps/renderer/package.json
 COPY apps/web/package.json apps/web/package.json
 COPY apps/worker/package.json apps/worker/package.json
@@ -46,7 +46,7 @@ COPY packages/tts/package.json packages/tts/package.json
 
 # Build-time tools such as TypeScript and @remotion/cli are devDependencies,
 # so install them before switching the runtime environment to production.
-RUN npm install
+RUN npm ci
 
 # Copy application source only after dependency installation so normal code edits
 # can reuse the cached npm layer.
