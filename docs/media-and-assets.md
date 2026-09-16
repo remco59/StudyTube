@@ -12,7 +12,11 @@ Asset paths must be relative and use forward slashes. Absolute paths, URL scheme
 
 ## Document scenes
 
-StudyTube does not rely on Chromium's PDF viewer. In v1, `document` and `documentHighlight` render a consistent paper treatment using the document's metadata, requested page number, caption and authored highlight text. A later ingestion pipeline can rasterize actual PDF pages into project-local image assets without changing the scene contract.
+StudyTube does not rely on Chromium's PDF viewer. Before Remotion starts, the worker rasterizes every PDF page referenced by a `document` or `documentHighlight` scene to a cached PNG using Poppler's `pdftoppm`. The generated page image is staged into the job's public directory and rendered with `object-fit: contain`, so photographs, diagrams and page layout from the source PDF remain visible without cropping.
+
+Rasterized pages are cached by PDF content hash, page number and render DPI. Repeated use of the same source page therefore reuses the generated PNG. If rasterization fails, or if the document asset is not a PDF, the renderer falls back to the existing deterministic paper treatment using the document metadata, requested page number, caption and authored highlight text.
+
+`documentHighlight` uses the same real page render and places the authored highlight text as a readable callout over the page.
 
 ## Visual gags
 
