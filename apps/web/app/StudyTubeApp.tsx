@@ -17,7 +17,7 @@ type RenderEngine="cpu"|"intel"|"nvidia";
 type RenderCapability={id:RenderEngine;label:string;available:boolean;detail:string};
 type RenderCapabilities={engines:RenderCapability[]};
 type SceneProgress={currentSceneId?:string;currentSceneIndex:number;completedScenes:number;totalScenes:number;etaSeconds?:number};
-type JobStatus={jobId:string;state:string;progress:number;createdAt?:string;updatedAt?:string;projectTitle?:string;renderEngine?:RenderEngine;ttsProvider?:TtsProviderChoice|"synthetic";outputPath?:string;error?:string;downloadedAt?:string;expiresAt?:string;sceneProgress?:SceneProgress;captions?:{srtPath:string;vttPath:string};thumbnailPath?:string;queuePosition?:number;queueLength?:number};
+type JobStatus={jobId:string;state:string;progress:number;createdAt?:string;updatedAt?:string;projectTitle?:string;renderEngine?:RenderEngine;ttsProvider?:TtsProviderChoice|"synthetic";outputPath?:string;error?:string;downloadedAt?:string;sceneProgress?:SceneProgress;captions?:{srtPath:string;vttPath:string};thumbnailPath?:string;queuePosition?:number;queueLength?:number};
 type JobLogEntry={timestamp:string;event:string;message:string;data?:unknown};
 type PromptLanguage="nl-NL"|"en-US";
 type AppTab="create"|"jobs";
@@ -36,6 +36,7 @@ type StoredTtsSettings={
 type SettingsResponse={settings:{promptDurationMinutes:number;promptLanguage:PromptLanguage;renderEngine:RenderEngine;tts:StoredTtsSettings}};
 
 const renderEngineChoices:RenderEngine[]=["cpu","intel","nvidia"];
+const MAX_COMPLETED_RENDERS_PER_PROJECT=5;
 
 export const StudyTubeApp=()=>{
   const [activeTab,setActiveTab]=useState<AppTab>("create");
@@ -64,6 +65,7 @@ export const StudyTubeApp=()=>{
   const [batchFiles,setBatchFiles]=useState<File[]>([]);
   const [batchSubmitting,setBatchSubmitting]=useState(false);
   const [batchResult,setBatchResult]=useState<{createdCount:number;failed:{fileName:string;error:string}[]}|null>(null);
+  const [projectHistory,setProjectHistory]=useState<JobStatus[]>([]);
   const [ttsSelection,setTtsSelection]=useState<TtsSelection>(defaultTtsSelection);
   const validationRequest=useRef(0);
 
@@ -180,6 +182,20 @@ export const StudyTubeApp=()=>{
 
   const managedJob=useMemo(()=>jobs.find((item)=>item.jobId===managedJobId)??null,[jobs,managedJobId]);
   const managedJobState=managedJob?.state;
+  const managedProjectTitle=managedJob?.projectTitle;
+
+  useEffect(()=>{
+    if(!managedProjectTitle)return;
+    let cancelled=false;
+    void fetch(`/api/jobs/history?title=${encodeURIComponent(managedProjectTitle)}`,{cache:"no-store"}).then(async(response)=>{
+      if(!response.ok||cancelled)return;
+      const result=await response.json() as {jobs:JobStatus[]};
+      if(!cancelled)setProjectHistory(result.jobs??[]);
+    }).catch(()=>{
+      if(!cancelled)setProjectHistory([]);
+    });
+    return()=>{cancelled=true;};
+  },[managedProjectTitle,managedJobId]);
 
   useEffect(()=>{
     if(activeTab!=="jobs"||!detailsOpen||!managedJobId)return;
@@ -331,6 +347,7 @@ export const StudyTubeApp=()=>{
   };
 
   const selectManagedJob=(next:JobStatus)=>{
+    setJobs((current)=>current.some((item)=>item.jobId===next.jobId)?current:[...current,next]);
     setManagedJobId(next.jobId);
     setLogs([]);
     setDetailsOpen(false);
@@ -503,6 +520,13 @@ export const StudyTubeApp=()=>{
               {!isTerminal(managedJob.state)?<button className="cancelButton compactButton" disabled={cancellingJobId===managedJob.jobId} onClick={()=>void cancelJob(managedJob)}>{cancellingJobId===managedJob.jobId?"Cancelling…":"Cancel render"}</button>:null}
               {isTerminal(managedJob.state)?<button type="button" className="cancelButton compactButton" disabled={deletingJobId===managedJob.jobId} onClick={()=>void deleteJob(managedJob)}>{deletingJobId===managedJob.jobId?"Deleting…":"Delete job"}</button>:null}
             </div>
+            {projectHistory.length>1?<div className="renderHistory">
+              <div className="renderHistoryHeading"><strong>Render history</strong><span>{projectHistory.length} of the last {MAX_COMPLETED_RENDERS_PER_PROJECT} kept for this project</span></div>
+              <div className="renderHistoryList">{projectHistory.map((historyJob)=><button type="button" key={historyJob.jobId} className={`renderHistoryItem${historyJob.jobId===managedJob.jobId?" selected":""}`} onClick={()=>selectManagedJob(historyJob)}>
+                {historyJob.thumbnailPath?<img src={`/api/jobs/${historyJob.jobId}/thumbnail`} alt=""/>:<span className="renderHistoryThumbPlaceholder"/>}
+                <span>{historyJob.createdAt?formatJobDate(historyJob.createdAt):historyJob.jobId}</span>
+              </button>)}</div>
+            </div>:null}
             <details className="jobDetails managerDetails" open={detailsOpen} onToggle={(event)=>setDetailsOpen(event.currentTarget.open)}>
               <summary><span>{detailsOpen?"Hide logs":"Show logs"}</span><span className="detailMeta">{managedJob.updatedAt?`Updated ${formatJobDate(managedJob.updatedAt)}`:"Pipeline details"}</span></summary>
               <div className="logConsole">{logs.length===0?<div className="logEmpty">{!isTerminal(managedJob.state)?"Waiting for pipeline logs…":"No logs recorded for this job."}</div>:logs.map((entry,index)=><div className="logLine" key={`${entry.timestamp}-${entry.event}-${index}`}><time>{formatLogTime(entry.timestamp)}</time><span className="logEvent">{entry.event}</span><span>{entry.message}</span></div>)}</div>
@@ -531,8 +555,8 @@ const ttsProviderLabel=(provider:NonNullable<JobStatus["ttsProvider"]>)=>({edge:
 const renderDescription=(job:JobStatus|null,busy:boolean,hasActiveJob:boolean)=>{
   if(job?.state==="failed")return job.error??"The render pipeline stopped. Open the job to inspect its logs.";
   if(job?.state==="cancelled")return "This render was cancelled. You can start it again when you are ready.";
-  if(job?.state==="completed"&&job.downloadedAt)return "Downloaded. StudyTube will remove this job automatically about one hour after the first download.";
-  if(job?.state==="completed")return "The finished video stays on the server until you download it.";
+  if(job?.state==="completed"&&job.downloadedAt)return `Downloaded. StudyTube keeps the last ${MAX_COMPLETED_RENDERS_PER_PROJECT} renders of this project — older ones are cleaned up automatically once you re-render.`;
+  if(job?.state==="completed")return "The finished video stays on the server as part of this project's render history.";
   if(busy)return `StudyTube is rendering this project on your server using ${renderEngineLabel(job?.renderEngine??"cpu")}${job?.ttsProvider?` and ${ttsProviderLabel(job.ttsProvider)}`:""}.`;
   if(hasActiveJob)return "Another render is already running. This one will queue and start automatically once it's done.";
   return "StudyTube will synthesize the narration and render a finished 1080p MP4.";
