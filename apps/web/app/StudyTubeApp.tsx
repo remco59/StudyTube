@@ -2,13 +2,14 @@
 
 import {useCallback,useEffect,useMemo,useRef,useState} from "react";
 import {buildChatGptPrompt} from "../lib/chatgptPrompt";
+import {defaultTtsSelection,serializeTtsSettings,TtsSelector,type TtsProviderChoice,type TtsSelection} from "./TtsSelector";
 
 type RequiredAsset={id:string;type:"image"|"document";path:string;fileName:string};
 type ValidationResult={valid:true;summary:{title:string;language:string;targetDuration:number;chapters:number;scenes:number;assets:number};assets:RequiredAsset[]}|{valid:false;issues:{path:string;message:string}[]};
 type RenderEngine="cpu"|"intel"|"nvidia";
 type RenderCapability={id:RenderEngine;label:string;available:boolean;detail:string};
 type RenderCapabilities={engines:RenderCapability[]};
-type JobStatus={jobId:string;state:string;progress:number;createdAt?:string;updatedAt?:string;projectTitle?:string;renderEngine?:RenderEngine;outputPath?:string;error?:string;downloadedAt?:string;expiresAt?:string};
+type JobStatus={jobId:string;state:string;progress:number;createdAt?:string;updatedAt?:string;projectTitle?:string;renderEngine?:RenderEngine;ttsProvider?:TtsProviderChoice|"synthetic";outputPath?:string;error?:string;downloadedAt?:string;expiresAt?:string};
 type JobLogEntry={timestamp:string;event:string;message:string;data?:unknown};
 type PromptLanguage="nl-NL"|"en-US";
 type AppTab="create"|"jobs";
@@ -37,6 +38,7 @@ export const StudyTubeApp=()=>{
   const [deletingJobId,setDeletingJobId]=useState<string|null>(null);
   const [renderEngine,setRenderEngine]=useState<RenderEngine>("cpu");
   const [renderCapabilities,setRenderCapabilities]=useState<RenderCapabilities|null>(null);
+  const [ttsSelection,setTtsSelection]=useState<TtsSelection>(defaultTtsSelection);
   const validationRequest=useRef(0);
 
   const refreshJobs=useCallback(async()=>{
@@ -185,13 +187,18 @@ export const StudyTubeApp=()=>{
     if(!projectFile||!validation?.valid||missingAssets.length>0||hasActiveJob||!renderEngineAvailable)return;
     setCancellingJobId(null);
     setError(null);
-    setJob({jobId:"starting",state:"queued",progress:0,projectTitle:validation.summary.title,renderEngine});
-    const form=new FormData();form.append("project",projectFile);form.append("renderEngine",renderEngine);
+    setJob({jobId:"starting",state:"queued",progress:0,projectTitle:validation.summary.title,renderEngine,ttsProvider:ttsSelection.provider});
+    const form=new FormData();
+    form.append("project",projectFile);
+    form.append("renderEngine",renderEngine);
+    form.append("ttsProvider",ttsSelection.provider);
+    form.append("ttsSettings",serializeTtsSettings(ttsSelection));
+    if(ttsSelection.provider==="omnivoice"&&ttsSelection.omnivoice.referenceFile)form.append("ttsReference",ttsSelection.omnivoice.referenceFile,ttsSelection.omnivoice.referenceFile.name);
     for(const asset of validation.assets){const file=matchedAssets.get(asset.id);if(file)form.append(`asset:${asset.id}`,file,file.name);}
     const response=await fetch("/api/jobs",{method:"POST",body:form});
-    const result=await response.json() as {jobId?:string;renderEngine?:RenderEngine;error?:string};
+    const result=await response.json() as {jobId?:string;renderEngine?:RenderEngine;ttsProvider?:TtsProviderChoice;error?:string};
     if(!response.ok||!result.jobId){setJob(null);setError(result.error??"Could not start render");void refreshRenderCapabilities();return;}
-    const next:JobStatus={jobId:result.jobId,state:"queued",progress:0,createdAt:new Date().toISOString(),projectTitle:validation.summary.title,renderEngine:result.renderEngine??renderEngine};
+    const next:JobStatus={jobId:result.jobId,state:"queued",progress:0,createdAt:new Date().toISOString(),projectTitle:validation.summary.title,renderEngine:result.renderEngine??renderEngine,ttsProvider:result.ttsProvider??ttsSelection.provider};
     setJob(next);
     setManagedJobId(next.jobId);
     setJobs((current)=>[next,...current.filter((item)=>item.jobId!==next.jobId)]);
@@ -340,6 +347,7 @@ export const StudyTubeApp=()=>{
                       </button>;
                     })}</div>
                   </div>
+                  <TtsSelector value={ttsSelection} disabled={busy} onChange={setTtsSelection}/>
                 </div>
                 <div className="renderAction wizardRenderAction">
                   {busy?<div className="progress"><div className="progressTrack"><span style={{width:`${Math.round((job?.progress??0)*100)}%`}}/></div><strong>{Math.round((job?.progress??0)*100)}%</strong></div>:null}
@@ -364,7 +372,7 @@ export const StudyTubeApp=()=>{
           </section>
 
           {managedJob?<section className="jobManager">
-            <div className="jobManagerHeader"><div><p className="eyebrow">Selected job</p><h2>{managedJob.projectTitle??"StudyTube render"}</h2><span className="jobIdText">{managedJob.jobId}</span><span className="jobEngineText">{renderEngineLabel(managedJob.renderEngine??"cpu")}</span></div><span className={`jobStatePill ${stateClass(managedJob.state)}`}>{jobStatusLabel(managedJob)}</span></div>
+            <div className="jobManagerHeader"><div><p className="eyebrow">Selected job</p><h2>{managedJob.projectTitle??"StudyTube render"}</h2><span className="jobIdText">{managedJob.jobId}</span><span className="jobEngineText">{renderEngineLabel(managedJob.renderEngine??"cpu")}</span>{managedJob.ttsProvider?<span className="jobEngineText">{ttsProviderLabel(managedJob.ttsProvider)}</span>:null}</div><span className={`jobStatePill ${stateClass(managedJob.state)}`}>{jobStatusLabel(managedJob)}</span></div>
             {!isTerminal(managedJob.state)?<div className="managerProgress"><div className="progress"><div className="progressTrack"><span style={{width:`${Math.round(managedJob.progress*100)}%`}}/></div><strong>{Math.round(managedJob.progress*100)}%</strong></div><span>{humanState(managedJob.state)}</span></div>:null}
             {managedJob.error?<div className="errorBox managerError"><strong>Render stopped</strong><p>{managedJob.error}</p></div>:null}
             <div className="jobActionBar">
@@ -392,12 +400,13 @@ const humanState=(state?:string)=>({queued:"Preparing render…",validating:"Ana
 const isTerminal=(state?:string)=>state==="completed"||state==="failed"||state==="cancelled";
 const sortJobs=(a:JobStatus,b:JobStatus)=>Date.parse(b.createdAt??"")-Date.parse(a.createdAt??"");
 const renderEngineLabel=(engine:RenderEngine)=>({cpu:"CPU (software)",intel:"Intel GPU (VAAPI)",nvidia:"NVIDIA NVENC"}[engine]);
+const ttsProviderLabel=(provider:NonNullable<JobStatus["ttsProvider"]>)=>({edge:"Edge TTS",piper:"Piper",omnivoice:"OmniVoice",synthetic:"Synthetic TTS"}[provider]);
 const renderDescription=(job:JobStatus|null,busy:boolean,hasActiveJob:boolean)=>{
   if(job?.state==="failed")return job.error??"The render pipeline stopped. Open the job to inspect its logs.";
   if(job?.state==="cancelled")return "This render was cancelled. You can start it again when you are ready.";
   if(job?.state==="completed"&&job.downloadedAt)return "Downloaded. StudyTube will remove this job automatically about one hour after the first download.";
   if(job?.state==="completed")return "The finished video stays on the server until you download it.";
-  if(busy)return `StudyTube is rendering this project on your server using ${renderEngineLabel(job?.renderEngine??"cpu")}.`;
+  if(busy)return `StudyTube is rendering this project on your server using ${renderEngineLabel(job?.renderEngine??"cpu")}${job?.ttsProvider?` and ${ttsProviderLabel(job.ttsProvider)}`:""}.`;
   if(hasActiveJob)return "Another saved render is still running. Open Jobs to follow or cancel it.";
   return "StudyTube will synthesize the narration and render a finished 1080p MP4.";
 };
