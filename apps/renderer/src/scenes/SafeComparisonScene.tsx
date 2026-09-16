@@ -1,11 +1,10 @@
 import type {NormalizedScene} from "@studytube/core";
-import {colors,radii,shadows,spacing,typography} from "@studytube/design-system";
+import {colors,radii,spacing,typography} from "@studytube/design-system";
 import type {CSSProperties,ReactNode} from "react";
 import {interpolate,useCurrentFrame,useVideoConfig} from "remotion";
 import {IconGlyph} from "./IconGlyph";
 
 type ComparisonSceneType=Extract<NormalizedScene["scene"],{type:"comparison"}>;
-
 type ComparisonSide=ComparisonSceneType["visual"]["left"];
 
 export const isCompactVersusLabel=(value:string):boolean=>{
@@ -37,39 +36,43 @@ export const SafeComparisonScene=({scene}:{scene:ComparisonSceneType})=>{
     const middleColumnWidth=getCompactVersusColumnWidth(versusLabel);
     const middleFontSize=getCompactVersusFontSize(versusLabel);
     return <FullStage>
-      <div style={{alignItems:"stretch",display:"grid",gap:spacing.lg,gridTemplateColumns:`minmax(0,1fr) ${middleColumnWidth}px minmax(0,1fr)`,maxWidth:1540,minWidth:0,width:"100%"}}>
-        <ComparisonCard sideData={scene.visual.left} side="left" style={revealStyle(frame,fps,0,-36)}/>
-        <div style={{...revealStyle(frame,fps,5),alignItems:"center",color:colors.accent,display:"flex",fontSize:middleFontSize,fontWeight:900,justifyContent:"center",lineHeight:1,minWidth:0,textAlign:"center",whiteSpace:"nowrap"}}>{versusLabel}</div>
-        <ComparisonCard sideData={scene.visual.right} side="right" style={revealStyle(frame,fps,8,36)}/>
+      <div style={{alignItems:"stretch",display:"grid",gap:spacing.lg,gridTemplateColumns:`minmax(0,1fr) ${middleColumnWidth}px minmax(0,1fr)`,maxWidth:1540,minHeight:430,minWidth:0,width:"100%"}}>
+        <ComparisonColumn sideData={scene.visual.left} side="left" style={revealStyle(frame,fps,0,-36)}/>
+        <div style={{...revealStyle(frame,fps,5),alignItems:"center",display:"flex",justifyContent:"center",minHeight:0,position:"relative"}}>
+          <div style={{backgroundColor:colors.line,bottom:18,left:"50%",position:"absolute",top:18,width:2}}/>
+          <div style={{alignItems:"center",backgroundColor:colors.canvas,border:`2px solid ${colors.line}`,borderRadius:radii.pill,color:colors.text,display:"flex",fontSize:middleFontSize,fontWeight:850,height:Math.max(62,middleFontSize+24),justifyContent:"center",lineHeight:1,minWidth:Math.max(62,middleFontSize+24),padding:"0 14px",position:"relative",textAlign:"center",whiteSpace:"nowrap"}}>{versusLabel}</div>
+        </div>
+        <ComparisonColumn sideData={scene.visual.right} side="right" style={revealStyle(frame,fps,8,36)}/>
       </div>
     </FullStage>;
   }
 
   return <FullStage>
-    <div style={{display:"grid",gap:spacing.lg,maxWidth:1540,minWidth:0,width:"100%"}}>
-      <div style={{...revealStyle(frame,fps,4),display:"flex",justifyContent:"center",minWidth:0}}>
-        <div style={{...typography.heading,backgroundColor:colors.accentSoft,border:`1px solid ${colors.accentStrong}`,borderRadius:radii.pill,color:colors.accent,fontSize:42,lineHeight:1.08,maxWidth:900,overflowWrap:"anywhere",padding:`${spacing.sm}px ${spacing.lg}px`,textAlign:"center"}}>{versusLabel}</div>
+    <div style={{display:"grid",gap:spacing.xl,maxWidth:1540,minWidth:0,width:"100%"}}>
+      <div style={{...revealStyle(frame,fps,4),alignItems:"center",display:"flex",gap:spacing.md,justifyContent:"center",minWidth:0}}>
+        <div style={{backgroundColor:colors.line,height:1,maxWidth:240,width:"18%"}}/>
+        <div style={{...typography.label,color:colors.accent,fontSize:24,lineHeight:1.2,maxWidth:900,overflowWrap:"anywhere",textAlign:"center",textTransform:"uppercase"}}>{versusLabel}</div>
+        <div style={{backgroundColor:colors.line,height:1,maxWidth:240,width:"18%"}}/>
       </div>
-      <div style={{alignItems:"stretch",display:"grid",gap:spacing.lg,gridTemplateColumns:"minmax(0,1fr) minmax(0,1fr)",minWidth:0,width:"100%"}}>
-        <ComparisonCard sideData={scene.visual.left} side="left" style={revealStyle(frame,fps,0,-36)}/>
-        <ComparisonCard sideData={scene.visual.right} side="right" style={revealStyle(frame,fps,8,36)}/>
+      <div style={{alignItems:"stretch",display:"grid",gap:spacing.xxl,gridTemplateColumns:"minmax(0,1fr) minmax(0,1fr)",minWidth:0,width:"100%"}}>
+        <ComparisonColumn sideData={scene.visual.left} side="left" style={revealStyle(frame,fps,0,-36)}/>
+        <ComparisonColumn sideData={scene.visual.right} side="right" style={revealStyle(frame,fps,8,36)}/>
       </div>
     </div>
   </FullStage>;
 };
 
-const ComparisonCard=({sideData,side,style}:{sideData:ComparisonSide;side:"left"|"right";style:CSSProperties})=>{
+const ComparisonColumn=({sideData,side,style}:{sideData:ComparisonSide;side:"left"|"right";style:CSSProperties})=>{
   const contentLength=sideData.title.length+(sideData.body?.length??0);
-  const titleFontSize=sideData.title.length>34?46:sideData.title.length>24?52:60;
-  const bodyFontSize=contentLength>170?29:contentLength>115?32:36;
-  const padding=contentLength>170?spacing.lg:spacing.xl;
+  const titleFontSize=sideData.title.length>34?44:sideData.title.length>24?50:58;
+  const bodyFontSize=contentLength>170?28:contentLength>115?31:34;
 
-  return <div style={{...style,backgroundColor:colors.surface,border:`1px solid ${colors.line}`,borderRadius:radii.lg,boxShadow:shadows.soft,display:"flex",flexDirection:"column",minHeight:390,minWidth:0,padding}}>
-    <div style={{...typography.label,color:side==="left"?colors.textMuted:colors.accent,marginBottom:spacing.lg,textTransform:"uppercase"}}>
-      {sideData.icon?<IconGlyph icon={sideData.icon} size={36}/>:side==="left"?"A":"B"}
+  return <div style={{...style,display:"flex",flexDirection:"column",justifyContent:"center",minHeight:390,minWidth:0,padding:`${spacing.sm}px ${spacing.md}px`}}>
+    <div style={{alignItems:"center",border:`2px solid ${side==="right"?colors.warning:colors.accent}`,borderRadius:radii.pill,color:side==="right"?colors.warning:colors.accent,display:"flex",height:72,justifyContent:"center",marginBottom:spacing.md,width:72}}>
+      {sideData.icon?<IconGlyph icon={sideData.icon} size={36}/>:<span style={{fontSize:28,fontWeight:850}}>{side==="left"?"A":"B"}</span>}
     </div>
-    <div style={{...typography.heading,fontSize:titleFontSize,lineHeight:1.02,minWidth:0,overflowWrap:"anywhere"}}>{sideData.title}</div>
-    {sideData.body?<div style={{...typography.body,color:colors.textMuted,fontSize:bodyFontSize,lineHeight:1.22,marginTop:spacing.lg,minWidth:0,overflowWrap:"anywhere"}}>{sideData.body}</div>:null}
+    <div style={{...typography.heading,fontSize:titleFontSize,lineHeight:1.03,minWidth:0,overflowWrap:"anywhere"}}>{sideData.title}</div>
+    {sideData.body?<div style={{...typography.body,color:colors.textMuted,fontSize:bodyFontSize,lineHeight:1.34,marginTop:spacing.md,minWidth:0,overflowWrap:"anywhere",whiteSpace:"pre-line"}}>{sideData.body}</div>:null}
   </div>;
 };
 
