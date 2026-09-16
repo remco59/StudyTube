@@ -8,6 +8,7 @@ import {resolveRendererEntryPoint,runStudyTubeJob,StudyTubeJobCancelledError,Stu
 const roots:string[]=[];
 const makeRoot=async()=>{const root=await mkdtemp(join(tmpdir(),"studytube-worker-"));roots.push(root);return root;};
 afterEach(async()=>{await Promise.all(roots.splice(0).map((root)=>rm(root,{recursive:true,force:true})));});
+const noopThumbnail=vi.fn(async()=>undefined);
 
 const writeProject=async(root:string,missingAsset=false,sceneTwoNarration="Daarna volgt automatisch een tweede scene.")=>{
   const sourceDir=join(root,"source");
@@ -39,7 +40,7 @@ describe("runStudyTubeJob",()=>{
       await writeFile(outputPath,"fake mp4");
     });
 
-    const result=await runStudyTubeJob({projectPath,dataDir:join(root,"data"),jobId:"job-test",ttsProvider:"synthetic"},{provider:new SyntheticWavProvider(),render});
+    const result=await runStudyTubeJob({projectPath,dataDir:join(root,"data"),jobId:"job-test",ttsProvider:"synthetic"},{provider:new SyntheticWavProvider(),render,renderThumbnail:noopThumbnail});
     expect(render).toHaveBeenCalledTimes(1);
     const status=await readFile(result.paths.statusFile,"utf8");
     const logs=await readFile(result.paths.logFile,"utf8");
@@ -60,6 +61,44 @@ describe("runStudyTubeJob",()=>{
     expect(secondCueStart).not.toBe("00:00:00.000");
   });
 
+  it("generates a thumbnail from the midpoint of the first scene",async()=>{
+    const root=await makeRoot();
+    const projectPath=await writeProject(root);
+    let firstSceneRange:{startFrame:number;endFrameExclusive:number}|undefined;
+    const render=vi.fn(async({outputPath,props}:{outputPath:string;props:{project:{chapters:{scenes:{startFrame:number;endFrameExclusive:number}[]}[]}}})=>{
+      firstSceneRange=props.project.chapters[0]?.scenes[0];
+      await mkdir(dirname(outputPath),{recursive:true});
+      await writeFile(outputPath,"fake mp4");
+    });
+    const renderThumbnail=vi.fn(async({outputPath}:{outputPath:string;frame:number})=>{
+      await mkdir(dirname(outputPath),{recursive:true});
+      await writeFile(outputPath,"fake jpeg");
+    });
+
+    const result=await runStudyTubeJob({projectPath,dataDir:join(root,"data"),jobId:"job-thumbnail",ttsProvider:"synthetic"},{provider:new SyntheticWavProvider(),render,renderThumbnail});
+    expect(renderThumbnail).toHaveBeenCalledTimes(1);
+    const call=renderThumbnail.mock.calls[0]?.[0] as {outputPath:string;frame:number};
+    expect(firstSceneRange).toBeDefined();
+    expect(call.frame).toBe(Math.floor((firstSceneRange!.startFrame+firstSceneRange!.endFrameExclusive)/2));
+    expect(call.outputPath).toBe(result.status.thumbnailPath);
+    expect(dirname(call.outputPath)).toBe(result.paths.outputDir);
+    expect((await stat(call.outputPath)).isFile()).toBe(true);
+  });
+
+  it("does not fail the job when thumbnail generation fails",async()=>{
+    const root=await makeRoot();
+    const projectPath=await writeProject(root);
+    const render=vi.fn(async({outputPath}:{outputPath:string})=>{
+      await mkdir(dirname(outputPath),{recursive:true});
+      await writeFile(outputPath,"fake mp4");
+    });
+    const renderThumbnail=vi.fn(async()=>{throw new Error("thumbnail renderer crashed");});
+
+    const result=await runStudyTubeJob({projectPath,dataDir:join(root,"data"),jobId:"job-thumbnail-fail",ttsProvider:"synthetic"},{provider:new SyntheticWavProvider(),render,renderThumbnail});
+    expect(result.status.state).toBe("completed");
+    expect(result.status.thumbnailPath).toBeUndefined();
+  });
+
   it("reports which scene is currently rendering and an ETA",async()=>{
     const root=await makeRoot();
     const projectPath=await writeProject(root);
@@ -70,7 +109,7 @@ describe("runStudyTubeJob",()=>{
       await writeFile(outputPath,"fake mp4");
     });
 
-    const result=await runStudyTubeJob({projectPath,dataDir:join(root,"data"),jobId:"job-scene-progress",ttsProvider:"synthetic"},{provider:new SyntheticWavProvider(),render});
+    const result=await runStudyTubeJob({projectPath,dataDir:join(root,"data"),jobId:"job-scene-progress",ttsProvider:"synthetic"},{provider:new SyntheticWavProvider(),render,renderThumbnail:noopThumbnail});
     expect(result.status.sceneProgress).toEqual({
       currentSceneId:"two",
       currentSceneIndex:1,
@@ -118,7 +157,7 @@ describe("runStudyTubeJob",()=>{
       await mkdir(dirname(outputPath),{recursive:true});
       await writeFile(outputPath,"base mp4");
     });
-    await runStudyTubeJob({projectPath:baseProjectPath,dataDir,jobId:"job-a",ttsProvider:"synthetic"},{provider:new SyntheticWavProvider(),render:fullRender});
+    await runStudyTubeJob({projectPath:baseProjectPath,dataDir,jobId:"job-a",ttsProvider:"synthetic"},{provider:new SyntheticWavProvider(),render:fullRender,renderThumbnail:noopThumbnail});
 
     const changedProjectPath=await writeProject(root,false,"Dit tweede scene-script is helemaal herschreven.");
     const extractSegment=vi.fn(async(_sourcePath:string,_startFrame:number,_frameCount:number,_fps:number,destPath:string)=>{
@@ -138,7 +177,7 @@ describe("runStudyTubeJob",()=>{
 
     const result=await runStudyTubeJob(
       {projectPath:changedProjectPath,dataDir,jobId:"job-b",ttsProvider:"synthetic",baseJobId:"job-a"},
-      {provider:new SyntheticWavProvider(),render:incrementalRender,extractSegment,concatenateSegments},
+      {provider:new SyntheticWavProvider(),render:incrementalRender,extractSegment,concatenateSegments,renderThumbnail:noopThumbnail},
     );
 
     expect(extractSegment).toHaveBeenCalledTimes(1);
@@ -163,7 +202,7 @@ describe("runStudyTubeJob",()=>{
       await mkdir(dirname(outputPath),{recursive:true});
       await writeFile(outputPath,"base mp4");
     });
-    const baseResult=await runStudyTubeJob({projectPath:baseProjectPath,dataDir,jobId:"job-base-missing",ttsProvider:"synthetic"},{provider:new SyntheticWavProvider(),render:fullRender});
+    const baseResult=await runStudyTubeJob({projectPath:baseProjectPath,dataDir,jobId:"job-base-missing",ttsProvider:"synthetic"},{provider:new SyntheticWavProvider(),render:fullRender,renderThumbnail:noopThumbnail});
     await rm(baseResult.outputPath,{force:true});
 
     const secondProjectPath=await writeProject(root);
@@ -173,7 +212,7 @@ describe("runStudyTubeJob",()=>{
     });
     const result=await runStudyTubeJob(
       {projectPath:secondProjectPath,dataDir,jobId:"job-b-missing",ttsProvider:"synthetic",baseJobId:"job-base-missing"},
-      {provider:new SyntheticWavProvider(),render},
+      {provider:new SyntheticWavProvider(),render,renderThumbnail:noopThumbnail},
     );
 
     expect(result.status.state).toBe("completed");
