@@ -43,9 +43,7 @@ const assetTypeInstructions:Record<PromptAssetType,string>={
 
 export const buildChatGptPrompt=({targetDurationMinutes,language,scope,useAssets=false,assetTypes=["web-images","generated-images"],assetAmount="some"}:PromptOptions)=>{
   const targetDuration=Math.max(30,Math.min(7200,Math.round(targetDurationMinutes*60)));
-  const scopeInstruction=scope.trim()
-    ?`Focus specifically on this scope: ${scope.trim()}`
-    :"Cover the important concepts in the supplied study material.";
+  const scopeInstruction=scope.trim()?`Focus specifically on this scope: ${scope.trim()}`:"Cover the important concepts in the supplied study material.";
   const selectedAssetTypes=assetTypes.length>0?assetTypes:["generated-images"] as PromptAssetType[];
   const assetTypeList=selectedAssetTypes.map((type)=>assetTypeLabels[type]).join(", ");
   const outputInstruction=useAssets
@@ -60,19 +58,190 @@ export const buildChatGptPrompt=({targetDurationMinutes,language,scope,useAssets
   const assetSchemaInstruction=useAssets
     ?"assets is required for this project because assets are enabled. Every declared asset path must exist inside the .studytube.zip."
     :"Do not include assets in this text-only project.";
-  const assetExample=useAssets
-    ?`\nExample image asset:\n\"assets\": {\n  \"design-cycle\": {\n    \"type\": \"image\",\n    \"path\": \"assets/design-cycle.png\",\n    \"alt\": \"Schematic design cycle\"\n  }\n}\n`
-    :"";
+  const assetExample=useAssets?`\nExample image asset:\n"assets": {\n  "design-cycle": {\n    "type": "image",\n    "path": "assets/design-cycle.png",\n    "alt": "Schematic design cycle"\n  }\n}\n`:"";
   const assetSceneRules=useAssets
-    ?`Use these scene types only when the corresponding asset is present in the project package:\n\nimage\n{\"assetId\":\"existing image asset ID\",\"fit\":\"contain | cover\",\"caption\":\"optional\"}\n\nannotatedImage\n{\"assetId\":\"existing image asset ID\",\"fit\":\"contain | cover\",\"title\":\"optional\",\"annotations\":[{\"label\":\"required\",\"x\":50,\"y\":50,\"targetX\":\"optional 0-100\",\"targetY\":\"optional 0-100\"}],\"caption\":\"optional\"}\nCoordinates are percentages from the top-left. Keep annotations sparse, normally 1-5, and place labels so they do not overlap important image content.\n\ndocument\n{\"assetId\":\"existing document asset ID\",\"page\":1,\"caption\":\"optional\"}\n\ndocumentHighlight\n{\"assetId\":\"existing document asset ID\",\"page\":1,\"highlightText\":\"required\",\"caption\":\"optional\"}`
+    ?`Use these scene types only when the corresponding asset is present in the project package:\n\nimage\n{"assetId":"existing image asset ID","fit":"contain | cover","caption":"optional"}\n\nannotatedImage\n{"assetId":"existing image asset ID","fit":"contain | cover","title":"optional","annotations":[{"label":"required","x":50,"y":50,"targetX":"optional 0-100","targetY":"optional 0-100"}],"caption":"optional"}\nCoordinates are percentages from the top-left. Keep annotations sparse, normally 1-5, and place labels so they do not overlap important image content.\n\ndocument\n{"assetId":"existing document asset ID","page":1,"caption":"optional"}\n\ndocumentHighlight\n{"assetId":"existing document asset ID","page":1,"highlightText":"required","caption":"optional"}`
     :"Do not use the image, annotatedImage, document or documentHighlight scene types because assets are disabled.";
   const assetValidation=useAssets
-    ?`12. Every image, annotatedImage or document scene references an existing asset.\n13. Every declared asset exists at the exact same path inside the ZIP.\n14. The project contains at least one asset and is returned as .studytube.zip with project.studytube.json at the archive root.`
-    :`12. The project contains no declared assets.\n13. The project contains no image, annotatedImage, document or documentHighlight scenes.\n14. The project is returned as .studytube.json.`;
+    ?`13. Every image, annotatedImage or document scene references an existing asset.\n14. Every declared asset exists at the exact same path inside the ZIP.\n15. The project contains at least one asset and is returned as .studytube.zip with project.studytube.json at the archive root.`
+    :`13. The project contains no declared assets.\n14. The project contains no image, annotatedImage, document or documentHighlight scenes.\n15. The project is returned as .studytube.json.`;
   const outputEnding=useAssets
     ?`Return the finished .studytube.zip file as a downloadable attachment, not as explanatory prose.\nPlace project.studytube.json at the archive root and include all assets at their referenced relative paths.`
     :"Return the finished .studytube.json file as a downloadable attachment, not as explanatory prose.";
   const assetRootLine=useAssets?'  "assets": {},\n':'';
 
-  return `Create a complete StudyTube video project from the study material I provide in this chat.\n\nYour goal is to turn the material into an engaging educational explainer video that helps me understand and remember the important concepts, rather than simply summarizing the source.\n\n${outputInstruction}\n\nVIDEO SETTINGS\n- Language: ${language} (${languageNames[language]})\n- Target duration: ${targetDuration} seconds (about ${targetDurationMinutes} minutes)\n- Style: educational-explainer\n- ${scopeInstruction}\n${assetSettings}\n\nCONTENT REQUIREMENTS\n- Base the educational claims in the video only on the supplied study material.\n- Explain concepts clearly at higher-education level.\n- Prioritize understanding over reproducing the wording of the source.\n- Preserve important terminology from the source.\n- Explain difficult concepts with examples, comparisons or visual structures where useful.\n- Do not invent facts that are not supported by the material.\n- Structure the video into logical chapters.\n- Start with an engaging introduction.\n- End important sections with short recaps where useful.\n- End the complete video with a recap of the main learning points.\n- Use questions occasionally to encourage active recall.\n- Keep on-screen text concise. Narration may contain more explanation than the visual.\n- Treat every visual field as a strict screen-space budget: titles should usually stay below 9 words, kinetic text below 16 words, comparison side titles below 5 words, comparison bodies below 18 words, and recap points below 14 words.\n- For comparison scenes, versusLabel must be a very short connector of at most 3 short words such as \"vs.\", \"of\", or \"tegenover\". Never put a sentence or the full comparison message in versusLabel.\n- Vary the visual presentation. Do not make every scene a title card or bullet list.\n- Prefer a semantically specific scene such as cycle, matrix, workedExample, hierarchy, dataChart or annotatedImage over forcing the content into a generic card layout.\n- Write narration as natural spoken ${languageNames[language]}, not academic written prose.\n- Aim for approximately 130-160 spoken words per minute.\n\n${visualAssetsInstruction}\n\nSTRICT STUDYTUBE FORMAT\nThe root object must have this structure:\n{\n  \"version\": \"1.0\",\n  \"metadata\": {\n    \"title\": \"...\",\n    \"language\": \"${language}\",\n    \"targetDuration\": ${targetDuration},\n    \"style\": \"educational-explainer\",\n    \"description\": \"...\"\n  },\n${assetRootLine}  \"chapters\": []\n}\n\n${assetSchemaInstruction}\n${assetExample}\nAll chapter IDs, scene IDs, asset IDs and flowchart node IDs must contain only letters, numbers, hyphens or underscores and must be unique where required.\n\nEvery scene must contain: id, type, narration and visual.\nEvery scene may optionally contain: motion and sources.\nAllowed motion values: fade, slide, scale, slam, draw, reveal, cameraPush, parallax, counter.\n\nOnly use the following scene types and exactly the visual fields listed below.\n\ntitle\n{\"eyebrow\":\"optional\",\"title\":\"required\",\"subtitle\":\"optional\"}\n\nchapterIntro\n{\"chapterLabel\":\"optional\",\"title\":\"required\",\"subtitle\":\"optional\"}\n\nkineticText\n{\"text\":\"required\",\"emphasis\":[\"optional, maximum 4\"]}\n\ndefinition\n{\"term\":\"required\",\"definition\":\"required\",\"example\":\"optional\"}\n\nbigNumber\n{\"value\":\"required\",\"label\":\"required\",\"context\":\"optional\"}\n\ncomparison\n{\"left\":{\"title\":\"required\",\"body\":\"optional\",\"icon\":\"optional\"},\"right\":{\"title\":\"required\",\"body\":\"optional\",\"icon\":\"optional\"},\"versusLabel\":\"optional, maximum 3 short words\"}\n\ntimeline\n{\"title\":\"optional\",\"items\":[{\"label\":\"required\",\"title\":\"required\",\"description\":\"optional\"}]}\nUse 2-8 timeline items.\n\nprocess\n{\"title\":\"optional\",\"steps\":[{\"title\":\"required\",\"description\":\"optional\",\"icon\":\"optional\"}]}\nUse 2-8 process steps.\n\nflowchart\n{\"title\":\"optional\",\"nodes\":[{\"id\":\"required\",\"label\":\"required\",\"detail\":\"optional\"}],\"edges\":[{\"from\":\"existing-node-id\",\"to\":\"existing-node-id\",\"label\":\"optional\"}]}\nEvery edge must reference node IDs that exist in the same flowchart.\n\ndiagram\n{\"center\":\"required\",\"items\":[{\"label\":\"required\",\"detail\":\"optional\",\"icon\":\"optional\"}]}\nUse 2-8 diagram items.\n\niconScene\n{\"title\":\"optional\",\"items\":[{\"icon\":\"required\",\"label\":\"required\",\"detail\":\"optional\"}]}\nUse 1-6 items.\n\nquestion\n{\"question\":\"required\",\"prompt\":\"optional\"}\n\nvisualGag\n{\"preset\":\"giantReport | absurdScale | redArrow | fakeLoading | spotlight\",\"label\":\"optional\",\"punchline\":\"optional\"}\nUse visualGag only occasionally and only when it supports the explanation.\n\nrecap\n{\"title\":\"optional\",\"points\":[\"2 to 6 concise points\"]}\n\nbulletReveal\n{\"title\":\"optional\",\"points\":[\"2 to 6 concise points\"]}\nUse bulletReveal when several related points should appear progressively during one explanation. Do not use it as a default replacement for more meaningful visual structures.\n\ndataChart\n{\"title\":\"optional\",\"chartType\":\"bar | line | donut\",\"data\":[{\"label\":\"required\",\"value\":0}],\"unit\":\"optional\",\"sourceLabel\":\"optional\"}\nUse 2-8 non-negative data points. Only visualize numeric values explicitly supported by the supplied material.\n\nmatrix\n{\"title\":\"optional\",\"xAxis\":{\"low\":\"optional label\",\"high\":\"optional label\"},\"yAxis\":{\"low\":\"optional label\",\"high\":\"optional label\"},\"quadrants\":{\"topLeft\":{\"title\":\"required\",\"detail\":\"optional\"},\"topRight\":{\"title\":\"required\",\"detail\":\"optional\"},\"bottomLeft\":{\"title\":\"required\",\"detail\":\"optional\"},\"bottomRight\":{\"title\":\"required\",\"detail\":\"optional\"}}}\nUse matrix for genuine two-dimensional frameworks or classifications.\n\ncycle\n{\"title\":\"optional\",\"center\":\"optional\",\"steps\":[{\"title\":\"required\",\"detail\":\"optional\",\"icon\":\"optional\"}]}\nUse 3-8 steps. Use cycle only when the final step conceptually feeds back into the first.\n\nmultipleChoice\n{\"question\":\"required\",\"options\":[{\"label\":\"required\",\"explanation\":\"optional\"}],\"correctIndex\":0,\"revealAfterSeconds\":\"optional number, default 3\"}\nUse 2-5 options. correctIndex is zero-based and must point to an existing option. Only include a correct answer when it is supported by the material.\n\nworkedExample\n{\"title\":\"optional\",\"problem\":\"required\",\"steps\":[{\"label\":\"optional\",\"title\":\"required\",\"body\":\"required\"}],\"result\":\"optional\"}\nUse 1-5 concise steps. Use workedExample to demonstrate applying a method, model, calculation or reasoning process.\n\nhierarchy\n{\"title\":\"optional\",\"direction\":\"topDown | bottomUp\",\"levels\":[{\"label\":\"required\",\"detail\":\"optional\"}]}\nUse 2-6 levels and only when the source implies a genuine ordering, layering or hierarchy.\n\n${assetSceneRules}\n\nIf sources from the supplied material are identifiable, scenes may contain:\n\"sources\":[{\"label\":\"Chapter 2, p. 34\",\"note\":\"Optional clarification\"}]\nDo not invent URLs or source details.\n\nVIDEO DESIGN\nThink in scenes rather than slides.\nPrefer definition for terminology, comparison for contrasts, process for one-way sequential methods, cycle for repeating processes, flowchart for decisions and relationships, diagram for connected concepts, hierarchy for levels, matrix for two-dimensional frameworks, timeline for chronology, dataChart for supported numeric evidence, workedExample for applying knowledge, multipleChoice for active recall, bigNumber for meaningful figures, kineticText for a short important statement, question for reflection, and recap for consolidation.\n${useAssets?"Use annotatedImage when labels or callouts make an image teach something that the image alone would not communicate. Use image/document scenes according to the requested asset amount, but only when the asset genuinely improves the explanation or visual variety.":"Create visual variety with the structured scene types above instead of relying on external assets."}\nUse bulletReveal for short progressive lists, but avoid falling back to it when another scene type expresses the relationships more clearly.\nDo not repeat the narration verbatim in the visual.\nMake transitions between scenes logical so the narration feels like one coherent video rather than disconnected cards.\n\nVALIDATION BEFORE OUTPUT\nBefore returning the file, internally check that:\n1. The root uses version 1.0.\n2. metadata.language is ${language}.\n3. metadata.style is exactly educational-explainer.\n4. targetDuration is exactly ${targetDuration}.\n5. There is at least one chapter and every chapter has at least one scene.\n6. Every chapter ID is unique.\n7. Every scene ID is globally unique.\n8. Every scene uses a supported scene type.\n9. Every visual object contains only fields supported by that scene type.\n10. Every flowchart edge references an existing node.\n11. Every multipleChoice correctIndex references an existing option.\n${assetValidation}\n15. The project JSON is valid JSON with no comments, trailing commas or placeholders.\n\nOUTPUT\n${outputEnding}\nDo not add an explanation before or after the file.`;
+  return `Create a complete StudyTube video project from the study material I provide in this chat.
+
+Your goal is to turn the material into an engaging educational explainer video that helps me understand and remember the important concepts, rather than simply summarizing the source.
+
+${outputInstruction}
+
+VIDEO SETTINGS
+- Language: ${language} (${languageNames[language]})
+- Target duration: ${targetDuration} seconds (about ${targetDurationMinutes} minutes)
+- Style: educational-explainer
+- ${scopeInstruction}
+${assetSettings}
+
+CONTENT REQUIREMENTS
+- Base the educational claims in the video only on the supplied study material.
+- Explain concepts clearly at higher-education level.
+- Prioritize understanding over reproducing the wording of the source.
+- Preserve important terminology from the source.
+- Explain difficult concepts with examples, comparisons or visual structures where useful.
+- Do not invent facts that are not supported by the material.
+- Never invent or paraphrase a quotation and present it as a direct quote. Use a quote scene only for wording that appears in the supplied material, and preserve that wording accurately.
+- Structure the video into logical chapters.
+- Start with an engaging introduction.
+- End important sections with short recaps where useful.
+- End the complete video with a recap of the main learning points.
+- Use questions occasionally to encourage active recall.
+- Keep on-screen text concise. Narration may contain more explanation than the visual.
+- Treat every visual field as a strict screen-space budget: titles should usually stay below 9 words, kinetic text below 16 words, comparison side titles below 5 words, comparison bodies below 18 words, and recap points below 14 words.
+- For comparison scenes, versusLabel must be a very short connector of at most 3 short words such as "vs.", "of", or "tegenover". Never put a sentence or the full comparison message in versusLabel.
+- Vary the visual presentation. Do not make every scene a title card or bullet list.
+- Prefer a semantically specific scene such as cycle, matrix, workedExample, hierarchy, dataChart, annotatedImage or quote over forcing the content into a generic card layout.
+- Write narration as natural spoken ${languageNames[language]}, not academic written prose.
+- Aim for approximately 130-160 spoken words per minute.
+
+${visualAssetsInstruction}
+
+STRICT STUDYTUBE FORMAT
+The root object must have this structure:
+{
+  "version": "1.0",
+  "metadata": {
+    "title": "...",
+    "language": "${language}",
+    "targetDuration": ${targetDuration},
+    "style": "educational-explainer",
+    "description": "..."
+  },
+${assetRootLine}  "chapters": []
+}
+
+${assetSchemaInstruction}
+${assetExample}
+All chapter IDs, scene IDs, asset IDs and flowchart node IDs must contain only letters, numbers, hyphens or underscores and must be unique where required.
+
+Every scene must contain: id, type, narration and visual.
+Every scene may optionally contain: motion and sources.
+Allowed motion values: fade, slide, scale, slam, draw, reveal, cameraPush, parallax, counter.
+
+Only use the following scene types and exactly the visual fields listed below.
+
+title
+{"eyebrow":"optional","title":"required","subtitle":"optional"}
+
+chapterIntro
+{"chapterLabel":"optional","title":"required","subtitle":"optional"}
+
+kineticText
+{"text":"required","emphasis":["optional, maximum 4"]}
+
+definition
+{"term":"required","definition":"required","example":"optional"}
+
+bigNumber
+{"value":"required","label":"required","context":"optional"}
+
+comparison
+{"left":{"title":"required","body":"optional","icon":"optional"},"right":{"title":"required","body":"optional","icon":"optional"},"versusLabel":"optional, maximum 3 short words"}
+
+timeline
+{"title":"optional","items":[{"label":"required","title":"required","description":"optional"}]}
+Use 2-8 timeline items.
+
+process
+{"title":"optional","steps":[{"title":"required","description":"optional","icon":"optional"}]}
+Use 2-8 process steps.
+
+flowchart
+{"title":"optional","nodes":[{"id":"required","label":"required","detail":"optional"}],"edges":[{"from":"existing-node-id","to":"existing-node-id","label":"optional"}]}
+Every edge must reference node IDs that exist in the same flowchart.
+
+diagram
+{"center":"required","items":[{"label":"required","detail":"optional","icon":"optional"}]}
+Use 2-8 diagram items.
+
+iconScene
+{"title":"optional","items":[{"icon":"required","label":"required","detail":"optional"}]}
+Use 1-6 items.
+
+question
+{"question":"required","prompt":"optional"}
+
+visualGag
+{"preset":"giantReport | absurdScale | redArrow | fakeLoading | spotlight","label":"optional","punchline":"optional"}
+Use visualGag only occasionally and only when it supports the explanation.
+
+recap
+{"title":"optional","points":["2 to 6 concise points"]}
+
+bulletReveal
+{"title":"optional","points":["2 to 6 concise points"]}
+Use bulletReveal when several related points should appear progressively during one explanation. Do not use it as a default replacement for more meaningful visual structures.
+
+dataChart
+{"title":"optional","chartType":"bar | line | donut","data":[{"label":"required","value":0}],"unit":"optional","sourceLabel":"optional"}
+Use 2-8 non-negative data points. Only visualize numeric values explicitly supported by the supplied material.
+
+matrix
+{"title":"optional","xAxis":{"low":"optional label","high":"optional label"},"yAxis":{"low":"optional label","high":"optional label"},"quadrants":{"topLeft":{"title":"required","detail":"optional"},"topRight":{"title":"required","detail":"optional"},"bottomLeft":{"title":"required","detail":"optional"},"bottomRight":{"title":"required","detail":"optional"}}}
+Use matrix for genuine two-dimensional frameworks or classifications.
+
+cycle
+{"title":"optional","center":"optional","steps":[{"title":"required","detail":"optional","icon":"optional"}]}
+Use 3-8 steps. Use cycle only when the final step conceptually feeds back into the first.
+
+multipleChoice
+{"question":"required","options":[{"label":"required","explanation":"optional"}],"correctIndex":0,"revealAfterSeconds":"optional number, default 3"}
+Use 2-5 options. correctIndex is zero-based and must point to an existing option. Only include a correct answer when it is supported by the material.
+
+workedExample
+{"title":"optional","problem":"required","steps":[{"label":"optional","title":"required","body":"required"}],"result":"optional"}
+Use 1-5 concise steps. Use workedExample to demonstrate applying a method, model, calculation or reasoning process.
+
+hierarchy
+{"title":"optional","direction":"topDown | bottomUp","levels":[{"label":"required","detail":"optional"}]}
+Use 2-6 levels and only when the source implies a genuine ordering, layering or hierarchy.
+
+quote
+{"quote":"required","author":"optional","work":"optional","locator":"optional","context":"optional"}
+Use quote for a short, exact passage from the supplied literature when the original wording itself matters. Preserve the wording exactly, keep the visible quotation concise, and include author/work/locator when those details are identifiable from the source. Never invent a quote or attribution.
+
+${assetSceneRules}
+
+If sources from the supplied material are identifiable, scenes may contain:
+"sources":[{"label":"Chapter 2, p. 34","note":"Optional clarification"}]
+Do not invent URLs or source details.
+
+VIDEO DESIGN
+Think in scenes rather than slides.
+Prefer definition for terminology, comparison for contrasts, process for one-way sequential methods, cycle for repeating processes, flowchart for decisions and relationships, diagram for connected concepts, hierarchy for levels, matrix for two-dimensional frameworks, timeline for chronology, dataChart for supported numeric evidence, workedExample for applying knowledge, multipleChoice for active recall, quote when exact wording from the literature deserves emphasis, bigNumber for meaningful figures, kineticText for a short important statement, question for reflection, and recap for consolidation.
+${useAssets?"Use annotatedImage when labels or callouts make an image teach something that the image alone would not communicate. Use image/document scenes according to the requested asset amount, but only when the asset genuinely improves the explanation or visual variety.":"Create visual variety with the structured scene types above instead of relying on external assets."}
+Use bulletReveal for short progressive lists, but avoid falling back to it when another scene type expresses the relationships more clearly.
+Do not repeat the narration verbatim in the visual.
+Make transitions between scenes logical so the narration feels like one coherent video rather than disconnected cards.
+
+VALIDATION BEFORE OUTPUT
+Before returning the file, internally check that:
+1. The root uses version 1.0.
+2. metadata.language is ${language}.
+3. metadata.style is exactly educational-explainer.
+4. targetDuration is exactly ${targetDuration}.
+5. There is at least one chapter and every chapter has at least one scene.
+6. Every chapter ID is unique.
+7. Every scene ID is globally unique.
+8. Every scene uses a supported scene type.
+9. Every visual object contains only fields supported by that scene type.
+10. Every flowchart edge references an existing node.
+11. Every multipleChoice correctIndex references an existing option.
+12. Every quote is copied accurately from the supplied material and is not invented or misattributed.
+${assetValidation}
+16. The project JSON is valid JSON with no comments, trailing commas or placeholders.
+
+OUTPUT
+${outputEnding}
+Do not add an explanation before or after the file.`;
 };
