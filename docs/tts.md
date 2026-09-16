@@ -1,33 +1,53 @@
-# Local TTS architecture
+# Narration / TTS architecture
 
 StudyTube generates narration before Remotion renders the video. TTS therefore lives in the Node-side `@studytube/tts` package rather than inside React/Remotion components.
 
 ## Providers
 
-`TtsProvider` exposes one operation: synthesize text to a WAV file. The first real provider is `PiperHttpProvider`, which targets Piper's local `/synthesize` HTTP endpoint. Piper's own documentation recommends the HTTP server for repeated synthesis because reloading a voice model for every CLI invocation is slower.
+`TtsProvider` exposes one operation: synthesize text to a WAV file.
 
-For CI and tests, `SyntheticWavProvider` creates deterministic silent PCM WAV files using the same text-to-duration estimate. It never needs network access or a downloaded model.
+The default production provider is `EdgeTtsHttpProvider`. It talks to the lightweight `studytube-neural-tts` sidecar, which uses `edge-tts` for Microsoft neural voices and converts the result to a 24 kHz mono WAV for the existing timing pipeline. The default Dutch voice is `nl-NL-MaartenNeural`.
 
-## Dutch configuration
+`PiperHttpProvider` remains available as the fully local/offline fallback. It uses the existing Piper HTTP service and Dutch `nl_NL-mls-medium` model unless configured otherwise.
 
-StudyTube defaults to language `nl-NL` and expects the Piper service to be started with a Dutch voice. Configuration is read from:
+For CI and tests, `SyntheticWavProvider` creates deterministic silent PCM WAV files. It never needs network access or a downloaded model.
+
+## Provider selection
+
+Set `STUDYTUBE_TTS_PROVIDER` to one of:
+
+- `edge` (default): higher-quality neural speech; internet connection required while synthesizing
+- `piper`: local/offline speech; start Docker Compose with `--profile offline-tts`
+- `synthetic`: test-only silent WAV generation
+
+Neural TTS configuration:
+
+- `EDGE_TTS_URL` (Docker default `http://neural-tts:5050`)
+- `EDGE_TTS_VOICE` (default `nl-NL-MaartenNeural`)
+- `EDGE_TTS_RATE` (default `+0%`)
+
+Piper fallback configuration:
 
 - `PIPER_URL` (default `http://piper:5000`)
-- `PIPER_VOICE` (optional; if omitted Piper's server default voice is used)
+- `PIPER_VOICE` (default in Docker `nl_NL-mls-medium`)
 - `PIPER_LENGTH_SCALE` (optional speech-speed control)
 
-Keeping the exact voice model configurable avoids coupling `.studytube.json` files to one particular voice package.
+For `en-US` projects the neural provider automatically uses `en-US-GuyNeural` unless a voice is explicitly supplied.
 
 ## Narration cache
 
-`NarrationAudioCache` hashes the provider ID plus synthesis request. Repeating identical narration reuses the existing WAV. New synthesis is written to a temporary file first, validated as WAV, and atomically renamed into the cache.
+`NarrationAudioCache` hashes the provider ID plus synthesis request. The neural provider ID includes its configured voice and rate, so changing voice settings cannot accidentally reuse audio from the previous voice. Repeating identical narration with the same provider settings reuses the existing WAV.
 
-The cache returns real audio metadata including duration, sample rate, channel count and bit depth. PR 9 uses that measured duration to replace estimated scene timing.
+New synthesis is written to a temporary file first, validated as WAV, and atomically renamed into the cache. The cache returns real audio metadata including duration, sample rate, channel count and bit depth. The measured duration is then used for deterministic scene timing and captions.
 
-## WAV validation
+## Deployment
 
-StudyTube parses RIFF/WAVE chunks itself. For Piper's WAV output this avoids adding FFprobe as a dependency merely to determine narration duration. FFmpeg remains useful later for final media processing.
+The normal Docker stack runs `studytube` plus `studytube-neural-tts`. The neural sidecar is local, but the speech generation itself uses an online Microsoft voice endpoint through `edge-tts`; no API key is configured by StudyTube.
 
-## Deployment direction
+If internet-independent narration matters more than voice quality, set `STUDYTUBE_TTS_PROVIDER=piper` and start the optional Piper profile:
 
-On Unraid, Piper can run as a sidecar/container on the internal Docker network. StudyTube talks to it over HTTP; no paid API or internet connection is required during synthesis once the selected voice files are present locally.
+```bash
+docker compose --profile offline-tts up -d --build
+```
+
+The rest of the render pipeline is identical because both providers return validated WAV files.

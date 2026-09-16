@@ -2,7 +2,7 @@
 
 StudyTube is a self-hosted pipeline for turning structured educational video projects into complete 1080p explainer videos without manual timeline editing.
 
-The content and creative direction come from a versioned `.studytube.json` file. StudyTube handles validation, local narration, timing, motion graphics, captions and rendering.
+The content and creative direction come from a versioned `.studytube.json` file. StudyTube handles validation, narration, timing, motion graphics, captions and rendering.
 
 See [`PLAN.md`](./PLAN.md) for the full architecture and implementation roadmap.
 
@@ -17,7 +17,7 @@ packages/
   schema/       Versioned StudyTube project contract
   core/         Timing, captions and project normalization
   design-system Shared visual tokens and primitives
-  tts/          Local TTS provider + narration cache
+  tts/          TTS providers + narration cache
 examples/       Reference StudyTube project and local assets
 ```
 
@@ -35,7 +35,7 @@ For pacing, quality checks and rendering behavior, see [`docs/QUALITY.md`](./doc
 
 ## Docker quick start
 
-StudyTube v1 runs with a local Piper TTS service:
+StudyTube defaults to a Dutch Microsoft neural voice through the lightweight `studytube-neural-tts` sidecar. Narration synthesis therefore needs internet access, but StudyTube does not require a speech API key. Piper remains available as an offline fallback.
 
 ```bash
 cp .env.example .env
@@ -44,7 +44,7 @@ docker compose up -d --build
 
 Then open `http://localhost:3000`.
 
-For Unraid installation, persistent paths, updates and optional Intel `/dev/dri` passthrough, see [`docs/UNRAID.md`](./docs/UNRAID.md).
+For Unraid installation, persistent paths, updates, offline TTS and optional Intel `/dev/dri` passthrough, see [`docs/UNRAID.md`](./docs/UNRAID.md).
 
 ## Local development
 
@@ -77,11 +77,13 @@ Run the complete project checks:
 npm run check
 ```
 
-Render a project directly from the CLI once a Piper service is available:
+Render a project directly from the CLI while the configured TTS service is available:
 
 ```bash
 npm run render:project -- examples/design-science-15min.studytube.json
 ```
+
+Use `--piper` for the offline Piper provider or `--synthetic` for test audio.
 
 ## Persistence
 

@@ -5,7 +5,9 @@ import {fileURLToPath} from "node:url";
 import type {NarrationManifest,NormalizedStudyTubeProject} from "@studytube/core";
 import {parseStudyTubeProject} from "@studytube/schema";
 import {
+  EdgeTtsHttpProvider,
   getDutchPiperConfig,
+  getEdgeTtsConfig,
   NarrationAudioCache,
   PiperHttpProvider,
   prepareProjectNarration,
@@ -32,11 +34,13 @@ export type PipelineRenderFunction=(options:{
   onProgress?:(progress:RenderProgress)=>void|Promise<void>;
 })=>Promise<void>;
 
+export type TtsProviderKind="edge"|"piper"|"synthetic";
+
 export type RunStudyTubeJobOptions={
   projectPath:string;
   dataDir?:string;
   jobId?:string;
-  ttsProvider?:"piper"|"synthetic";
+  ttsProvider?:TtsProviderKind;
   showCaptions?:boolean;
   fps?:number;
   scenePaddingSeconds?:number;
@@ -74,6 +78,12 @@ export const resolveRendererEntryPoint=(env:NodeJS.ProcessEnv=process.env,metaUr
   if(configured)return resolve(configured);
   const repoRoot=resolve(fileURLToPath(new URL("../../..",metaUrl)));
   return join(repoRoot,"apps","renderer","src","index.ts");
+};
+
+export const resolveTtsProviderKind=(value?:string):TtsProviderKind=>{
+  const normalized=(value?.trim().toLowerCase()||"edge");
+  if(normalized==="edge"||normalized==="piper"||normalized==="synthetic")return normalized;
+  throw new Error(`Unsupported STUDYTUBE_TTS_PROVIDER "${value}". Use edge, piper or synthetic.`);
 };
 
 export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineDependencies={}):Promise<StudyTubeJobResult>=>{
@@ -118,14 +128,16 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
 
     checkCancelled();
     await update("synthesizing",.1);
-    await log("narration.started","Generating narration audio");
-    const provider=deps.provider??createProvider(options.ttsProvider??"piper");
+    const providerKind=resolveTtsProviderKind(options.ttsProvider??process.env.STUDYTUBE_TTS_PROVIDER);
+    await log("narration.started","Generating narration audio",{provider:providerKind});
+    const provider=deps.provider??createProvider(providerKind);
     const cache=new NarrationAudioCache(join(dataDir,"cache","tts"),provider);
+    const narrationOverrides=providerKind==="piper"?getPiperNarrationOverrides():{};
     const prepared=await prepareProjectNarration(project,cache,{
       fps:options.fps,
       scenePaddingSeconds:options.scenePaddingSeconds,
       language:project.metadata.language,
-      voice:process.env.PIPER_VOICE,
+      ...narrationOverrides,
     });
     checkCancelled();
     await update("staging",.35);
@@ -192,10 +204,19 @@ export const runStudyTubeJob=async(options:RunStudyTubeJobOptions,deps:PipelineD
   }
 };
 
-const createProvider=(kind:"piper"|"synthetic"):TtsProvider=>{
-  if(kind==="synthetic") return new SyntheticWavProvider();
+const createProvider=(kind:TtsProviderKind):TtsProvider=>{
+  if(kind==="synthetic")return new SyntheticWavProvider();
+  if(kind==="edge"){
+    const config=getEdgeTtsConfig();
+    return new EdgeTtsHttpProvider({baseUrl:config.baseUrl,defaultVoice:config.voice,defaultRate:config.rate});
+  }
   const config=getDutchPiperConfig();
   return new PiperHttpProvider({baseUrl:config.baseUrl,defaultVoice:config.voice,defaultLanguage:config.language,defaultLengthScale:config.lengthScale});
+};
+
+const getPiperNarrationOverrides=()=>{
+  const config=getDutchPiperConfig();
+  return {voice:config.voice,lengthScale:config.lengthScale};
 };
 
 const stageProjectAssets=async(assets:Record<string,{path:string}>,sourceRoot:string,publicDir:string)=>{

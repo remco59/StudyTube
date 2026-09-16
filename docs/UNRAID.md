@@ -1,11 +1,11 @@
 # Running StudyTube on Unraid
 
-StudyTube is designed to run as two local containers:
+StudyTube normally runs as two containers:
 
 - `studytube`: Next.js UI, job worker and Remotion renderer
-- `studytube-piper`: local Piper HTTP text-to-speech service
+- `studytube-neural-tts`: lightweight neural-TTS bridge used for the default Dutch voice
 
-No paid generation API is required.
+The default neural voice needs internet access while narration is synthesized. No speech API key is configured by StudyTube. The older local Piper service remains available through the optional `offline-tts` Compose profile.
 
 ## Recommended Unraid paths
 
@@ -17,7 +17,7 @@ Keep the repository and persistent data on cache-backed appdata storage where po
 /mnt/user/appdata/studytube/piper
 ```
 
-`data` contains jobs, cached narration, logs and finished renders. `piper` contains the downloaded voice model. Both survive container replacement.
+`data` contains jobs, cached narration, logs and finished renders. `piper` is only used when the offline fallback is enabled.
 
 ## First install
 
@@ -37,7 +37,33 @@ Open:
 http://<tower-ip>:3000
 ```
 
-The first Piper startup downloads the configured Dutch voice. Later starts reuse the persistent model directory.
+The default stack starts the neural TTS bridge immediately; there is no voice-model download step.
+
+## Narration provider
+
+The recommended default is:
+
+```dotenv
+STUDYTUBE_TTS_PROVIDER=edge
+EDGE_TTS_VOICE=nl-NL-MaartenNeural
+EDGE_TTS_RATE=+0%
+```
+
+To use fully local/offline Piper instead, change `.env` to:
+
+```dotenv
+STUDYTUBE_TTS_PROVIDER=piper
+PIPER_VOICE=nl_NL-mls-medium
+PIPER_LENGTH_SCALE=1
+```
+
+Then recreate the stack with the Piper profile enabled:
+
+```bash
+docker compose --profile offline-tts up -d --build
+```
+
+The first Piper start downloads its configured voice into `/mnt/user/appdata/studytube/piper`; later starts reuse it.
 
 ## Intel `/dev/dri` access
 
@@ -66,12 +92,14 @@ Copy `.env.example` to `.env` and adjust as needed:
 ```dotenv
 STUDYTUBE_PORT=3000
 STUDYTUBE_DATA_PATH=/mnt/user/appdata/studytube/data
-PIPER_DATA_PATH=/mnt/user/appdata/studytube/piper
-PIPER_VOICE=nl_NL-mls-medium
-PIPER_LENGTH_SCALE=1
+STUDYTUBE_RENDER_CONCURRENCY=2
+STUDYTUBE_RENDER_TIMEOUT_MS=120000
+STUDYTUBE_TTS_PROVIDER=edge
+EDGE_TTS_VOICE=nl-NL-MaartenNeural
+EDGE_TTS_RATE=+0%
 ```
 
-The container itself always uses `/data` for StudyTube persistence and `/app/apps/renderer/src/index.ts` for the Remotion entry point. The host paths above are mounted into those container paths.
+The StudyTube container itself always uses `/data` for persistence and `/app/apps/renderer/src/index.ts` for the Remotion entry point.
 
 ## Health checks
 
@@ -81,10 +109,10 @@ StudyTube:
 curl http://127.0.0.1:3000/api/health
 ```
 
-Piper from the Docker network:
+Neural TTS:
 
 ```bash
-docker exec studytube-piper python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:5000/info').read().decode())"
+docker exec studytube-neural-tts curl --fail --silent http://127.0.0.1:5050/health
 ```
 
 Container state:
@@ -97,7 +125,13 @@ docker compose ps
 
 ```bash
 docker compose logs -f studytube
-docker compose logs -f piper
+docker compose logs -f neural-tts
+```
+
+For the optional offline service:
+
+```bash
+docker compose --profile offline-tts logs -f piper
 ```
 
 Every render also keeps job-specific diagnostics under:
@@ -128,7 +162,7 @@ docker compose -f docker-compose.yml -f docker-compose.qsv.yml build --pull
 docker compose -f docker-compose.yml -f docker-compose.qsv.yml up -d
 ```
 
-Persistent `data` and Piper voice files are not removed by rebuilding the containers.
+Persistent job data and the narration cache are not removed by rebuilding the containers.
 
 ## Stop / restart
 
@@ -148,15 +182,16 @@ Do not add `-v` to `docker compose down` if you later switch from bind mounts to
 
 ## Troubleshooting
 
-### Piper stays unhealthy
+### Neural narration fails
 
 Check:
 
 ```bash
-docker compose logs piper
+docker compose logs neural-tts
+docker compose logs studytube
 ```
 
-The most common first-start cause is still downloading the voice or a network failure while retrieving it.
+The neural provider needs outbound internet access during synthesis. If that is unavailable, switch to the Piper fallback described above.
 
 ### StudyTube render fails but the UI stays up
 
@@ -179,4 +214,4 @@ docker compose build --no-cache studytube
 
 ### Memory pressure
 
-Long 1080p renders can use substantial memory because Chromium renders frames in parallel. Avoid running multiple full renders at once on a small server. StudyTube v1 assumes a single-user, single-server workflow.
+Long 1080p renders can use substantial memory because Chromium renders frames in parallel. Avoid running multiple full renders at once on a small server. StudyTube assumes a single-user, single-server workflow.

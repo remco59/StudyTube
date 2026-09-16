@@ -1,5 +1,21 @@
 services:
+  neural-tts:
+    build:
+      context: ./docker/edge-tts
+    container_name: studytube-neural-tts
+    restart: unless-stopped
+    environment:
+      EDGE_TTS_VOICE: ${EDGE_TTS_VOICE:-nl-NL-MaartenNeural}
+      EDGE_TTS_RATE: ${EDGE_TTS_RATE:-+0%}
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:5050/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   piper:
+    profiles: ["offline-tts"]
     build:
       context: ./docker/piper
     container_name: studytube-piper
@@ -22,7 +38,7 @@ services:
     container_name: studytube
     restart: unless-stopped
     depends_on:
-      piper:
+      neural-tts:
         condition: service_healthy
     ports:
       - "${STUDYTUBE_PORT:-3000}:3000"
@@ -31,6 +47,10 @@ services:
       STUDYTUBE_RENDERER_ENTRY: /app/apps/renderer/src/index.ts
       STUDYTUBE_RENDER_CONCURRENCY: ${STUDYTUBE_RENDER_CONCURRENCY:-2}
       STUDYTUBE_RENDER_TIMEOUT_MS: ${STUDYTUBE_RENDER_TIMEOUT_MS:-120000}
+      STUDYTUBE_TTS_PROVIDER: ${STUDYTUBE_TTS_PROVIDER:-edge}
+      EDGE_TTS_URL: http://neural-tts:5050
+      EDGE_TTS_VOICE: ${EDGE_TTS_VOICE:-nl-NL-MaartenNeural}
+      EDGE_TTS_RATE: ${EDGE_TTS_RATE:-+0%}
       PIPER_URL: http://piper:5000
       PIPER_VOICE: ${PIPER_VOICE:-nl_NL-mls-medium}
       PIPER_LENGTH_SCALE: ${PIPER_LENGTH_SCALE:-1}
