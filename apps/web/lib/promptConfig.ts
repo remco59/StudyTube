@@ -12,6 +12,7 @@ export type PromptExplanationMethod=
 export type PromptExplanationDepth="quick"|"balanced"|"deep";
 export type PromptLearningGoal="understand"|"remember"|"apply"|"relationships"|"exam"|"evaluate"|"transfer";
 export type PromptActiveRecall="off"|"low"|"medium"|"high";
+export type PromptHumorLevel="off"|"light"|"playful";
 export type PromptPersonalExampleMode="known-context"|"provided-context"|"ask-first";
 
 export type PromptTeachingTechniques={
@@ -21,6 +22,7 @@ export type PromptTeachingTechniques={
   counterExamples:boolean;
   misconceptions:boolean;
   activeRecall:PromptActiveRecall;
+  humor:PromptHumorLevel;
   repeatKeyConcepts:boolean;
   connectConcepts:boolean;
   explainWhyItMatters:boolean;
@@ -50,6 +52,7 @@ export const defaultPromptTeachingConfig:PromptTeachingConfig={
     counterExamples:false,
     misconceptions:true,
     activeRecall:"medium",
+    humor:"light",
     repeatKeyConcepts:false,
     connectConcepts:true,
     explainWhyItMatters:true,
@@ -63,62 +66,62 @@ export const defaultPromptTeachingConfig:PromptTeachingConfig={
 export const teachingPresets:Record<PromptTeachingPreset,{label:string;description:string;config:PromptTeachingConfig}>={
   balanced:{
     label:"Balanced",
-    description:"Adaptive explanations with examples, recall and recaps.",
+    description:"Clear explanations, concrete examples, metaphors, light humor and recall.",
     config:defaultPromptTeachingConfig,
   },
   "deep-understanding":{
-    label:"Deep understanding",
-    description:"Spend more time on mechanisms, relationships and misconceptions.",
+    label:"Deep dive",
+    description:"More mechanisms, relationships, nuance and misconceptions.",
     config:{
       ...defaultPromptTeachingConfig,
       method:"conceptual",
       depth:"deep",
       learningGoals:["understand","relationships","evaluate","apply"],
-      techniques:{...defaultPromptTeachingConfig.techniques,counterExamples:true,repeatKeyConcepts:true,activeRecall:"medium"},
+      techniques:{...defaultPromptTeachingConfig.techniques,counterExamples:true,repeatKeyConcepts:true,activeRecall:"medium",humor:"light"},
     },
   },
   "exam-prep":{
-    label:"Exam prep",
-    description:"Emphasize distinctions, terminology, recall and application questions.",
+    label:"Exam mode",
+    description:"Precise terminology, distinctions, retrieval practice and application questions.",
     config:{
       ...defaultPromptTeachingConfig,
       method:"exam-focused",
       depth:"balanced",
       learningGoals:["remember","understand","apply","exam"],
-      techniques:{...defaultPromptTeachingConfig.techniques,analogies:false,counterExamples:true,activeRecall:"high",repeatKeyConcepts:true,sectionRecaps:true},
+      techniques:{...defaultPromptTeachingConfig.techniques,analogies:false,counterExamples:true,activeRecall:"high",humor:"off",repeatKeyConcepts:true,sectionRecaps:true},
     },
   },
   "learn-by-examples":{
-    label:"Learn by examples",
-    description:"Lead with concrete examples before abstracting to the theory.",
+    label:"Examples first",
+    description:"Lead with concrete examples and metaphors, then connect them to theory.",
     config:{
       ...defaultPromptTeachingConfig,
       method:"example-driven",
       depth:"balanced",
       learningGoals:["understand","apply","transfer"],
-      techniques:{...defaultPromptTeachingConfig.techniques,realWorldExamples:true,analogies:true,counterExamples:true,activeRecall:"medium"},
+      techniques:{...defaultPromptTeachingConfig.techniques,realWorldExamples:true,analogies:true,counterExamples:true,activeRecall:"medium",humor:"light"},
     },
   },
   "practical-application":{
-    label:"Practical application",
-    description:"Connect theory to decisions, workflows and real-world practice.",
+    label:"Practical",
+    description:"Connect theory to decisions, workflows and real-world situations.",
     config:{
       ...defaultPromptTeachingConfig,
       method:"problem-solution",
       depth:"balanced",
       learningGoals:["apply","transfer","understand"],
-      techniques:{...defaultPromptTeachingConfig.techniques,realWorldExamples:true,practicalApplications:true,explainWhyItMatters:true,activeRecall:"low"},
+      techniques:{...defaultPromptTeachingConfig.techniques,realWorldExamples:true,practicalApplications:true,explainWhyItMatters:true,activeRecall:"low",humor:"light"},
     },
   },
   "teach-from-scratch":{
-    label:"Teach me from scratch",
-    description:"Build intuition first and introduce complexity gradually.",
+    label:"Explain simply",
+    description:"Build intuition step by step with examples, metaphors and a more playful tone.",
     config:{
       ...defaultPromptTeachingConfig,
       method:"step-by-step",
       depth:"balanced",
       learningGoals:["understand","remember"],
-      techniques:{...defaultPromptTeachingConfig.techniques,analogies:true,connectConcepts:true,repeatKeyConcepts:true,activeRecall:"low"},
+      techniques:{...defaultPromptTeachingConfig.techniques,realWorldExamples:true,analogies:true,connectConcepts:true,repeatKeyConcepts:true,activeRecall:"low",humor:"playful"},
     },
   },
 };
@@ -157,6 +160,11 @@ const activeRecallInstructions:Record<Exclude<PromptActiveRecall,"off">,string>=
   high:"Use frequent active-recall and short application questions throughout the video, including some delayed retrieval of earlier concepts.",
 };
 
+const humorInstructions:Record<Exclude<PromptHumorLevel,"off">,string>={
+  light:"Use occasional light humor, playful phrasing or a short joke when it naturally fits the concept. Keep jokes brief, never let them replace the explanation, and avoid forcing humor into serious or sensitive material.",
+  playful:"Use a noticeably more playful YouTube-style tone with recurring light jokes, amusing comparisons or visual-gag opportunities where they help attention and memory. Keep the factual explanation primary and avoid humor in serious or sensitive material.",
+};
+
 const cloneConfig=(config:PromptTeachingConfig):PromptTeachingConfig=>({
   ...config,
   learningGoals:[...config.learningGoals],
@@ -164,6 +172,17 @@ const cloneConfig=(config:PromptTeachingConfig):PromptTeachingConfig=>({
 });
 
 export const applyTeachingPreset=(preset:PromptTeachingPreset):PromptTeachingConfig=>cloneConfig(teachingPresets[preset].config);
+
+export const matchesTeachingPreset=(config:PromptTeachingConfig,preset:PromptTeachingPreset)=>{
+  const presetConfig=teachingPresets[preset].config;
+  return config.method===presetConfig.method
+    &&config.depth===presetConfig.depth
+    &&config.personalExampleMode===presetConfig.personalExampleMode
+    &&config.personalContext===presetConfig.personalContext
+    &&config.learningGoals.length===presetConfig.learningGoals.length
+    &&config.learningGoals.every((goal,index)=>goal===presetConfig.learningGoals[index])
+    &&Object.entries(presetConfig.techniques).every(([key,presetValue])=>config.techniques[key as keyof PromptTeachingTechniques]===presetValue);
+};
 
 export const buildTeachingPromptSection=(config:PromptTeachingConfig=defaultPromptTeachingConfig)=>{
   const lines:string[]=[
@@ -189,11 +208,12 @@ export const buildTeachingPromptSection=(config:PromptTeachingConfig=defaultProm
       lines.push("- Use personally relevant examples when useful, but only from context the learner has actually shared in the conversation or available memory. If no relevant context exists, use a neutral example instead. Never invent personal details.");
     }
   }
-  if(techniques.realWorldExamples)lines.push("- Use real-world examples when they clarify an abstract idea, but do not let an example introduce claims that are not supported by the study material.");
-  if(techniques.analogies)lines.push("- Use concise analogies for difficult ideas when they improve intuition. Make clear where the analogy stops being accurate when that limitation matters.");
+  if(techniques.realWorldExamples)lines.push("- Use concrete real-world examples regularly, normally at least one useful example for each major abstract concept. Keep examples concise and do not let them introduce factual claims that are not supported by the study material.");
+  if(techniques.analogies)lines.push("- Use metaphors and analogies proactively for difficult or abstract ideas so the learner can form an intuitive mental picture. Prefer memorable everyday comparisons, and make clear where the comparison stops being accurate when that limitation matters.");
   if(techniques.counterExamples)lines.push("- Use counterexamples or non-examples where they help define the boundaries of a concept.");
   if(techniques.misconceptions)lines.push("- Surface likely misconceptions or easily confused concepts and explicitly correct them using the supplied material.");
   if(techniques.activeRecall!=="off")lines.push(`- ${activeRecallInstructions[techniques.activeRecall]}`);
+  if(techniques.humor!=="off")lines.push(`- ${humorInstructions[techniques.humor]}`);
   if(techniques.repeatKeyConcepts)lines.push("- Revisit the most important concepts later in the video using different wording or a new application instead of merely repeating the same sentence.");
   if(techniques.connectConcepts)lines.push("- Explicitly connect new concepts to earlier concepts when a meaningful relationship exists.");
   if(techniques.explainWhyItMatters)lines.push("- Explain why important concepts matter for understanding the subject, making decisions or solving problems.");
@@ -206,10 +226,10 @@ export const buildTeachingPromptSection=(config:PromptTeachingConfig=defaultProm
 export const summarizeTeachingConfig=(config:PromptTeachingConfig)=>{
   const method=config.method==="auto"?"adaptive explanation":config.method.split("-").join(" ");
   const parts=[`${config.depth} depth`,method];
+  if(config.techniques.realWorldExamples)parts.push("examples");
+  if(config.techniques.analogies)parts.push("metaphors");
+  if(config.techniques.humor!=="off")parts.push(`${config.techniques.humor} humor`);
   if(config.techniques.personalExamples)parts.push("personal examples when relevant");
-  if(config.techniques.analogies)parts.push("analogies");
-  if(config.techniques.misconceptions)parts.push("misconceptions");
   if(config.techniques.activeRecall!=="off")parts.push(`${config.techniques.activeRecall} active recall`);
-  if(config.techniques.sectionRecaps)parts.push("section recaps");
   return parts.join(" · ");
 };
