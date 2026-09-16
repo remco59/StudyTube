@@ -5,6 +5,7 @@ import {StudyTubeValidationError} from "@studytube/schema";
 import {resolveTtsProviderKind,type TtsJobSettings} from "@studytube/worker";
 import {parseRenderEngine,requireRenderEngine} from "@studytube/worker/render-engine";
 import {registerActiveJob,unregisterActiveJob} from "@/lib/activeJobs";
+import {getGoogleChirpUsage,type GoogleChirpUsage} from "@/lib/googleChirpUsage";
 import {assertJobId,getDataDir,listJobStatuses,pruneOldRenders} from "@/lib/jobs";
 import {parseProjectPackage,stageProjectPackage,StudyTubePackageError} from "@/lib/projectPackage";
 import {enqueueRenderJob,getAvailableQueueSlots,RenderQueueFullError,withQueuePosition} from "@/lib/renderQueue";
@@ -39,7 +40,7 @@ export async function POST(request:Request){
     await requireRenderEngine(renderEngine);
     const ttsProvider=resolveTtsProviderKind(typeof form.get("ttsProvider")==="string"?String(form.get("ttsProvider")):undefined);
     if(ttsProvider==="synthetic")throw new Error("Synthetic TTS is only available for development renders");
-    await requireCloudTtsConfigured(ttsProvider);
+    const chirpUsage=await requireCloudTtsConfigured(ttsProvider);
     const baseTtsSettings=parseTtsSettings(form.get("ttsSettings"));
     const baseJobIdInput=optionalText(form.get("baseJobId"),120,"Base job id");
     if(baseJobIdInput)assertJobId(baseJobIdInput);
@@ -62,6 +63,14 @@ export async function POST(request:Request){
       try{
         const parsed=await parseProjectPackage(projectPart);
         const project=parsed.project;
+        let projectedChirpCharacters=0;
+        if(ttsProvider==="google-chirp"&&chirpUsage&&!baseJobIdInput){
+          projectedChirpCharacters=countProjectNarrationCharacters(project);
+          if(projectedChirpCharacters>chirpUsage.remainingCharacters){
+            throw new Error(`Google Chirp free-tier guard blocked this render: the project contains ${projectedChirpCharacters.toLocaleString("en-US")} narration characters, but only ${chirpUsage.remainingCharacters.toLocaleString("en-US")} of ${chirpUsage.limitCharacters.toLocaleString("en-US")} tracked characters remain this month. Choose another TTS provider or shorten the narration.`);
+          }
+        }
+
         const jobId=`web-${Date.now()}-${randomUUID().slice(0,8)}`;
         uploadRoot=join(dataDir,"uploads",jobId);
         uploadRoots.push(uploadRoot);
@@ -89,6 +98,11 @@ export async function POST(request:Request){
           unregisterActiveJob(jobId);
           throw error;
         }
+        if(chirpUsage&&projectedChirpCharacters>0){
+          chirpUsage.remainingCharacters=Math.max(0,chirpUsage.remainingCharacters-projectedChirpCharacters);
+          chirpUsage.usedCharacters=Math.min(chirpUsage.limitCharacters,chirpUsage.usedCharacters+projectedChirpCharacters);
+          chirpUsage.exhausted=chirpUsage.remainingCharacters===0;
+        }
         created.push({jobId,projectTitle:project.metadata.title});
       }catch(error){
         if(uploadRoot)await rm(uploadRoot,{recursive:true,force:true}).catch((cleanupError)=>{console.error(`StudyTube upload ${uploadRoot}: failed to remove after rejected request`,cleanupError);});
@@ -113,8 +127,8 @@ export async function POST(request:Request){
   }
 }
 
-const requireCloudTtsConfigured=async(provider:string)=>{
-  if(provider!=="google-chirp"&&provider!=="azure")return;
+const requireCloudTtsConfigured=async(provider:string):Promise<GoogleChirpUsage|undefined>=>{
+  if(provider!=="google-chirp"&&provider!=="azure")return undefined;
   const label=provider==="google-chirp"?"Google Chirp 3 HD":"Azure Speech";
   const baseUrl=(process.env.CLOUD_TTS_URL??"http://cloud-tts:5070").replace(/\/$/u,"");
   let response:Response;
@@ -127,7 +141,16 @@ const requireCloudTtsConfigured=async(provider:string)=>{
   const status=await response.json() as {googleConfigured?:unknown;azureConfigured?:unknown};
   const configured=provider==="google-chirp"?status.googleConfigured===true:status.azureConfigured===true;
   if(!configured)throw new Error(`${label} is not configured. Open Settings and add the required credentials before rendering.`);
+  if(provider!=="google-chirp")return undefined;
+
+  const usage=await getGoogleChirpUsage();
+  if(usage.exhausted){
+    throw new Error(`Google Chirp free monthly allowance is exhausted for ${usage.period} (${usage.usedCharacters.toLocaleString("en-US")}/${usage.limitCharacters.toLocaleString("en-US")} tracked characters used). Choose another TTS provider or wait for the monthly reset.`);
+  }
+  return usage;
 };
+
+const countProjectNarrationCharacters=(project:{chapters:{scenes:{narration:string}[]}[]})=>project.chapters.reduce((total,chapter)=>total+chapter.scenes.reduce((chapterTotal,scene)=>chapterTotal+scene.narration.length,0),0);
 
 const parseTtsSettings=(value:FormDataEntryValue|null):TtsJobSettings=>{
   if(typeof value!=="string"||!value.trim())return {};
