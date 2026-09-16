@@ -1,6 +1,6 @@
 export type JobState="queued"|"validating"|"synthesizing"|"staging"|"bundling"|"rendering"|"completed"|"failed"|"cancelled";
 export type RenderEngine="cpu"|"intel"|"nvidia";
-export type JobTtsProvider="edge"|"piper"|"omnivoice"|"synthetic";
+export type JobTtsProvider="edge"|"piper"|"omnivoice"|"chatterbox"|"xtts"|"google-chirp"|"azure"|"synthetic";
 
 export type StudyTubeJobStatus={
   jobId:string;
