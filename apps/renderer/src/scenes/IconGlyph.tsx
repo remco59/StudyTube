@@ -1,7 +1,7 @@
 import type {ReactNode} from "react";
 
 const aliases:Record<string,string>={
-  questionnaire:"form",clipboard:"form",list:"form",survey:"form",
+  questionnaire:"form",clipboard:"form",survey:"form",
   microphone:"mic",interview:"mic",audio:"mic",
   group:"users",people:"users","focus-group":"users",participants:"users",
   observation:"eye",observe:"eye",view:"eye",
@@ -26,12 +26,14 @@ const aliases:Record<string,string>={
   play:"video",movie:"video",
   headphones:"headphones",listening:"headphones",
   experiment:"flask",research:"flask",science:"flask",
-  stack:"layers",layer:"layers",
+  stack:"layers",layer:"layers",structure:"layers",
   favorite:"star",favourite:"star",
   location:"map-pin",pin:"map-pin",
   programming:"code",developer:"code",
   external:"link",url:"link",
   next:"arrow-right",arrow:"arrow-right",
+  pulse:"activity",heartbeat:"activity",
+  sparkle:"spark",sparkles:"spark",
 };
 
 const normalize=(value:string)=>value.trim().toLowerCase().replace(/[\s_]+/g,"-");
@@ -50,6 +52,7 @@ const isTextGlyph=(value:string)=>{
 const iconContents=(name:string):ReactNode=>{
   switch(name){
     case "form": return <><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></>;
+    case "list": return <><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></>;
     case "mic": return <><rect x="8" y="3" width="8" height="12" rx="4"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></>;
     case "users": return <><circle cx="9" cy="9" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3.5 20a5.5 5.5 0 0 1 11 0M14 16.5a4.5 4.5 0 0 1 6.5 3.5"/></>;
     case "eye": return <><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.5"/></>;
@@ -58,6 +61,8 @@ const iconContents=(name:string):ReactNode=>{
     case "book": return <><path d="M3 5.5A3.5 3.5 0 0 1 6.5 4H11v15H6.5A3.5 3.5 0 0 0 3 20.5ZM21 5.5A3.5 3.5 0 0 0 17.5 4H13v15h4.5a3.5 3.5 0 0 1 3.5 1.5Z"/></>;
     case "lightbulb": return <><path d="M8.5 15.5a6 6 0 1 1 7 0c-1 .8-1.5 1.5-1.5 2.5h-4c0-1-.5-1.7-1.5-2.5Z"/><path d="M10 21h4M10 18h4"/></>;
     case "chart": return <><path d="M4 20V10h4v10M10 20V4h4v16M16 20v-7h4v7M3 20h18"/></>;
+    case "activity": return <path d="M3 12h4l2.5-6 4.5 12 2.5-6H21"/>;
+    case "spark": return <><path d="M12 2.5 13.8 8l5.7 1.8-5.7 1.8L12 17l-1.8-5.4-5.7-1.8L10.2 8Z"/><path d="m18.5 16 .8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8Z"/></>;
     case "clock": return <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>;
     case "target": return <><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></>;
     case "check": return <path d="m5 12 4 4 10-10"/>;
