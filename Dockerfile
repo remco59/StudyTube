@@ -55,10 +55,14 @@ COPY . .
 # Intel VAAPI needs the system FFmpeg, but Debian does not ship libfdk_aac.
 # Route Remotion's Intel-only FFmpeg calls through a compatibility wrapper
 # that rewrites libfdk_aac to the built-in AAC encoder before executing FFmpeg.
+# Remotion treats binariesDirectory as the home for all native renderer binaries,
+# so copy its compositor there too instead of only supplying ffmpeg and ffprobe.
 RUN mkdir -p /opt/studytube-intel-ffmpeg \
     && cp /app/docker/ffmpeg-intel/ffmpeg /opt/studytube-intel-ffmpeg/ffmpeg \
     && chmod +x /opt/studytube-intel-ffmpeg/ffmpeg \
-    && ln -s /usr/bin/ffprobe /opt/studytube-intel-ffmpeg/ffprobe
+    && ln -s /usr/bin/ffprobe /opt/studytube-intel-ffmpeg/ffprobe \
+    && cp /app/node_modules/@remotion/compositor-linux-x64-gnu/remotion /opt/studytube-intel-ffmpeg/remotion \
+    && chmod +x /opt/studytube-intel-ffmpeg/remotion
 
 RUN npm run build
 RUN npx remotion browser ensure
