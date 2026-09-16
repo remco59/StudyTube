@@ -4,9 +4,9 @@ import {AbsoluteFill,useCurrentFrame,useVideoConfig} from "remotion";
 import {getSceneMotionStyle} from "../motion";
 import {SceneRouter} from "../scenes/SceneRouter";
 
-export type SceneFrameProps={chapterTitle:string;normalizedScene:NormalizedScene;project:NormalizedStudyTubeProject["project"];hasCaptions?:boolean};
+export type SceneFrameProps={chapterTitle:string;normalizedScene:NormalizedScene;project:NormalizedStudyTubeProject["project"];hasCaptions?:boolean;documentPages?:Record<string,string>};
 
-export const SceneFrame=({normalizedScene,project,hasCaptions=false}:SceneFrameProps)=>{
+export const SceneFrame=({normalizedScene,project,hasCaptions=false,documentPages}:SceneFrameProps)=>{
   const frame=useCurrentFrame();
   const {fps}=useVideoConfig();
   const {scene,durationInFrames}=normalizedScene;
@@ -21,7 +21,7 @@ export const SceneFrame=({normalizedScene,project,hasCaptions=false}:SceneFrameP
     <div style={{backgroundColor:colors.accent,borderRadius:"50%",boxShadow:`0 0 30px ${colors.accent}`,height:18,opacity:.9,position:"absolute",right:75,top:184,width:18}}/>
     <div style={{border:`1px solid ${colors.line}`,borderRadius:"50%",bottom:-185,height:430,left:-175,opacity:.32,position:"absolute",width:430}}/>
     <div style={{...animatedStyle,display:"flex",flex:1,flexDirection:"column",minHeight:0,minWidth:0,position:"relative",zIndex:1}}>
-      <div style={{alignItems:"stretch",display:"flex",flex:1,justifyContent:"center",minHeight:0,minWidth:0,padding:contentPadding}}><SceneRouter normalizedScene={normalizedScene} project={project}/></div>
+      <div style={{alignItems:"stretch",display:"flex",flex:1,justifyContent:"center",minHeight:0,minWidth:0,padding:contentPadding}}><SceneRouter normalizedScene={normalizedScene} project={project} documentPages={documentPages}/></div>
     </div>
   </AbsoluteFill>;
 };

@@ -10,15 +10,16 @@ export type StudyTubeCompositionProps={
   project:NormalizedStudyTubeProject;
   narration?:NarrationManifest;
   showCaptions?:boolean;
+  documentPages?:Record<string,string>;
 };
 
-export const StudyTubeComposition=({project,narration,showCaptions=true}:StudyTubeCompositionProps)=>{
+export const StudyTubeComposition=({project,narration,showCaptions=true,documentPages}:StudyTubeCompositionProps)=>{
   const themeVariables=resolveStylePresetVariables(project.project.metadata.style);
   return <AbsoluteFill style={{...themeVariables,backgroundColor:colors.canvas,color:colors.text,fontFamily:typography.fontFamily} as CSSProperties}>{project.chapters.flatMap((chapter)=>chapter.scenes.map((normalizedScene)=>{
   const track=narration?.[normalizedScene.scene.id];
   const captionsVisible=Boolean(track&&showCaptions);
   return <Sequence key={normalizedScene.scene.id} from={normalizedScene.startFrame} durationInFrames={normalizedScene.durationInFrames} name={`${chapter.title} / ${normalizedScene.scene.id}`}>
-    <SceneFrame chapterTitle={chapter.title} normalizedScene={normalizedScene} project={project.project} hasCaptions={captionsVisible}/>
+    <SceneFrame chapterTitle={chapter.title} normalizedScene={normalizedScene} project={project.project} hasCaptions={captionsVisible} documentPages={documentPages}/>
     {track?<Audio src={staticFile(normalizeProjectAssetPath(track.sourcePath))}/>:null}
     {track&&showCaptions?<CaptionOverlay cues={track.captions}/>:null}
   </Sequence>;

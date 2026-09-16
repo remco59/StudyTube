@@ -1,21 +1,22 @@
 import type {NormalizedScene,NormalizedStudyTubeProject} from "@studytube/core";
 import {colors,radii,shadows,spacing,typography} from "@studytube/design-system";
 import type {ReactNode} from "react";
-import {Img,OffthreadVideo,interpolate,useCurrentFrame,useVideoConfig} from "remotion";
-import {resolveProjectAsset} from "../assets/assetResolver";
+import {Img,OffthreadVideo,interpolate,staticFile,useCurrentFrame,useVideoConfig} from "remotion";
+import {normalizeProjectAssetPath,resolveProjectAsset} from "../assets/assetResolver";
 
 type Scene=NormalizedScene["scene"];
 type SceneOf<T extends Scene["type"]>=Extract<Scene,{type:T}>;
 type Project=NormalizedStudyTubeProject["project"];
 type ImageVisual=SceneOf<"image">["visual"];
+type DocumentPageManifest=Record<string,string>;
 
-export const MediaSceneRenderer=({normalizedScene,project}:{normalizedScene:NormalizedScene;project:Project})=>{
+export const MediaSceneRenderer=({normalizedScene,project,documentPages}:{normalizedScene:NormalizedScene;project:Project;documentPages?:DocumentPageManifest})=>{
   const {scene}=normalizedScene;
   switch(scene.type){
     case "image":return <ImageScene project={project} scene={scene}/>;
     case "video":return <VideoScene project={project} scene={scene}/>;
-    case "document":return <DocumentScene project={project} scene={scene}/>;
-    case "documentHighlight":return <DocumentHighlightScene project={project} scene={scene}/>;
+    case "document":return <DocumentScene project={project} scene={scene} documentPages={documentPages}/>;
+    case "documentHighlight":return <DocumentHighlightScene project={project} scene={scene} documentPages={documentPages}/>;
     case "visualGag":return <VisualGagScene scene={scene}/>;
     default:throw new Error(`Media renderer received unsupported scene type "${scene.type}".`);
   }
@@ -62,9 +63,32 @@ const ImagePane=({src,alt,fit,zoom,caption}:{src:string;alt:string;fit:"contain"
 
 const ImageTextPane=({title,text}:{title?:string;text?:string})=><div style={{alignItems:"flex-start",display:"flex",flexDirection:"column",justifyContent:"center",minHeight:0,minWidth:0,padding:`${spacing.lg}px ${spacing.sm}px`}}>{title?<div style={{...typography.heading,fontSize:58,lineHeight:1.05,maxWidth:660}}>{title}</div>:null}{text?<div style={{...typography.body,borderLeft:`3px solid ${colors.line}`,color:colors.textMuted,fontSize:33,lineHeight:1.42,marginTop:title?spacing.lg:0,maxWidth:680,paddingLeft:spacing.md}}>{text}</div>:null}</div>;
 
-const DocumentScene=({project,scene}:{project:Project;scene:SceneOf<"document">})=>{const asset=resolveProjectAsset(project,scene.visual.assetId,"document");return <Stage centered><Paper><DocumentHeader title={asset.title??filename(asset.path)} page={scene.visual.page}/><DocumentLines/><DocumentLines short/><DocumentLines/><div style={{...typography.body,color:colors.paperText,fontSize:31,marginTop:spacing.lg}}>{scene.visual.caption??"Bronmateriaal wordt als document-context in de video gebruikt."}</div></Paper></Stage>;};
+const documentPagePath=(documentPages:DocumentPageManifest|undefined,assetId:string,page:number)=>documentPages?.[`${assetId}:${page}`];
 
-const DocumentHighlightScene=({project,scene}:{project:Project;scene:SceneOf<"documentHighlight">})=>{const asset=resolveProjectAsset(project,scene.visual.assetId,"document");return <Stage centered><Paper><DocumentHeader title={asset.title??filename(asset.path)} page={scene.visual.page}/><DocumentLines short/><div style={{backgroundColor:"#f7e58c",borderRadius:radii.sm,color:colors.paperText,fontSize:38,fontWeight:760,lineHeight:1.2,margin:`${spacing.lg}px 0`,padding:`${spacing.md}px ${spacing.lg}px`}}>“{scene.visual.highlightText}”</div><DocumentLines/>{scene.visual.caption?<div style={{color:"#5d5a52",fontSize:27,marginTop:spacing.md}}>{scene.visual.caption}</div>:null}</Paper></Stage>;};
+const DocumentScene=({project,scene,documentPages}:{project:Project;scene:SceneOf<"document">;documentPages?:DocumentPageManifest})=>{
+  const asset=resolveProjectAsset(project,scene.visual.assetId,"document");
+  const page=scene.visual.page??1;
+  const pagePath=documentPagePath(documentPages,scene.visual.assetId,page);
+  if(pagePath)return <Stage centered><DocumentPageView src={staticFile(normalizeProjectAssetPath(pagePath))} title={asset.title??filename(asset.path)} page={page} caption={scene.visual.caption}/></Stage>;
+  return <Stage centered><Paper><DocumentHeader title={asset.title??filename(asset.path)} page={page}/><DocumentLines/><DocumentLines short/><DocumentLines/><div style={{...typography.body,color:colors.paperText,fontSize:31,marginTop:spacing.lg}}>{scene.visual.caption??"Bronmateriaal wordt als document-context in de video gebruikt."}</div></Paper></Stage>;
+};
+
+const DocumentHighlightScene=({project,scene,documentPages}:{project:Project;scene:SceneOf<"documentHighlight">;documentPages?:DocumentPageManifest})=>{
+  const asset=resolveProjectAsset(project,scene.visual.assetId,"document");
+  const page=scene.visual.page;
+  const pagePath=documentPagePath(documentPages,scene.visual.assetId,page);
+  if(pagePath)return <Stage centered><DocumentPageView src={staticFile(normalizeProjectAssetPath(pagePath))} title={asset.title??filename(asset.path)} page={page} caption={scene.visual.caption} highlightText={scene.visual.highlightText}/></Stage>;
+  return <Stage centered><Paper><DocumentHeader title={asset.title??filename(asset.path)} page={page}/><DocumentLines short/><div style={{backgroundColor:"#f7e58c",borderRadius:radii.sm,color:colors.paperText,fontSize:38,fontWeight:760,lineHeight:1.2,margin:`${spacing.lg}px 0`,padding:`${spacing.md}px ${spacing.lg}px`}}>“{scene.visual.highlightText}”</div><DocumentLines/>{scene.visual.caption?<div style={{color:"#5d5a52",fontSize:27,marginTop:spacing.md}}>{scene.visual.caption}</div>:null}</Paper></Stage>;
+};
+
+const DocumentPageView=({src,title,page,caption,highlightText}:{src:string;title:string;page:number;caption?:string;highlightText?:string})=><div style={{alignItems:"center",display:"flex",flexDirection:"column",gap:spacing.sm,height:"100%",maxHeight:720,maxWidth:1380,minHeight:0,width:"100%"}}>
+  <div style={{...typography.label,color:colors.textMuted,fontSize:22,lineHeight:1.2}}>{title} · p. {page}</div>
+  <div style={{alignItems:"center",display:"flex",flex:1,justifyContent:"center",minHeight:0,position:"relative",width:"100%"}}>
+    <Img src={src} alt={`${title}, pagina ${page}`} style={{backgroundColor:colors.paper,borderRadius:radii.sm,boxShadow:shadows.raised,height:"100%",maxHeight:"100%",maxWidth:"100%",objectFit:"contain",width:"100%"}}/>
+    {highlightText?<div style={{backgroundColor:"rgba(247,229,140,.96)",borderRadius:radii.sm,bottom:22,boxShadow:shadows.raised,color:colors.paperText,fontSize:30,fontWeight:720,left:"50%",lineHeight:1.25,maxWidth:"78%",padding:`${spacing.sm}px ${spacing.md}px`,position:"absolute",transform:"translateX(-50%)",width:"max-content"}}>“{highlightText}”</div>:null}
+  </div>
+  {caption?<div style={{...typography.body,color:colors.textMuted,fontSize:25,lineHeight:1.25,maxWidth:1200,textAlign:"center"}}>{caption}</div>:null}
+</div>;
 
 const VisualGagScene=({scene}:{scene:SceneOf<"visualGag">})=>{
   const frame=useCurrentFrame();const {fps}=useVideoConfig();const progress=interpolate(frame,[0,fps*2],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});const label=scene.visual.label??defaultGagLabel(scene.visual.preset);
