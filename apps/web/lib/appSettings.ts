@@ -154,7 +154,7 @@ export const normalizeAppSettings=(input:unknown,fallback=defaultAppSettings()):
 
 type CloudCredentials={azureSpeechKey?:string;azureSpeechRegion?:string;azureSpeechEndpoint?:string};
 const settingsPath=()=>join(getDataDir(),"settings.json");
-const credentialsDir=()=>resolve(process.env.STUDYTUBE_CREDENTIALS_DIR??"/credentials");
+const credentialsDir=()=>resolve(process.env.STUDYTUBE_CREDENTIALS_DIR??"credentials");
 const cloudCredentialsPath=()=>join(credentialsDir(),"cloud.json");
 const ensureCredentialsDir=()=>mkdir(credentialsDir(),{recursive:true});
 
