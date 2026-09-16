@@ -399,6 +399,56 @@
   color: #d6a86d;
 }
 
+.batchBlock {
+  margin-top: 22px;
+  border-top: 1px solid #292d35;
+  padding-top: 20px;
+}
+
+.batchBlock summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.batchBlock summary::-webkit-details-marker {
+  display: none;
+}
+
+.batchBlock summary span {
+  color: #858a95;
+  font-size: 0.8rem;
+}
+
+.batchDropzone {
+  min-height: 110px;
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.batchFileList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.batchFileList span {
+  border: 1px solid #2d323c;
+  border-radius: 999px;
+  background: #14171c;
+  padding: 5px 12px;
+  color: #aaaeb8;
+  font-size: 0.76rem;
+}
+
+.batchBlock > button {
+  margin-top: 14px;
+}
+
 .wizardRender {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
@@ -587,6 +637,11 @@
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 20px;
+}
+
+.queueReorder {
+  display: flex;
+  gap: 8px;
 }
 
 .captionLinks {

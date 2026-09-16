@@ -2,74 +2,95 @@ import {randomUUID} from "node:crypto";
 import {mkdir,rm,writeFile} from "node:fs/promises";
 import {extname,join} from "node:path";
 import {StudyTubeValidationError} from "@studytube/schema";
-import {resolveTtsProviderKind,runStudyTubeJob,type TtsJobSettings} from "@studytube/worker";
+import {resolveTtsProviderKind,type TtsJobSettings} from "@studytube/worker";
 import {parseRenderEngine,requireRenderEngine} from "@studytube/worker/render-engine";
-import {registerActiveJob,unregisterActiveJob} from "@/lib/activeJobs";
-import {assertJobId,cleanupCancelledJobWorkingData,cleanupExpiredJobs,getDataDir,listJobStatuses} from "@/lib/jobs";
+import {registerActiveJob} from "@/lib/activeJobs";
+import {assertJobId,cleanupExpiredJobs,getDataDir,listJobStatuses} from "@/lib/jobs";
 import {parseProjectPackage,stageProjectPackage,StudyTubePackageError} from "@/lib/projectPackage";
+import {enqueueRenderJob,withQueuePosition} from "@/lib/renderQueue";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 
 export async function GET(){
-  try{return Response.json({jobs:await listJobStatuses()},{headers:{"cache-control":"no-store"}});}
-  catch(error){return Response.json({error:error instanceof Error?error.message:"Could not load jobs"},{status:500});}
+  try{
+    const statuses=await listJobStatuses();
+    return Response.json({jobs:statuses.map(withQueuePosition)},{headers:{"cache-control":"no-store"}});
+  }catch(error){return Response.json({error:error instanceof Error?error.message:"Could not load jobs"},{status:500});}
 }
 
 export async function POST(request:Request){
-  let uploadRoot:string|undefined;
+  const uploadRoots:string[]=[];
   try{
     await cleanupExpiredJobs();
     const form=await request.formData();
-    const projectPart=form.get("project");
-    if(!(projectPart instanceof File))return Response.json({error:"Upload a .studytube.json or .studytube.zip project"},{status:400});
+    const projectParts=form.getAll("project").filter((part):part is File=>part instanceof File);
+    if(projectParts.length===0)return Response.json({error:"Upload one or more .studytube.json or .studytube.zip projects"},{status:400});
 
     const renderEngine=parseRenderEngine(form.get("renderEngine"));
     await requireRenderEngine(renderEngine);
     const ttsProvider=resolveTtsProviderKind(typeof form.get("ttsProvider")==="string"?String(form.get("ttsProvider")):undefined);
     if(ttsProvider==="synthetic")throw new Error("Synthetic TTS is only available for development renders");
     await requireCloudTtsConfigured(ttsProvider);
-    const ttsSettings=parseTtsSettings(form.get("ttsSettings"));
+    const baseTtsSettings=parseTtsSettings(form.get("ttsSettings"));
     const baseJobIdInput=optionalText(form.get("baseJobId"),120,"Base job id");
     if(baseJobIdInput)assertJobId(baseJobIdInput);
+    if(baseJobIdInput&&projectParts.length>1)throw new Error("A base render can only be reused for a single project, not a batch upload");
 
-    const parsed=await parseProjectPackage(projectPart);
-    const project=parsed.project;
-    const jobId=`web-${Date.now()}-${randomUUID().slice(0,8)}`;
+    const reference=form.get("ttsReference");
+    let referenceBytes:Uint8Array|undefined;
+    if((ttsProvider==="omnivoice"||ttsProvider==="chatterbox"||ttsProvider==="xtts")&&reference instanceof File&&reference.size>0){
+      if(reference.size>20_000_000)return Response.json({error:"TTS reference audio is too large (max 20 MB)"},{status:413});
+      referenceBytes=new Uint8Array(await reference.arrayBuffer());
+    }
+
     const dataDir=getDataDir();
-    uploadRoot=join(dataDir,"uploads",jobId);
-    const projectPath=await stageProjectPackage(parsed,uploadRoot);
+    const created:{jobId:string;projectTitle:string}[]=[];
+    const failed:{fileName:string;error:string}[]=[];
 
-    if(ttsProvider==="omnivoice"||ttsProvider==="chatterbox"||ttsProvider==="xtts"){
-      const reference=form.get("ttsReference");
-      if(reference instanceof File&&reference.size>0){
-        if(reference.size>20_000_000)return Response.json({error:"TTS reference audio is too large (max 20 MB)"},{status:413});
-        const extension=safeAudioExtension(reference.name);
-        const referencePath=join(uploadRoot,`tts-reference${extension}`);
-        await writeFile(referencePath,new Uint8Array(await reference.arrayBuffer()));
-        if(ttsProvider==="omnivoice")ttsSettings.omnivoice={...ttsSettings.omnivoice,referenceAudioPath:referencePath};
-        if(ttsProvider==="chatterbox")ttsSettings.chatterbox={...ttsSettings.chatterbox,referenceAudioPath:referencePath};
-        if(ttsProvider==="xtts")ttsSettings.xtts={...ttsSettings.xtts,referenceAudioPath:referencePath};
+    for(const projectPart of projectParts){
+      let uploadRoot:string|undefined;
+      try{
+        const parsed=await parseProjectPackage(projectPart);
+        const project=parsed.project;
+        const jobId=`web-${Date.now()}-${randomUUID().slice(0,8)}`;
+        uploadRoot=join(dataDir,"uploads",jobId);
+        uploadRoots.push(uploadRoot);
+        const projectPath=await stageProjectPackage(parsed,uploadRoot);
+
+        const ttsSettings:TtsJobSettings={...baseTtsSettings};
+        if(referenceBytes){
+          const extension=safeAudioExtension(reference instanceof File?reference.name:"");
+          const referencePath=join(uploadRoot,`tts-reference${extension}`);
+          await writeFile(referencePath,referenceBytes);
+          if(ttsProvider==="omnivoice")ttsSettings.omnivoice={...ttsSettings.omnivoice,referenceAudioPath:referencePath};
+          if(ttsProvider==="chatterbox")ttsSettings.chatterbox={...ttsSettings.chatterbox,referenceAudioPath:referencePath};
+          if(ttsProvider==="xtts")ttsSettings.xtts={...ttsSettings.xtts,referenceAudioPath:referencePath};
+        }
+
+        const createdAt=new Date().toISOString();
+        const jobRoot=join(dataDir,"jobs",jobId);
+        await mkdir(jobRoot,{recursive:true});
+        await writeFile(join(jobRoot,"status.json"),`${JSON.stringify({jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt,projectTitle:project.metadata.title,renderEngine,ttsProvider,...(baseJobIdInput?{baseJobId:baseJobIdInput}:{})},null,2)}\n`,`utf8`);
+
+        const signal=registerActiveJob(jobId);
+        enqueueRenderJob({jobId,projectPath,dataDir,uploadRoot,renderEngine,ttsProvider,ttsSettings,baseJobId:baseJobIdInput,signal});
+        created.push({jobId,projectTitle:project.metadata.title});
+      }catch(error){
+        if(uploadRoot)await rm(uploadRoot,{recursive:true,force:true}).catch((cleanupError)=>{console.error(`StudyTube upload ${uploadRoot}: failed to remove after rejected request`,cleanupError);});
+        if(projectParts.length===1)throw error;
+        const message=error instanceof StudyTubeValidationError?"Invalid StudyTube project":error instanceof StudyTubePackageError||error instanceof Error?error.message:"Could not start render";
+        failed.push({fileName:projectPart.name,error:message});
       }
     }
 
-    const createdAt=new Date().toISOString();
-    const jobRoot=join(dataDir,"jobs",jobId);
-    await mkdir(jobRoot,{recursive:true});
-    await writeFile(join(jobRoot,"status.json"),`${JSON.stringify({jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt,projectTitle:project.metadata.title,renderEngine,ttsProvider,...(baseJobIdInput?{baseJobId:baseJobIdInput}:{})},null,2)}\n`,`utf8`);
-
-    const signal=registerActiveJob(jobId);
-    void runStudyTubeJob({projectPath,dataDir,jobId,signal,renderEngine,ttsProvider,ttsSettings,baseJobId:baseJobIdInput})
-      .catch(()=>undefined)
-      .finally(async()=>{
-        unregisterActiveJob(jobId);
-        await rm(uploadRoot!,{recursive:true,force:true}).catch((error)=>{console.error(`StudyTube job ${jobId}: failed to remove upload directory`,error);});
-        await cleanupCancelledJobWorkingData(jobId).catch((error)=>{console.error(`StudyTube job ${jobId}: failed to clean up cancelled job data`,error);});
-      });
-
-    return Response.json({jobId,renderEngine,ttsProvider,...(baseJobIdInput?{baseJobId:baseJobIdInput}:{})},{status:202});
+    if(created.length===0)return Response.json({error:"Could not start any of the uploaded projects",failed},{status:400});
+    if(projectParts.length===1&&created.length===1){
+      return Response.json({jobId:created[0].jobId,renderEngine,ttsProvider,...(baseJobIdInput?{baseJobId:baseJobIdInput}:{})},{status:202});
+    }
+    return Response.json({jobs:created,failed,renderEngine,ttsProvider},{status:202});
   }catch(error){
-    if(uploadRoot)await rm(uploadRoot,{recursive:true,force:true}).catch((cleanupError)=>{console.error(`StudyTube upload ${uploadRoot}: failed to remove after rejected request`,cleanupError);});
+    await Promise.all(uploadRoots.map((uploadRoot)=>rm(uploadRoot,{recursive:true,force:true}).catch((cleanupError)=>{console.error(`StudyTube upload ${uploadRoot}: failed to remove after rejected request`,cleanupError);})));
     if(error instanceof StudyTubeValidationError)return Response.json({error:"Invalid StudyTube project",issues:error.issues},{status:422});
     if(error instanceof StudyTubePackageError)return Response.json({error:error.message},{status:error.status});
     return Response.json({error:error instanceof Error?error.message:"Could not start render"},{status:400});
