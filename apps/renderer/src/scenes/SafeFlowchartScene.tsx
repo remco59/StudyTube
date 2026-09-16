@@ -61,7 +61,7 @@ export const SafeFlowchartScene=({scene}:{scene:FlowchartSceneType})=>{
         const labelFontSize=node.label.length>24?24:node.label.length>16?26:29;
         return <div key={node.id} style={{...reveal(frame,fps,index*2),left:point.x-NODE_HALF_WIDTH,minHeight:100,minWidth:0,padding:`${spacing.sm}px ${spacing.md}px`,position:"absolute",textAlign:"center",top:point.y-50,width:NODE_WIDTH,zIndex:2}}>
           <div style={{borderBottom:`2px solid ${index===0?colors.accent:colors.line}`,fontSize:labelFontSize,fontWeight:800,lineHeight:1.08,overflowWrap:"anywhere",paddingBottom:10}}>{node.label}</div>
-          {node.detail?<div style={{color:colors.textMuted,fontSize:21,lineHeight:1.25,marginTop:10,overflowWrap:"anywhere"}}>{node.detail}</div>:null}
+          {node.detail?<div style={{WebkitBoxOrient:"vertical",WebkitLineClamp:2,color:colors.textMuted,display:"-webkit-box",fontSize:21,lineHeight:1.25,marginTop:10,overflow:"hidden",overflowWrap:"anywhere"}}>{node.detail}</div>:null}
         </div>;
       })}
     </div>
