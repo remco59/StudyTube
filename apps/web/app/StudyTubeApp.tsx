@@ -2,7 +2,7 @@
 
 import {useCallback,useEffect,useMemo,useRef,useState} from "react";
 import {buildChatGptPrompt} from "../lib/chatgptPrompt";
-import {defaultTtsSelection,serializeTtsSettings,TtsSelector,type TtsProviderChoice,type TtsSelection} from "./TtsSelector";
+import {defaultTtsSelection,getTtsReferenceFile,serializeTtsSettings,TtsSelector,type TtsProviderChoice,type TtsSelection} from "./TtsSelector";
 
 type RequiredAsset={id:string;type:"image"|"document";path:string;fileName:string};
 type ValidationResult={valid:true;summary:{title:string;language:string;targetDuration:number;chapters:number;scenes:number;assets:number};assets:RequiredAsset[]}|{valid:false;issues:{path:string;message:string}[]};
@@ -193,7 +193,8 @@ export const StudyTubeApp=()=>{
     form.append("renderEngine",renderEngine);
     form.append("ttsProvider",ttsSelection.provider);
     form.append("ttsSettings",serializeTtsSettings(ttsSelection));
-    if(ttsSelection.provider==="omnivoice"&&ttsSelection.omnivoice.referenceFile)form.append("ttsReference",ttsSelection.omnivoice.referenceFile,ttsSelection.omnivoice.referenceFile.name);
+    const ttsReference=getTtsReferenceFile(ttsSelection);
+    if(ttsReference)form.append("ttsReference",ttsReference,ttsReference.name);
     for(const asset of validation.assets){const file=matchedAssets.get(asset.id);if(file)form.append(`asset:${asset.id}`,file,file.name);}
     const response=await fetch("/api/jobs",{method:"POST",body:form});
     const result=await response.json() as {jobId?:string;renderEngine?:RenderEngine;ttsProvider?:TtsProviderChoice;error?:string};
@@ -400,7 +401,7 @@ const humanState=(state?:string)=>({queued:"Preparing render…",validating:"Ana
 const isTerminal=(state?:string)=>state==="completed"||state==="failed"||state==="cancelled";
 const sortJobs=(a:JobStatus,b:JobStatus)=>Date.parse(b.createdAt??"")-Date.parse(a.createdAt??"");
 const renderEngineLabel=(engine:RenderEngine)=>({cpu:"CPU (software)",intel:"Intel GPU (VAAPI)",nvidia:"NVIDIA NVENC"}[engine]);
-const ttsProviderLabel=(provider:NonNullable<JobStatus["ttsProvider"]>)=>({edge:"Edge TTS",piper:"Piper",omnivoice:"OmniVoice",synthetic:"Synthetic TTS"}[provider]);
+const ttsProviderLabel=(provider:NonNullable<JobStatus["ttsProvider"]>)=>({edge:"Edge TTS",piper:"Piper",omnivoice:"OmniVoice",chatterbox:"Chatterbox Multilingual",xtts:"XTTS v2","google-chirp":"Google Chirp 3 HD",azure:"Azure Speech",synthetic:"Synthetic TTS"}[provider]);
 const renderDescription=(job:JobStatus|null,busy:boolean,hasActiveJob:boolean)=>{
   if(job?.state==="failed")return job.error??"The render pipeline stopped. Open the job to inspect its logs.";
   if(job?.state==="cancelled")return "This render was cancelled. You can start it again when you are ready.";
