@@ -1,5 +1,5 @@
 import {describe,expect,it} from "vitest";
-import {createIntelVaapiFfmpegOverride,parseRenderEngine} from "./renderEngine";
+import {createIntelVaapiFfmpegOverride,isNvidiaSmiOutputUsable,parseRenderEngine} from "./renderEngine";
 
 describe("parseRenderEngine",()=>{
   it("defaults to CPU and accepts supported engines",()=>{
@@ -11,6 +11,14 @@ describe("parseRenderEngine",()=>{
 
   it("rejects unsupported engine values",()=>{
     expect(()=>parseRenderEngine("auto")).toThrow(/Unsupported render engine/);
+  });
+});
+
+describe("isNvidiaSmiOutputUsable",()=>{
+  it("requires nvidia-smi to report at least one GPU",()=>{
+    expect(isNvidiaSmiOutputUsable("NVIDIA RTX 4070\n")).toBe(true);
+    expect(isNvidiaSmiOutputUsable("   \n")).toBe(false);
+    expect(isNvidiaSmiOutputUsable("")).toBe(false);
   });
 });
 
