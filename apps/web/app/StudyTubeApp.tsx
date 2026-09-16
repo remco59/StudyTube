@@ -16,7 +16,7 @@ type RenderEngine="cpu"|"intel"|"nvidia";
 type RenderCapability={id:RenderEngine;label:string;available:boolean;detail:string};
 type RenderCapabilities={engines:RenderCapability[]};
 type SceneProgress={currentSceneId?:string;currentSceneIndex:number;completedScenes:number;totalScenes:number;etaSeconds?:number};
-type JobStatus={jobId:string;state:string;progress:number;createdAt?:string;updatedAt?:string;projectTitle?:string;renderEngine?:RenderEngine;ttsProvider?:TtsProviderChoice|"synthetic";outputPath?:string;error?:string;downloadedAt?:string;expiresAt?:string;sceneProgress?:SceneProgress;captions?:{srtPath:string;vttPath:string};thumbnailPath?:string};
+type JobStatus={jobId:string;state:string;progress:number;createdAt?:string;updatedAt?:string;projectTitle?:string;renderEngine?:RenderEngine;ttsProvider?:TtsProviderChoice|"synthetic";outputPath?:string;error?:string;downloadedAt?:string;expiresAt?:string;sceneProgress?:SceneProgress;captions?:{srtPath:string;vttPath:string};thumbnailPath?:string;queuePosition?:number;queueLength?:number};
 type JobLogEntry={timestamp:string;event:string;message:string;data?:unknown};
 type PromptLanguage="nl-NL"|"en-US";
 type AppTab="create"|"jobs";
@@ -57,6 +57,9 @@ export const StudyTubeApp=()=>{
   const [renderEngine,setRenderEngine]=useState<RenderEngine>("cpu");
   const [renderCapabilities,setRenderCapabilities]=useState<RenderCapabilities|null>(null);
   const [baseJobId,setBaseJobId]=useState<string|null>(null);
+  const [batchFiles,setBatchFiles]=useState<File[]>([]);
+  const [batchSubmitting,setBatchSubmitting]=useState(false);
+  const [batchResult,setBatchResult]=useState<{createdCount:number;failed:{fileName:string;error:string}[]}|null>(null);
   const [ttsSelection,setTtsSelection]=useState<TtsSelection>(defaultTtsSelection);
   const validationRequest=useRef(0);
 
@@ -210,7 +213,7 @@ export const StudyTubeApp=()=>{
   };
 
   const startRender=async()=>{
-    if(!projectFile||!validation?.valid||hasActiveJob||!renderEngineAvailable)return;
+    if(!projectFile||!validation?.valid||!renderEngineAvailable)return;
     setCancellingJobId(null);
     setError(null);
     setJob({jobId:"starting",state:"queued",progress:0,projectTitle:validation.summary.title,renderEngine,ttsProvider:ttsSelection.provider});
@@ -240,6 +243,31 @@ export const StudyTubeApp=()=>{
     void refreshJobs();
   };
 
+  const submitBatch=async()=>{
+    if(batchFiles.length===0||batchSubmitting)return;
+    setBatchSubmitting(true);
+    setBatchResult(null);
+    setError(null);
+    try{
+      const form=new FormData();
+      for(const file of batchFiles)form.append("project",file,file.name);
+      form.append("renderEngine",renderEngine);
+      form.append("ttsProvider",ttsSelection.provider);
+      form.append("ttsSettings",serializeTtsSettings(ttsSelection));
+      const response=await fetch("/api/jobs",{method:"POST",body:form});
+      const result=await response.json() as {jobId?:string;jobs?:{jobId:string;projectTitle:string}[];failed?:{fileName:string;error:string}[];error?:string};
+      if(!response.ok){setError(result.error??"Could not queue the batch");return;}
+      const createdCount=result.jobId?1:result.jobs?.length??0;
+      setBatchResult({createdCount,failed:result.failed??[]});
+      setBatchFiles([]);
+      void refreshJobs();
+    }catch(cause){
+      setError(cause instanceof Error?cause.message:"Could not queue the batch");
+    }finally{
+      setBatchSubmitting(false);
+    }
+  };
+
   const cancelJob=async(target:JobStatus)=>{
     if(target.jobId==="starting"||isTerminal(target.state)||cancellingJobId===target.jobId)return;
     setError(null);
@@ -252,6 +280,19 @@ export const StudyTubeApp=()=>{
     }catch(cause){
       setCancellingJobId(null);
       setError(cause instanceof Error?cause.message:"Could not cancel render");
+    }
+  };
+
+  const reorderJob=async(target:JobStatus,direction:"up"|"down")=>{
+    if(target.queuePosition===undefined)return;
+    setError(null);
+    try{
+      const response=await fetch(`/api/jobs/${target.jobId}/reorder`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({direction})});
+      const result=await response.json() as {error?:string};
+      if(!response.ok){setError(result.error??"Could not reorder job");return;}
+      void refreshJobs();
+    }catch(cause){
+      setError(cause instanceof Error?cause.message:"Could not reorder job");
     }
   };
 
@@ -375,6 +416,17 @@ export const StudyTubeApp=()=>{
                     </div>)}</div>
                   </div>)}</div>
                 </details>:null}
+
+                <details className="batchBlock">
+                  <summary><strong>Queue several projects at once</strong><span>Uses the render engine and TTS settings from the Render step.</span></summary>
+                  <label className="dropzone batchDropzone">
+                    <input type="file" multiple accept=".json,.studytube.json,.zip,.studytube.zip,application/json,application/zip" onChange={(event)=>{setBatchFiles(Array.from(event.target.files??[]));setBatchResult(null);}}/>
+                    <span className="dropIcon">↥</span><strong>{batchFiles.length>0?`${batchFiles.length} project${batchFiles.length===1?"":"s"} selected`:"Choose several StudyTube files"}</strong><span>They will queue and render one after another.</span>
+                  </label>
+                  {batchFiles.length>0?<div className="batchFileList">{batchFiles.map((file,index)=><span key={`${file.name}-${index}`}>{file.name}</span>)}</div>:null}
+                  {batchResult?<div className="assetComplete">✓ Queued {batchResult.createdCount} render{batchResult.createdCount===1?"":"s"}.{batchResult.failed.length>0?` ${batchResult.failed.length} failed: ${batchResult.failed.map((item)=>`${item.fileName} (${item.error})`).join(", ")}`:""}</div>:null}
+                  <button type="button" className="primaryButton compactButton" disabled={batchFiles.length===0||batchSubmitting} onClick={()=>void submitBatch()}>{batchSubmitting?"Queuing…":`Queue ${batchFiles.length||""} render${batchFiles.length===1?"":"s"}`}</button>
+                </details>
               </div>
               <div className="workflowFooter"><button type="button" className="secondaryButton" onClick={()=>setCreateStep(0)}>Back</button><button type="button" className="primaryButton compactButton" disabled={!renderReady} onClick={()=>{setCreateStep(2);void refreshRenderCapabilities();}}>Continue to render</button></div>
             </>:null}
@@ -383,7 +435,7 @@ export const StudyTubeApp=()=>{
               <div className="wizardRender">
                 <div className="renderStageCopy">
                   <p className="eyebrow">Render</p>
-                  <h2>{job?.state==="completed"?"Your video is ready.":job?.state==="failed"?"Render failed.":job?.state==="cancelled"?"Render cancelled.":busy?humanState(job?.state):hasActiveJob?"A render is already running.":"Ready to create the MP4."}</h2>
+                  <h2>{job?.state==="completed"?"Your video is ready.":job?.state==="failed"?"Render failed.":job?.state==="cancelled"?"Render cancelled.":busy?humanState(job?.state):"Ready to create the MP4."}</h2>
                   <p>{renderDescription(job,busy,hasActiveJob)}</p>
                   {validation?.valid?<div className="renderProjectSummary"><strong>{validation.summary.title}</strong><span>~{formatDuration(validation.summary.estimatedDurationSeconds)} estimated · {validation.summary.scenes} scenes · {validation.summary.assets} assets · {validation.summary.language}</span></div>:null}
                   <div className="renderEngineBlock">
@@ -411,7 +463,7 @@ export const StudyTubeApp=()=>{
                 <div className="renderAction wizardRenderAction">
                   {busy?<div className="progress"><div className="progressTrack"><span style={{width:`${Math.round((job?.progress??0)*100)}%`}}/></div><strong>{Math.round((job?.progress??0)*100)}%</strong></div>:null}
                   {busy&&job?.sceneProgress?<div className="sceneProgress">{formatSceneProgress(job.sceneProgress)}</div>:null}
-                  {job?.state==="completed"?<a className="primaryButton" href={`/api/jobs/${job.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(),1200)}>Download MP4</a>:job&&busy&&job.jobId!=="starting"?<button className="cancelButton" disabled={cancellingJobId===job.jobId} onClick={()=>void cancelJob(job)}>{cancellingJobId===job.jobId?"Cancelling…":"Cancel render"}</button>:busy?<button className="primaryButton" disabled>Starting…</button>:hasActiveJob?<button type="button" className="primaryButton" onClick={openJobs}>View running job</button>:<button className="primaryButton" disabled={!renderReady||!renderEngineAvailable} onClick={()=>void startRender()}>Generate video</button>}
+                  {job?.state==="completed"?<a className="primaryButton" href={`/api/jobs/${job.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(),1200)}>Download MP4</a>:job&&busy&&job.jobId!=="starting"?<button className="cancelButton" disabled={cancellingJobId===job.jobId} onClick={()=>void cancelJob(job)}>{cancellingJobId===job.jobId?"Cancelling…":"Cancel render"}</button>:busy?<button className="primaryButton" disabled>Starting…</button>:<button className="primaryButton" disabled={!renderReady||!renderEngineAvailable} onClick={()=>void startRender()}>{hasActiveJob?"Queue video":"Generate video"}</button>}
                   {job?.state==="completed"&&job.captions?<CaptionDownloadLinks jobId={job.jobId}/>:null}
                   {job&&job.jobId!=="starting"?<button type="button" className="secondaryButton" onClick={()=>{setManagedJobId(job.jobId);openJobs();}}>Open in Jobs</button>:null}
                 </div>
@@ -435,6 +487,7 @@ export const StudyTubeApp=()=>{
             <div className="jobActionBar">
               {managedJob.state==="completed"?<a className="primaryButton compactButton" href={`/api/jobs/${managedJob.jobId}/download`} onClick={()=>window.setTimeout(()=>void refreshJobs(),1200)}>Download MP4</a>:null}
               {managedJob.state==="completed"&&managedJob.captions?<CaptionDownloadLinks jobId={managedJob.jobId} compact/>:null}
+              {managedJob.queuePosition?<div className="queueReorder"><button type="button" className="secondaryButton compactButton" disabled={managedJob.queuePosition===1} onClick={()=>void reorderJob(managedJob,"up")}>↑ Move up</button><button type="button" className="secondaryButton compactButton" disabled={managedJob.queuePosition===managedJob.queueLength} onClick={()=>void reorderJob(managedJob,"down")}>↓ Move down</button></div>:null}
               {!isTerminal(managedJob.state)?<button className="cancelButton compactButton" disabled={cancellingJobId===managedJob.jobId} onClick={()=>void cancelJob(managedJob)}>{cancellingJobId===managedJob.jobId?"Cancelling…":"Cancel render"}</button>:null}
               {isTerminal(managedJob.state)?<button type="button" className="cancelButton compactButton" disabled={deletingJobId===managedJob.jobId} onClick={()=>void deleteJob(managedJob)}>{deletingJobId===managedJob.jobId?"Deleting…":"Delete job"}</button>:null}
             </div>
@@ -469,13 +522,14 @@ const renderDescription=(job:JobStatus|null,busy:boolean,hasActiveJob:boolean)=>
   if(job?.state==="completed"&&job.downloadedAt)return "Downloaded. StudyTube will remove this job automatically about one hour after the first download.";
   if(job?.state==="completed")return "The finished video stays on the server until you download it.";
   if(busy)return `StudyTube is rendering this project on your server using ${renderEngineLabel(job?.renderEngine??"cpu")}${job?.ttsProvider?` and ${ttsProviderLabel(job.ttsProvider)}`:""}.`;
-  if(hasActiveJob)return "Another saved render is still running. Open Jobs to follow or cancel it.";
+  if(hasActiveJob)return "Another render is already running. This one will queue and start automatically once it's done.";
   return "StudyTube will synthesize the narration and render a finished 1080p MP4.";
 };
 const jobStatusLabel=(job:JobStatus)=>{
   if(job.state==="completed")return job.downloadedAt?"Downloaded":"Ready";
   if(job.state==="failed")return "Failed";
   if(job.state==="cancelled")return "Cancelled";
+  if(job.state==="queued"&&job.queuePosition)return `Queued · #${job.queuePosition} of ${job.queueLength}`;
   return humanState(job.state).replace("…","");
 };
 const stateClass=(state:string)=>state==="completed"?"complete":state==="failed"?"failed":state==="cancelled"?"cancelled":"active";
