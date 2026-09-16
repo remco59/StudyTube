@@ -5,7 +5,7 @@ import {StudyTubeValidationError} from "@studytube/schema";
 import {resolveTtsProviderKind,runStudyTubeJob,type TtsJobSettings} from "@studytube/worker";
 import {parseRenderEngine,requireRenderEngine} from "@studytube/worker/render-engine";
 import {registerActiveJob,unregisterActiveJob} from "@/lib/activeJobs";
-import {cleanupCancelledJobWorkingData,cleanupExpiredJobs,getDataDir,listJobStatuses} from "@/lib/jobs";
+import {assertJobId,cleanupCancelledJobWorkingData,cleanupExpiredJobs,getDataDir,listJobStatuses} from "@/lib/jobs";
 import {parseProjectPackage,stageProjectPackage,StudyTubePackageError} from "@/lib/projectPackage";
 
 export const runtime="nodejs";
@@ -29,6 +29,8 @@ export async function POST(request:Request){
     const ttsProvider=resolveTtsProviderKind(typeof form.get("ttsProvider")==="string"?String(form.get("ttsProvider")):undefined);
     if(ttsProvider==="synthetic")throw new Error("Synthetic TTS is only available for development renders");
     const ttsSettings=parseTtsSettings(form.get("ttsSettings"));
+    const baseJobIdInput=optionalText(form.get("baseJobId"),120,"Base job id");
+    if(baseJobIdInput)assertJobId(baseJobIdInput);
 
     const parsed=await parseProjectPackage(projectPart);
     const project=parsed.project;
@@ -53,10 +55,10 @@ export async function POST(request:Request){
     const createdAt=new Date().toISOString();
     const jobRoot=join(dataDir,"jobs",jobId);
     await mkdir(jobRoot,{recursive:true});
-    await writeFile(join(jobRoot,"status.json"),`${JSON.stringify({jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt,projectTitle:project.metadata.title,renderEngine,ttsProvider},null,2)}\n`,`utf8`);
+    await writeFile(join(jobRoot,"status.json"),`${JSON.stringify({jobId,state:"queued",progress:0,createdAt,updatedAt:createdAt,projectTitle:project.metadata.title,renderEngine,ttsProvider,...(baseJobIdInput?{baseJobId:baseJobIdInput}:{})},null,2)}\n`,`utf8`);
 
     const signal=registerActiveJob(jobId);
-    void runStudyTubeJob({projectPath,dataDir,jobId,signal,renderEngine,ttsProvider,ttsSettings})
+    void runStudyTubeJob({projectPath,dataDir,jobId,signal,renderEngine,ttsProvider,ttsSettings,baseJobId:baseJobIdInput})
       .catch(()=>undefined)
       .finally(async()=>{
         unregisterActiveJob(jobId);
@@ -64,7 +66,7 @@ export async function POST(request:Request){
         await cleanupCancelledJobWorkingData(jobId).catch((error)=>{console.error(`StudyTube job ${jobId}: failed to clean up cancelled job data`,error);});
       });
 
-    return Response.json({jobId,renderEngine,ttsProvider},{status:202});
+    return Response.json({jobId,renderEngine,ttsProvider,...(baseJobIdInput?{baseJobId:baseJobIdInput}:{})},{status:202});
   }catch(error){
     if(uploadRoot)await rm(uploadRoot,{recursive:true,force:true}).catch((cleanupError)=>{console.error(`StudyTube upload ${uploadRoot}: failed to remove after rejected request`,cleanupError);});
     if(error instanceof StudyTubeValidationError)return Response.json({error:"Invalid StudyTube project",issues:error.issues},{status:422});

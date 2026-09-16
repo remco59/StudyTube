@@ -24,6 +24,7 @@ export type StudyTubeJobStatus={
   downloadedAt?:string;
   expiresAt?:string;
   sceneProgress?:SceneProgress;
+  baseJobId?:string;
 };
 
 export type JobLogEntry={
@@ -41,6 +42,7 @@ export type JobPaths={
   statusFile:string;
   logFile:string;
   renderPropsFile:string;
+  sceneManifestFile:string;
 };
 
 export type RenderProgress={progress:number;stage?:string;renderedFrames?:number};
