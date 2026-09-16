@@ -1,6 +1,6 @@
 "use client";
 
-import {useState} from "react";
+import {useEffect,useState} from "react";
 import {chirpVoiceCatalog,isKnownVoiceLanguage,neuralVoiceCatalog,voiceLanguageOptions,type VoiceOption} from "./voiceCatalog";
 
 export type TtsProviderChoice="edge"|"piper"|"omnivoice"|"chatterbox"|"xtts"|"google-chirp"|"azure";
@@ -14,6 +14,17 @@ export type TtsSelection={
   xtts:{speaker:string;speed:number;referenceFile:File|null};
   googleChirp:{voice:string};
   azure:{voice:string};
+};
+
+type GoogleChirpUsage={
+  period:string;
+  usedCharacters:number;
+  limitCharacters:number;
+  remainingCharacters:number;
+  percentUsed:number;
+  exhausted:boolean;
+  resetsAt:string;
+  trackingScope:string;
 };
 
 export const defaultTtsSelection:TtsSelection={
@@ -71,19 +82,64 @@ const choices:{id:TtsProviderChoice;label:string;detail:string;badge:string}[]=[
 
 export const TtsSelector=({value,disabled=false,showReferenceAudio=true,onChange}:Props)=>{
   const [settingsOpen,setSettingsOpen]=useState<TtsProviderChoice|null>(null);
-  const select=(provider:TtsProviderChoice)=>onChange({...value,provider});
+  const [chirpUsage,setChirpUsage]=useState<GoogleChirpUsage|null>(null);
+  const [chirpUsageError,setChirpUsageError]=useState<string|null>(null);
+
+  useEffect(()=>{
+    let cancelled=false;
+    const load=async()=>{
+      try{
+        const response=await fetch("/api/settings/google/usage",{cache:"no-store"});
+        const result=await response.json() as GoogleChirpUsage&{error?:string};
+        if(cancelled)return;
+        if(!response.ok)throw new Error(result.error??"Could not load Google Chirp usage");
+        setChirpUsage(result);
+        setChirpUsageError(null);
+      }catch(cause){
+        if(cancelled)return;
+        setChirpUsage(null);
+        setChirpUsageError(cause instanceof Error?cause.message:"Could not load Google Chirp usage");
+      }
+    };
+    void load();
+    const timer=window.setInterval(()=>void load(),30_000);
+    return()=>{cancelled=true;window.clearInterval(timer);};
+  },[]);
+
+  const chirpBlocked=chirpUsage?.exhausted===true||chirpUsageError!==null;
+  const select=(provider:TtsProviderChoice)=>{
+    if(provider==="google-chirp"&&chirpBlocked)return;
+    onChange({...value,provider});
+  };
+
   return <div className="ttsBlock">
     <div className="ttsHeading"><div><strong>Text-to-speech</strong><span>Edge TTS, Piper and Google Chirp 3 HD are included in the standard Docker stack. Larger local engines are optional.</span></div></div>
-    <div className="ttsOptions">{choices.map((choice)=><div className={`ttsOption${value.provider===choice.id?" selected":""}`} key={choice.id}>
-      <button type="button" className="ttsOptionSelect" disabled={disabled} onClick={()=>select(choice.id)}>
-        <span className="engineRadio">{value.provider===choice.id?"●":"○"}</span>
-        <span className="engineCopy"><strong>{choice.label}</strong><small>{choice.detail}</small></span>
-        <span className={`ttsBadge ${choice.id}`}>{choice.badge}</span>
-      </button>
-      <button type="button" className={`ttsSettingsButton${settingsOpen===choice.id?" active":""}`} aria-label={`${choice.label} settings`} title={`${choice.label} settings`} disabled={disabled} onClick={()=>setSettingsOpen((current)=>current===choice.id?null:choice.id)}>⚙</button>
-      {settingsOpen===choice.id?<div className="ttsSettingsPanel"><Settings provider={choice.id} value={value} showReferenceAudio={showReferenceAudio} onChange={onChange}/></div>:null}
-    </div>)}</div>
+    <div className="ttsOptions">{choices.map((choice)=>{
+      const blocked=choice.id==="google-chirp"&&chirpBlocked;
+      const badge=choice.id==="google-chirp"&&chirpUsage?(chirpUsage.exhausted?"Free tier used":`${Math.round(chirpUsage.percentUsed)}% used`):choice.badge;
+      return <div className={`ttsOption${value.provider===choice.id?" selected":""}${blocked?" blocked":""}`} key={choice.id}>
+        <button type="button" className="ttsOptionSelect" disabled={disabled||blocked} onClick={()=>select(choice.id)}>
+          <span className="engineRadio">{value.provider===choice.id?"●":"○"}</span>
+          <span className="engineCopy"><strong>{choice.label}</strong><small>{choice.detail}</small></span>
+          <span className={`ttsBadge ${choice.id}`}>{blocked&&chirpUsageError?"Usage unavailable":badge}</span>
+        </button>
+        <button type="button" className={`ttsSettingsButton${settingsOpen===choice.id?" active":""}`} aria-label={`${choice.label} settings`} title={`${choice.label} settings`} disabled={disabled} onClick={()=>setSettingsOpen((current)=>current===choice.id?null:choice.id)}>⚙</button>
+        {choice.id==="google-chirp"?<GoogleUsageMeter usage={chirpUsage} error={chirpUsageError}/>:null}
+        {settingsOpen===choice.id?<div className="ttsSettingsPanel"><Settings provider={choice.id} value={value} showReferenceAudio={showReferenceAudio} onChange={onChange}/></div>:null}
+      </div>;
+    })}</div>
     {!showReferenceAudio?<p className="ttsSettingsHint">Voice-cloning reference audio remains a per-render setting and is not stored as a default.</p>:null}
+  </div>;
+};
+
+const GoogleUsageMeter=({usage,error}:{usage:GoogleChirpUsage|null;error:string|null})=>{
+  if(error)return <div className="chirpUsageMeter unavailable"><div className="chirpUsageMeta"><span>Monthly free tier</span><strong>Usage unavailable</strong></div><small>Chirp is blocked until StudyTube can verify usage, preventing accidental paid synthesis.</small></div>;
+  if(!usage)return <div className="chirpUsageMeter loading"><div className="chirpUsageMeta"><span>Monthly free tier</span><strong>Checking…</strong></div></div>;
+  const used=Math.min(100,Math.max(0,usage.percentUsed));
+  return <div className={`chirpUsageMeter${usage.exhausted?" exhausted":""}`}>
+    <div className="chirpUsageMeta"><span>Monthly free tier</span><strong>{formatCharacters(usage.usedCharacters)} / {formatCharacters(usage.limitCharacters)}</strong></div>
+    <div className="chirpUsageTrack" aria-label={`${Math.round(used)}% of Google Chirp free tier used`}><span style={{width:`${used}%`}}/></div>
+    <small>{usage.exhausted?"Free allowance used up — Chirp is blocked.":`${formatCharacters(usage.remainingCharacters)} characters remaining`} · resets {formatResetDate(usage.resetsAt)} · StudyTube-tracked usage</small>
   </div>;
 };
 
@@ -138,9 +194,10 @@ const XttsSettings=({value,showReferenceAudio,onChange}:SettingsProps&{showRefer
 
 const GoogleSettings=({value,onChange}:SettingsProps)=><div className="ttsSettingsGrid">
   <NeuralVoicePicker language={value.language} voice={value.googleChirp.voice} catalog={chirpVoiceCatalog}
-    onLanguageChange={(language)=>onChange({...value,language})}
+    onLanguageChange={(language)=>onChange({...value,language})
+    }
     onVoiceChange={(voice)=>onChange({...value,googleChirp:{voice}})}/>
-  <p className="ttsSettingsHint wide">Requires Google Cloud credentials. Current Google free usage is up to 1 million Chirp 3 HD characters per month.</p>
+  <p className="ttsSettingsHint wide">Requires Google Cloud credentials. StudyTube hard-blocks Chirp when its tracked monthly 1 million character free allowance is used.</p>
 </div>;
 
 const AzureSettings=({value,onChange}:SettingsProps)=><div className="ttsSettingsGrid">
@@ -174,3 +231,8 @@ const NeuralVoicePicker=({language,voice,catalog,onLanguageChange,onVoiceChange}
 const ReferenceAudio=({value,hint,onChange}:{value:File|null;hint:string;onChange:(file:File|null)=>void})=><label className="wide"><span>Reference audio <em>optional</em></span><input className="fileInput" type="file" accept="audio/*,.wav,.mp3,.m4a,.flac,.ogg,.webm" onChange={(event)=>onChange(event.target.files?.[0]??null)}/><small>{value?value.name:hint}</small></label>;
 type SettingsProps={value:TtsSelection;onChange:(next:TtsSelection)=>void};
 const numberOr=(value:string,fallback:number)=>{const parsed=Number(value);return Number.isFinite(parsed)?parsed:fallback;};
+const formatCharacters=(value:number)=>new Intl.NumberFormat().format(Math.max(0,Math.round(value)));
+const formatResetDate=(value:string)=>{
+  const date=new Date(value);
+  return Number.isNaN(date.getTime())?"next month":date.toLocaleDateString([],{day:"numeric",month:"short"});
+};
