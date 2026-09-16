@@ -2,6 +2,7 @@ import type {Metadata} from "next";
 import type {ReactNode} from "react";
 import "./globals.css";
 import "./prompt.css";
+import "./teaching-strategy-modal.css";
 import "./jobs.css";
 import "./workflow.css";
 import "./render-engine.css";
