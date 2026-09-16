@@ -37,6 +37,7 @@ CONTENT REQUIREMENTS
 - Preserve important terminology from the source.
 - Explain difficult concepts with examples, comparisons or visual structures where useful.
 - Do not invent facts that are not supported by the material.
+- Never invent or paraphrase a quotation and present it as a direct quote. Use a quote scene only for wording that appears in the supplied material, and preserve that wording accurately.
 - Structure the video into logical chapters.
 - Start with an engaging introduction.
 - End important sections with short recaps where useful.
@@ -46,7 +47,7 @@ CONTENT REQUIREMENTS
 - Treat every visual field as a strict screen-space budget: titles should usually stay below 9 words, kinetic text below 16 words, comparison side titles below 5 words, comparison bodies below 18 words, and recap points below 14 words.
 - For comparison scenes, versusLabel must be a very short connector of at most 3 short words such as "vs.", "of", or "tegenover". Never put a sentence or the full comparison message in versusLabel.
 - Vary the visual presentation. Do not make every scene a title card or bullet list.
-- Prefer a semantically specific scene such as cycle, matrix, workedExample, hierarchy, dataChart or annotatedImage over forcing the content into a generic card layout.
+- Prefer a semantically specific scene such as cycle, matrix, workedExample, hierarchy, dataChart, annotatedImage or quote over forcing the content into a generic card layout.
 - Write narration as natural spoken ${languageNames[language]}, not academic written prose.
 - Aim for approximately 130-160 spoken words per minute.
 
@@ -169,6 +170,10 @@ hierarchy
 {"title":"optional","direction":"topDown | bottomUp","levels":[{"label":"required","detail":"optional"}]}
 Use 2-6 levels and only when the source implies a genuine ordering, layering or hierarchy.
 
+quote
+{"quote":"required","author":"optional","work":"optional","locator":"optional","context":"optional"}
+Use quote for a short, exact passage from the supplied literature when the original wording itself matters. Preserve the wording exactly, keep the visible quotation concise, and include author/work/locator when those details are identifiable from the source. Never invent a quote or attribution.
+
 Use these scene types only when the corresponding asset is present in the project package:
 
 image
@@ -190,7 +195,7 @@ Do not invent URLs or source details.
 
 VIDEO DESIGN
 Think in scenes rather than slides.
-Prefer definition for terminology, comparison for contrasts, process for one-way sequential methods, cycle for repeating processes, flowchart for decisions and relationships, diagram for connected concepts, hierarchy for levels, matrix for two-dimensional frameworks, timeline for chronology, dataChart for supported numeric evidence, workedExample for applying knowledge, multipleChoice for active recall, bigNumber for meaningful figures, kineticText for a short important statement, question for reflection, and recap for consolidation.
+Prefer definition for terminology, comparison for contrasts, process for one-way sequential methods, cycle for repeating processes, flowchart for decisions and relationships, diagram for connected concepts, hierarchy for levels, matrix for two-dimensional frameworks, timeline for chronology, dataChart for supported numeric evidence, workedExample for applying knowledge, multipleChoice for active recall, quote when exact wording from the literature deserves emphasis, bigNumber for meaningful figures, kineticText for a short important statement, question for reflection, and recap for consolidation.
 Use annotatedImage when labels or callouts make an image teach something that the image alone would not communicate.
 Use bulletReveal for short progressive lists, but avoid falling back to it when another scene type expresses the relationships more clearly.
 Use image scenes selectively when a photograph, illustration, diagram or generated visual adds something the structured StudyTube scenes cannot communicate as well.
@@ -210,11 +215,12 @@ Before returning the file, internally check that:
 9. Every visual object contains only fields supported by that scene type.
 10. Every flowchart edge references an existing node.
 11. Every multipleChoice correctIndex references an existing option.
-12. No image, annotatedImage or document scene references a nonexistent asset.
-13. Every declared asset exists at the exact same path inside the ZIP.
-14. A text-only project contains no declared assets and is returned as .studytube.json.
-15. A project with assets is returned as .studytube.zip with project.studytube.json at the archive root.
-16. The project JSON is valid JSON with no comments, trailing commas or placeholders.
+12. Every quote is copied accurately from the supplied material and is not invented or misattributed.
+13. No image, annotatedImage or document scene references a nonexistent asset.
+14. Every declared asset exists at the exact same path inside the ZIP.
+15. A text-only project contains no declared assets and is returned as .studytube.json.
+16. A project with assets is returned as .studytube.zip with project.studytube.json at the archive root.
+17. The project JSON is valid JSON with no comments, trailing commas or placeholders.
 
 OUTPUT
 Return the finished file as a downloadable attachment, not as explanatory prose.
