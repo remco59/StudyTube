@@ -40,8 +40,10 @@ describe("parseProjectPackage",()=>{
   });
 
   it("allows JSON projects whose assets are stock resolver requests",async()=>{
-    const stockProject:any=project({clip:{type:"stockVideo",query:"aerial wind turbines",provider:"auto"}});
-    stockProject.chapters[0].scenes=[{id:"clip-01",type:"video",narration:"Windenergie in beeld.",visual:{assetId:"clip"}}];
+    const stockProject={
+      ...project({clip:{type:"stockVideo",query:"aerial wind turbines",provider:"auto"}}),
+      chapters:[{id:"intro",title:"Intro",scenes:[{id:"clip-01",type:"video",narration:"Windenergie in beeld.",visual:{assetId:"clip"}}]}],
+    };
     const parsed=await parseProjectPackage(jsonFile("stock.studytube.json",stockProject));
     expect(parsed.packageType).toBe("json");
     expect(parsed.project.assets?.clip.type).toBe("stockVideo");
@@ -74,8 +76,10 @@ describe("parseProjectPackage",()=>{
   });
 
   it("accepts a ZIP containing only stock resolver requests plus project JSON",async()=>{
-    const stockProject:any=project({photo:{type:"stockImage",query:"students studying",provider:"auto"}});
-    stockProject.chapters[0].scenes=[{id:"photo-01",type:"image",narration:"Studenten werken samen.",visual:{assetId:"photo"}}];
+    const stockProject={
+      ...project({photo:{type:"stockImage",query:"students studying",provider:"auto"}}),
+      chapters:[{id:"intro",title:"Intro",scenes:[{id:"photo-01",type:"image",narration:"Studenten werken samen.",visual:{assetId:"photo"}}]}],
+    };
     const zip=zipFile("stock.studytube.zip",{[STUDYTUBE_PROJECT_JSON]:new TextEncoder().encode(JSON.stringify(stockProject))});
     const parsed=await parseProjectPackage(zip);
     expect(parsed.packageType).toBe("zip");
