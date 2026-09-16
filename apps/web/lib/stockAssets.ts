@@ -57,7 +57,9 @@ export const searchStockAssets=async(input:{query:string;kind:StockAssetKind;pro
 };
 
 export const publicStockSearchResult=(result:StockSearchResult):PublicStockSearchResult=>{
-  const {downloadUrl:_,downloadLocation:__,...publicResult}=result;
+  const publicResult={...result} as StockSearchResult&Partial<Pick<StockSearchResult,"downloadUrl"|"downloadLocation">>;
+  delete publicResult.downloadUrl;
+  delete publicResult.downloadLocation;
   return publicResult;
 };
 
@@ -136,7 +138,7 @@ const searchPixabay=async(query:string,kind:StockAssetKind,key:string,limit:numb
       durationSeconds:number(hit.duration),creator,sourceUrl:text(hit.pageURL),alt:text(hit.tags),
       attributionText:creator?`Video by ${creator} on Pixabay`:"Video from Pixabay",licenseLabel:"Pixabay Content License",
     };
-  }).filter((value):value is StockSearchResult=>Boolean(value)).slice(0,limit);
+  }).filter(isPresent).slice(0,limit);
 };
 
 const searchPexels=async(query:string,kind:StockAssetKind,key:string,limit:number):Promise<StockSearchResult[]>=>{
@@ -156,7 +158,7 @@ const searchPexels=async(query:string,kind:StockAssetKind,key:string,limit:numbe
     const chosen=choosePexelsVideo(Array.isArray(item.video_files)?item.video_files:[]);if(!chosen)return null;
     const user=asRecord(item.user);const creator=text(user?.name);
     return {provider:"pexels" as const,providerId:id,kind,previewUrl:text(item.image)||chosen.link,downloadUrl:chosen.link,width:chosen.width??number(item.width),height:chosen.height??number(item.height),durationSeconds:number(item.duration),creator,creatorUrl:text(user?.url),sourceUrl:text(item.url),alt:`${query} stock video`,attributionText:creator?`Video by ${creator} on Pexels`:"Video from Pexels",licenseLabel:"Pexels License"};
-  }).filter((value):value is StockSearchResult=>Boolean(value));
+  }).filter(isPresent);
 };
 
 const searchUnsplash=async(query:string,key:string,limit:number):Promise<StockSearchResult[]>=>{
@@ -170,7 +172,7 @@ const searchUnsplash=async(query:string,key:string,limit:number):Promise<StockSe
     const downloadUrl=text(urls?.full)||text(urls?.regular);const previewUrl=text(urls?.regular)||downloadUrl;const downloadLocation=text(links?.download_location);if(!downloadUrl||!previewUrl||!downloadLocation)return null;
     const creator=text(user?.name);
     return {provider:"unsplash" as const,providerId:id,kind:"image" as const,previewUrl,downloadUrl,downloadLocation,width:number(item.width),height:number(item.height),creator,creatorUrl:text(userLinks?.html),sourceUrl:text(links?.html),alt:text(item.alt_description)||text(item.description),attributionText:creator?`Photo by ${creator} on Unsplash`:"Photo from Unsplash",licenseLabel:"Unsplash License"};
-  }).filter((value):value is StockSearchResult=>Boolean(value));
+  }).filter(isPresent);
 };
 
 const triggerUnsplashDownload=async(result:StockSearchResult,credentials:StockCredentials)=>{
@@ -219,6 +221,7 @@ const choosePexelsVideo=(files:unknown[])=>{
 const supports=(provider:StockProviderName,kind:StockAssetKind)=>kind==="image"||provider!=="unsplash";
 const hasCredential=(provider:StockProviderName,credentials:StockCredentials)=>provider==="pixabay"?Boolean(credentials.pixabayApiKey):provider==="pexels"?Boolean(credentials.pexelsApiKey):Boolean(credentials.unsplashAccessKey);
 const asRecord=(value:unknown):Record<string,unknown>|undefined=>value&&typeof value==="object"&&!Array.isArray(value)?value as Record<string,unknown>:undefined;
+const isPresent=<T>(value:T|null|undefined):value is T=>value!==null&&value!==undefined;
 const text=(value:unknown)=>typeof value==="string"&&value.trim()?value.trim():undefined;
 const number=(value:unknown)=>typeof value==="number"&&Number.isFinite(value)?value:typeof value==="string"&&Number.isFinite(Number(value))?Number(value):undefined;
 const extensionFor=(contentType:string,kind:StockAssetKind,url:string)=>{
