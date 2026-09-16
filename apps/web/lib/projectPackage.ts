@@ -1,9 +1,10 @@
 import {mkdir,writeFile} from "node:fs/promises";
 import {dirname,join} from "node:path";
 import {normalizeStudyTubeProject} from "@studytube/core";
-import {parseStudyTubeProject,type StudyTubeProject} from "@studytube/schema";
+import {parseStudyTubeProject,type StudyTubeAsset,type StudyTubeProject} from "@studytube/schema";
 import {normalizeRelativeProjectPath,StudyTubeJobPathError} from "@studytube/worker/path-safety";
 import {strFromU8,unzipSync} from "fflate";
+import {resolveStockAsset,StockAssetError} from "@/lib/stockAssets";
 
 export const STUDYTUBE_PROJECT_JSON="project.studytube.json";
 
@@ -14,6 +15,9 @@ const MAX_ASSET_BYTES=100_000_000;
 const MAX_UNCOMPRESSED_BYTES=300_000_000;
 
 type PackageType="json"|"zip";
+
+type StockAsset=Extract<StudyTubeAsset,{type:"stockImage"|"stockVideo"}>;
+type PackagedAsset=Exclude<StudyTubeAsset,StockAsset>;
 
 export type ParsedProjectPackage={
   project:StudyTubeProject;
@@ -40,17 +44,37 @@ export async function parseProjectPackage(file:File):Promise<ParsedProjectPackag
 export async function stageProjectPackage(parsed:ParsedProjectPackage,root:string){
   await mkdir(root,{recursive:true});
   const projectPath=join(root,STUDYTUBE_PROJECT_JSON);
-  await writeFile(projectPath,`${JSON.stringify(parsed.project,null,2)}\n`,`utf8`);
+  const resolvedAssets:Record<string,StudyTubeAsset>={};
 
-  for(const asset of Object.values(parsed.project.assets??{})){
+  for(const [assetId,asset] of Object.entries(parsed.project.assets??{})){
+    if(isStockAsset(asset)){
+      let resolved;
+      try{resolved=await resolveStockAsset(asset);}catch(error){
+        if(error instanceof StockAssetError)throw new StudyTubePackageError(`Could not resolve stock asset ${assetId}: ${error.message}`);
+        throw error;
+      }
+      const relative=safeRelativePath(resolved.asset.path);
+      const destination=join(root,...relative.split("/"));
+      await mkdir(dirname(destination),{recursive:true});
+      await writeFile(destination,resolved.data);
+      resolvedAssets[assetId]=resolved.asset;
+      continue;
+    }
+
     const relative=safeRelativePath(asset.path);
     const data=parsed.assetEntries.get(relative);
     if(!data)throw new StudyTubePackageError(`Missing packaged asset: ${asset.path}`);
     const destination=join(root,...relative.split("/"));
     await mkdir(dirname(destination),{recursive:true});
     await writeFile(destination,data);
+    resolvedAssets[assetId]=asset;
   }
 
+  const resolvedProject:StudyTubeProject={
+    ...parsed.project,
+    ...(Object.keys(resolvedAssets).length>0?{assets:resolvedAssets}:{assets:undefined}),
+  };
+  await writeFile(projectPath,`${JSON.stringify(resolvedProject,null,2)}\n`,`utf8`);
   return projectPath;
 }
 
@@ -59,8 +83,8 @@ export async function summarizeProjectPackage(parsed:ParsedProjectPackage){
   const assets=Object.entries(parsed.project.assets??{}).map(([id,asset])=>({
     id,
     type:asset.type,
-    path:asset.path,
-    fileName:asset.path.split("/").at(-1)??asset.path,
+    path:isStockAsset(asset)?`stock:${asset.query}`:asset.path,
+    fileName:isStockAsset(asset)?`${asset.type}:${asset.query}`:asset.path.split("/").at(-1)??asset.path,
   }));
   const preview=await buildProjectPreview(parsed.project);
   return {
@@ -105,9 +129,9 @@ async function buildProjectPreview(project:StudyTubeProject):Promise<ProjectPrev
 async function parseJsonPackage(file:File):Promise<ParsedProjectPackage>{
   if(file.size>MAX_JSON_BYTES)throw new StudyTubePackageError("Project JSON is too large",413);
   const project=parseJson(await file.text());
-  const assets=Object.keys(project.assets??{});
-  if(assets.length>0){
-    throw new StudyTubePackageError("Projects with assets must be packaged as .studytube.zip with project.studytube.json and all referenced asset files");
+  const packagedAssets=Object.values(project.assets??{}).filter((asset):asset is PackagedAsset=>!isStockAsset(asset));
+  if(packagedAssets.length>0){
+    throw new StudyTubePackageError("Projects with packaged image, video or document assets must use .studytube.zip. A .studytube.json may only contain stockImage/stockVideo requests, which StudyTube resolves during import.");
   }
   return {project,packageType:"json",assetEntries:new Map()};
 }
@@ -146,6 +170,7 @@ async function parseZipPackage(file:File):Promise<ParsedProjectPackage>{
 
   const assetEntries=new Map<string,Uint8Array>();
   for(const [,asset] of assets){
+    if(isStockAsset(asset))continue;
     const relative=safeRelativePath(asset.path);
     const data=entries.get(relative);
     if(!data)throw new StudyTubePackageError(`Missing packaged asset: ${asset.path}`);
@@ -172,6 +197,8 @@ export function safeRelativePath(input:string){
     throw error;
   }
 }
+
+const isStockAsset=(asset:StudyTubeAsset):asset is StockAsset=>asset.type==="stockImage"||asset.type==="stockVideo";
 
 function preflightZip(bytes:Uint8Array){
   if(bytes.byteLength<22)throw new StudyTubePackageError("Invalid ZIP archive");
