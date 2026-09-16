@@ -4,6 +4,12 @@ import type {RenderEngine,StudyTubeJobStatus} from "@studytube/worker/types";
 import {unregisterActiveJob} from "@/lib/activeJobs";
 import {cleanupCancelledJobWorkingData} from "@/lib/jobs";
 
+export const MAX_PENDING_RENDER_JOBS=24;
+
+export class RenderQueueFullError extends Error{
+  constructor(){super(`Render queue is full (max ${MAX_PENDING_RENDER_JOBS} pending jobs)`);this.name="RenderQueueFullError";}
+}
+
 export type QueuedRenderJob={
   jobId:string;
   projectPath:string;
@@ -23,7 +29,10 @@ type StudyTubeGlobal=typeof globalThis&{
 const runtimeGlobal=globalThis as StudyTubeGlobal;
 const queueState=runtimeGlobal.__studytubeRenderQueue??=(runtimeGlobal.__studytubeRenderQueue={pending:[],running:false});
 
+export const getAvailableQueueSlots=():number=>Math.max(0,MAX_PENDING_RENDER_JOBS-queueState.pending.length);
+
 export const enqueueRenderJob=(job:QueuedRenderJob):void=>{
+  if(queueState.pending.length>=MAX_PENDING_RENDER_JOBS)throw new RenderQueueFullError();
   queueState.pending.push(job);
   void processQueue();
 };
