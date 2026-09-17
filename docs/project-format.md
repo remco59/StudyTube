@@ -17,7 +17,11 @@ The runtime contract lives in `@studytube/schema`. Files that do not validate mu
 
 ### `version`
 
-Currently exactly `1.0`. Future breaking project-format changes must use a new version and an explicit migration path rather than silently changing v1 semantics.
+Currently exactly `1.0`. The v1 runtime schema intentionally remains strict: a project with another version must not be interpreted as v1 by accident.
+
+Migration infrastructure lives in `@studytube/schema/migrations`. Before a new project-format version becomes current, add a parser for that version plus an explicit `StudyTubeProjectMigration` step from every still-supported predecessor. `upgradeStudyTubeProject` dispatches to the parser registered for the source version, applies migration steps in order, and validates every intermediate version with its own registered parser. Missing migration paths, cycles, unsupported versions, and migration steps that return the wrong version fail explicitly.
+
+A future v2 therefore must not be introduced by merely changing the v1 `z.literal`. Keep the v1 parser available, add the v2 parser, register the v1 → v2 migration, and add a fixture test proving an existing v1 project upgrades without losing its data. This keeps format changes explicit rather than silently changing v1 semantics.
 
 ### `metadata`
 
