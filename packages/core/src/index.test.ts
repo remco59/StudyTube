@@ -1,4 +1,5 @@
 import {describe, expect, it} from "vitest";
+import {createPhraseCaptionCues} from "./captions";
 import {
   estimateNarrationDurationSeconds,
   framesToSeconds,
@@ -130,6 +131,30 @@ describe("normalizeStudyTubeProject", () => {
     expect(scenes.map((scene) => scene.startFrame)).toEqual([0, 75, 150]);
     expect(scenes.map((scene) => scene.endFrameExclusive)).toEqual([75, 150, 225]);
     expect(scenes.map((scene) => scene.globalSceneIndex)).toEqual([0, 1, 2]);
+  });
+
+  it("keeps narration captions inside the padded scene span across timing settings", async () => {
+    for (const fps of [24, 30, 60]) {
+      for (const scenePaddingSeconds of [0, 0.25, 0.75]) {
+        for (const narrationDurationSeconds of [0.35, 1, 2.2, 7.75]) {
+          const normalized = await normalizeStudyTubeProject(project, {
+            fps,
+            scenePaddingSeconds,
+            narrationDurationProvider: () => narrationDurationSeconds,
+          });
+
+          for (const scene of normalized.chapters.flatMap((chapter) => chapter.scenes)) {
+            const cues = createPhraseCaptionCues(
+              scene.scene.narration,
+              scene.narrationDurationSeconds,
+              fps,
+            );
+            const captionEndFrame = cues.at(-1)?.endFrameExclusive ?? 0;
+            expect(captionEndFrame).toBeLessThanOrEqual(scene.durationInFrames);
+          }
+        }
+      }
+    }
   });
 
   it("adds thinking time and a visible-answer hold after quiz narration", async () => {
