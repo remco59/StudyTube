@@ -53,13 +53,15 @@ const KineticTextScene=({scene}:{scene:SceneOf<"kineticText">})=>{
 
 const DefinitionScene=({scene}:{scene:SceneOf<"definition">})=>{
   const frame=useCurrentFrame();const {fps}=useVideoConfig();
+  const underlineProgress=interpolate(frame,[10,10+Math.max(8,Math.round(fps*.4))],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
   return <FullStage centered><div style={{alignItems:"start",display:"grid",gap:spacing.xxl,gridTemplateColumns:".78fr 1.22fr",maxWidth:1500,width:"100%"}}>
     <div style={revealStyle(frame,fps,0)}>
       <div style={{...typography.label,color:colors.accent,marginBottom:spacing.md,textTransform:"uppercase"}}>Definitie</div>
-      <div style={{...typography.heading,fontSize:72,lineHeight:1.02,overflowWrap:"anywhere"}}>{scene.visual.term}</div>
+      <div style={{...typography.heading,fontSize:76,lineHeight:1.02,overflowWrap:"anywhere"}}>{scene.visual.term}</div>
+      <div style={{backgroundColor:colors.accent,borderRadius:2,boxShadow:`0 0 14px ${colors.accent}`,height:4,marginTop:spacing.md,transform:`scaleX(${underlineProgress})`,transformOrigin:"left center",width:96}}/>
     </div>
     <div style={{...revealStyle(frame,fps,5),borderLeft:`2px solid ${colors.line}`,paddingLeft:spacing.xl}}>
-      <div style={{...typography.heading,fontSize:50,lineHeight:1.15}}>{scene.visual.definition}</div>
+      <div style={{...typography.heading,fontSize:52,lineHeight:1.22}}>{scene.visual.definition}</div>
       {scene.visual.example?<div style={{...typography.body,borderLeft:`4px solid ${colors.accent}`,color:colors.textMuted,fontSize:30,lineHeight:1.4,marginTop:spacing.xl,paddingLeft:spacing.md}}><strong style={{color:colors.accent}}>Voorbeeld:</strong> {scene.visual.example}</div>:null}
     </div>
   </div></FullStage>;
