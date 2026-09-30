@@ -229,13 +229,28 @@ const searchUnsplash=async(query:string,key:string,limit:number):Promise<StockSe
 };
 
 const triggerUnsplashDownload=async(result:StockSearchResult,credentials:StockCredentials)=>{
-  if(!result.downloadLocation||!credentials.unsplashAccessKey)throw new StockAssetError("Unsplash download tracking information is missing");
-  const response=await fetch(result.downloadLocation,{headers:{Authorization:`Client-ID ${credentials.unsplashAccessKey}`,"Accept-Version":"v1",accept:"application/json"},signal:AbortSignal.timeout(12_000)});
-  if(!response.ok)throw new StockAssetError(`Unsplash download tracking returned HTTP ${response.status}`);
-  const payload=await response.json() as {url?:unknown};
-  const url=text(payload.url);
-  if(!url)throw new StockAssetError("Unsplash did not return a downloadable image URL");
-  return url;
+  if(!result.downloadLocation||!credentials.unsplashAccessKey){
+    console.warn("Unsplash download tracking information is missing; falling back to the search result URL");
+    return result.downloadUrl;
+  }
+
+  try{
+    const response=await fetch(result.downloadLocation,{headers:{Authorization:`Client-ID ${credentials.unsplashAccessKey}`,"Accept-Version":"v1",accept:"application/json"},signal:AbortSignal.timeout(12_000)});
+    if(!response.ok){
+      console.warn(`Unsplash download tracking returned HTTP ${response.status}; falling back to the search result URL`);
+      return result.downloadUrl;
+    }
+    const payload=await response.json() as {url?:unknown};
+    const url=text(payload.url);
+    if(!url){
+      console.warn("Unsplash download tracking did not return a URL; falling back to the search result URL");
+      return result.downloadUrl;
+    }
+    return url;
+  }catch(error){
+    console.warn("Unsplash download tracking failed; falling back to the search result URL",error);
+    return result.downloadUrl;
+  }
 };
 
 const downloadBinary=async(url:string,kind:StockAssetKind)=>{
