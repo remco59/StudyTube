@@ -1,7 +1,7 @@
 import type {NormalizedScene} from "@studytube/core";
 import {colors,radii,spacing,typography} from "@studytube/design-system";
 import type {CSSProperties,ReactNode} from "react";
-import {interpolate,useCurrentFrame,useVideoConfig} from "remotion";
+import {interpolate,spring,useCurrentFrame,useVideoConfig} from "remotion";
 import {IconGlyph} from "./IconGlyph";
 import {getAdaptiveGridColumns,getFlowchartPositions,getOrbitPositions} from "./structuredLayout";
 
@@ -38,22 +38,45 @@ const TimelineScene=({scene}:{scene:SceneOf<"timeline">})=>{
   </Stage>;
 };
 
+// Tiers keep every node and its text legible from 2 steps up to the schema
+// maximum of 8, instead of a fixed size that starts overlapping past ~5.
+const getProcessNodeSizing=(stepCount:number)=>{
+  if(stepCount<=4)return {descriptionFontSize:22,iconSize:54,nodeSize:132,textWidth:230,titleFontSize:30};
+  if(stepCount<=6)return {descriptionFontSize:19,iconSize:44,nodeSize:104,textWidth:190,titleFontSize:25};
+  return {descriptionFontSize:17,iconSize:36,nodeSize:84,textWidth:150,titleFontSize:21};
+};
+
 const ProcessScene=({scene}:{scene:SceneOf<"process">})=>{
   const frame=useCurrentFrame();
   const {fps}=useVideoConfig();
-  const columns=getAdaptiveGridColumns(scene.visual.steps.length,4);
+  const steps=scene.visual.steps;
+  const {descriptionFontSize,iconSize,nodeSize,textWidth,titleFontSize}=getProcessNodeSizing(steps.length);
+  const stepDelayFrames=Math.max(4,Math.round(fps*.28));
+  const startDelayFrames=Math.max(6,Math.round(fps*.2));
+
   return <Stage>
     <SceneTitle title={scene.visual.title??"Proces"}/>
-    <div style={{display:"grid",gap:spacing.xl,gridTemplateColumns:`repeat(${columns}, minmax(0, 1fr))`,width:"100%"}}>
-      {scene.visual.steps.map((step,index)=><div key={`${step.title}-${index}`} style={{...reveal(frame,fps,index*3),minHeight:250,minWidth:0,padding:`0 ${spacing.sm}px`,position:"relative"}}>
-        <div style={{alignItems:"center",display:"flex",gap:spacing.sm}}>
-          <div style={{alignItems:"center",border:`2px solid ${index===0?colors.accent:colors.line}`,borderRadius:radii.pill,color:index===0?colors.accent:colors.textMuted,display:"flex",flexShrink:0,fontSize:24,fontWeight:850,height:58,justifyContent:"center",width:58}}>{index+1}</div>
-          {step.icon?<div style={{color:colors.accent,display:"flex"}}><IconGlyph icon={step.icon} size={34}/></div>:null}
-        </div>
-        <div style={{...typography.heading,fontSize:38,lineHeight:1.06,marginTop:spacing.md}}>{step.title}</div>
-        {step.description?<div style={{...typography.body,color:colors.textMuted,fontSize:26,lineHeight:1.35,marginTop:spacing.sm}}>{step.description}</div>:null}
-        {index<scene.visual.steps.length-1&&scene.visual.steps.length<=4?<div style={{alignItems:"center",color:colors.line,display:"flex",fontSize:38,fontWeight:400,position:"absolute",right:-spacing.lg,top:8}}>→</div>:null}
-      </div>)}
+    <div style={{alignItems:"flex-start",display:"flex",width:"100%"}}>
+      {steps.map((step,index)=>{
+        const nodeDelay=startDelayFrames+index*stepDelayFrames;
+        const nodeProgress=spring({config:{damping:11,mass:.6},fps,frame:frame-nodeDelay});
+        const connectorProgress=interpolate(frame,[nodeDelay+6,nodeDelay+6+stepDelayFrames],[0,1],{extrapolateLeft:"clamp",extrapolateRight:"clamp"});
+        const isLast=index===steps.length-1;
+
+        return <div key={`${step.title}-${index}`} style={{alignItems:"flex-start",display:"flex",flex:isLast?"0 0 auto":1,minWidth:0}}>
+          <div style={{alignItems:"center",display:"flex",flexDirection:"column",flexShrink:0,opacity:nodeProgress,transform:`scale(${nodeProgress})`}}>
+            <div style={{alignItems:"center",backgroundColor:colors.accentSoft,border:`3px solid ${colors.accent}`,borderRadius:radii.pill,boxShadow:`0 0 28px ${colors.accentSoft}`,color:colors.accent,display:"flex",height:nodeSize,justifyContent:"center",width:nodeSize}}>
+              {step.icon?<IconGlyph icon={step.icon} size={iconSize}/>:<span style={{fontSize:iconSize*.7,fontWeight:850}}>{index+1}</span>}
+            </div>
+            <div style={{...typography.heading,fontSize:titleFontSize,lineHeight:1.15,marginTop:spacing.sm,maxWidth:textWidth,textAlign:"center"}}>{step.title}</div>
+            {step.description?<div style={{...typography.body,WebkitBoxOrient:"vertical",WebkitLineClamp:2,color:colors.textMuted,display:"-webkit-box",fontSize:descriptionFontSize,lineHeight:1.3,marginTop:4,maxWidth:textWidth,overflow:"hidden",textAlign:"center"}}>{step.description}</div>:null}
+          </div>
+          {!isLast?<div style={{alignItems:"center",display:"flex",flex:1,marginTop:nodeSize/2-2,minWidth:24,position:"relative"}}>
+            <div style={{backgroundColor:colors.accentStrong,height:3,transform:`scaleX(${connectorProgress})`,transformOrigin:"left center",width:"100%"}}/>
+            <div style={{borderBottom:"6px solid transparent",borderLeft:`10px solid ${colors.accentStrong}`,borderTop:"6px solid transparent",height:0,opacity:connectorProgress,position:"absolute",right:0,width:0}}/>
+          </div>:null}
+        </div>;
+      })}
     </div>
   </Stage>;
 };
